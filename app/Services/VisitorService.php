@@ -104,9 +104,16 @@ class VisitorService
             // Log warning or block. Let's allow check-in but set status or show warning
         }
 
-        $this->repo->updateVisitStatus($visitId, 'checked_in', now()->format('Y-m-d H:i:s'), null);
+        $checkedInAt = now()->format('Y-m-d H:i:s');
+        $this->repo->updateVisitStatus($visitId, 'checked_in', $checkedInAt, null);
         AuditLogger::log('visitors', 'check_in', 'visit', $visitId, ['status' => $visit['status']], ['status' => 'checked_in']);
-        return ['success' => true];
+        return [
+            'success' => true,
+            'id' => $visitId,
+            'status' => 'checked_in',
+            'check_in_time' => $checkedInAt,
+            'visitor_id' => (int) $visit['visitor_id'],
+        ];
     }
 
     public function checkOut(int $visitId): array
@@ -116,9 +123,16 @@ class VisitorService
             return ['success' => false, 'error' => 'Visit not found.'];
         }
 
-        $this->repo->updateVisitStatus($visitId, 'checked_out', null, now()->format('Y-m-d H:i:s'));
+        $checkedOutAt = now()->format('Y-m-d H:i:s');
+        $this->repo->updateVisitStatus($visitId, 'checked_out', null, $checkedOutAt);
         AuditLogger::log('visitors', 'check_out', 'visit', $visitId, ['status' => $visit['status']], ['status' => 'checked_out']);
-        return ['success' => true];
+        return [
+            'success' => true,
+            'id' => $visitId,
+            'status' => 'checked_out',
+            'check_out_time' => $checkedOutAt,
+            'visitor_id' => (int) $visit['visitor_id'],
+        ];
     }
 
     public function toggleWatchlist(int $visitorId, bool $watchlist): array
@@ -132,7 +146,11 @@ class VisitorService
             null,
             ['is_watchlisted' => $watchlist]
         );
-        return ['success' => true];
+        return [
+            'success' => true,
+            'visitor_id' => $visitorId,
+            'is_watchlisted' => $watchlist,
+        ];
     }
 
     public function onSiteCount(): int

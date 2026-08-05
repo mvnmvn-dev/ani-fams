@@ -164,6 +164,7 @@ render_page_header([
                     <tbody>
                         <?php foreach ($contracts as $con): ?>
                             <tr data-filter-item
+                                data-contract-id="<?= (int) $con['id'] ?>"
                                 data-filter-status="<?= htmlspecialchars($con['status']) ?>"
                                 data-filter-type="<?= htmlspecialchars($con['type_name'] ?: 'General') ?>"
                                 data-filter-search="<?= htmlspecialchars(strtolower($con['title'] . ' ' . $con['contract_number'] . ' ' . $con['counterparty_name'] . ' ' . ($con['type_name'] ?? ''))) ?>">
@@ -184,7 +185,7 @@ render_page_header([
                                     <?= $con['value_amount'] ? htmlspecialchars($con['currency']) . ' ' . number_format($con['value_amount'], 2) : '—' ?>
                                 </td>
                                 <td>
-                                    <span class="inline-block px-2 py-0.5 text-[11px] border rounded capitalize <?= $statusStyles[$con['status']] ?? 'bg-gray-50 border-gray-200' ?>">
+                                    <span data-status-badge class="inline-block px-2 py-0.5 text-[11px] border rounded capitalize <?= $statusStyles[$con['status']] ?? 'bg-gray-50 border-gray-200' ?>">
                                         <?= str_replace('_', ' ', $con['status']) ?>
                                     </span>
                                 </td>

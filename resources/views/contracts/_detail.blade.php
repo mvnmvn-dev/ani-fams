@@ -208,7 +208,7 @@ $daysToEnd = !empty($c['end_date']) ? (int) floor((strtotime($c['end_date']) - t
                 <div class="bg-white border border-accent-200 rounded-xl p-5 shadow-sm space-y-4 bg-accent-50/40">
                     <h3 class="font-sans text-base font-bold text-brand-850">Approval Decision Required</h3>
                     <p class="text-xs text-ink/70">You are next in the approval sequence for this contract agreement.</p>
-                    <form action="<?= url('/contracts/' . $c['id'] . '/approve') ?>" method="POST" class="space-y-3">
+                    <form action="<?= url('/contracts/' . $c['id'] . '/approve') ?>" method="POST" class="space-y-3" data-ajax-action="contract.approve" data-ajax-reload-modal="<?= url('/contracts/' . $c['id'] . '?modal=1') ?>">
                         @csrf
                         <input type="hidden" name="approval_id" value="<?= $myStep['id'] ?>">
                         <div class="space-y-1">

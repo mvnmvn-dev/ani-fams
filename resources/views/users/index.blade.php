@@ -107,6 +107,7 @@ arsort($deptCounts);
                     ?>
                     <article class="directory-card <?= $u['status'] !== 'active' ? 'is-inactive' : '' ?>"
                              data-filter-item
+                             data-user-id="<?= (int) $u['id'] ?>"
                              data-filter-role="<?= htmlspecialchars($u['role_code']) ?>"
                              data-filter-status="<?= htmlspecialchars($u['status']) ?>"
                              data-filter-search="<?= htmlspecialchars(strtolower($u['full_name'] . ' ' . $u['email'] . ' ' . $u['role_name'])) ?>">
@@ -124,13 +125,14 @@ arsort($deptCounts);
                             <span class="px-2.5 py-1 rounded-md text-xs border font-semibold <?= $roleColors[$u['role_code']] ?? '' ?>">
                                 <?= htmlspecialchars($u['role_name']) ?>
                             </span>
-                            <span class="px-2.5 py-1 rounded-md text-xs border font-semibold <?= $u['status'] === 'active' ? 'bg-brand-50 text-brand-700 border-brand-300' : 'bg-ink/5 text-ink/50 border-ink/10' ?>">
+                            <span data-status-badge class="px-2.5 py-1 rounded-md text-xs border font-semibold <?= $u['status'] === 'active' ? 'bg-brand-50 text-brand-700 border-brand-300' : 'bg-ink/5 text-ink/50 border-ink/10' ?>">
                                 <?= ucfirst($u['status']) ?>
                             </span>
                         </div>
                         <div>
                             <?php if (!$isSelf): ?>
                                 <button type="button"
+                                        data-user-toggle
                                         class="text-xs font-bold px-3 py-2 rounded-lg <?= $u['status'] === 'active' ? 'text-accent-700 hover:bg-accent-50' : 'text-brand-700 hover:bg-brand-50' ?> transition"
                                         onclick="openStatusModal(<?= (int) $u['id'] ?>, <?= htmlspecialchars(json_encode($u['full_name']), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode($u['status']), ENT_QUOTES) ?>)">
                                     <?= $nextAction ?>
@@ -249,7 +251,7 @@ arsort($deptCounts);
                 </svg>
             </button>
         </div>
-        <form id="statusUserForm" method="POST" class="p-8 space-y-5">
+        <form id="statusUserForm" method="POST" class="p-8 space-y-5" data-ajax-action="user.toggle">
             @csrf
             <input type="hidden" name="current_status" id="statusCurrentValue" value="">
             <p id="statusModalBody" class="text-sm text-ink/70 leading-relaxed"></p>

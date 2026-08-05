@@ -1873,6 +1873,51 @@
         .module-table tbody tr.is-watch { background: rgba(248,248,248,0.55); }
         .module-table td { padding: 0.9rem 1.25rem; vertical-align: top; color: var(--text-primary); font-weight: 400; }
 
+        /* List pagination (10 per page) */
+        .module-pagination {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 0.75rem;
+            padding: 0.65rem 0.15rem 0.15rem;
+            margin-top: 0.35rem;
+        }
+        .module-pagination-meta {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: rgba(78, 84, 92, 0.55);
+            letter-spacing: 0.01em;
+        }
+        .module-pagination-btn {
+            appearance: none;
+            border: 1px solid rgba(78, 84, 92, 0.14);
+            background: #fff;
+            color: #4E545C;
+            font-size: 0.75rem;
+            font-weight: 700;
+            padding: 0.4rem 0.85rem;
+            border-radius: 0.65rem;
+            cursor: pointer;
+            transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+        }
+        .module-pagination-btn:hover:not(:disabled) {
+            background: rgba(78, 84, 92, 0.04);
+            border-color: rgba(78, 84, 92, 0.22);
+        }
+        .module-pagination-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+        html.dark .module-pagination-meta { color: rgba(232, 228, 220, 0.55); }
+        html.dark .module-pagination-btn {
+            background: rgba(255, 255, 255, 0.04);
+            border-color: rgba(255, 255, 255, 0.12);
+            color: rgba(232, 228, 220, 0.85);
+        }
+        html.dark .module-pagination-btn:hover:not(:disabled) {
+            background: rgba(255, 255, 255, 0.08);
+        }
+
         /* Visitors — on-site cards */
         .visitor-onsite-card {
             background: #fff;

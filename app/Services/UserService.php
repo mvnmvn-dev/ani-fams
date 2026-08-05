@@ -59,7 +59,7 @@ class UserService
         return ['success' => true];
     }
 
-    public function toggleStatus(int $id, string $currentStatus): void
+    public function toggleStatus(int $id, string $currentStatus): array
     {
         $newStatus = $currentStatus === 'active' ? 'suspended' : 'active';
         $this->repo->updateStatus($id, $newStatus);
@@ -72,5 +72,7 @@ class UserService
             ['status' => $currentStatus],
             ['status' => $newStatus]
         );
+
+        return ['success' => true, 'status' => $newStatus, 'id' => $id];
     }
 }

@@ -159,52 +159,54 @@ if (!function_exists('audit_pretty_json')) {
     <?php if (empty($logs)): ?>
         <div class="module-empty">No audit entries yet. Actions across the system will appear here.</div>
     <?php else: ?>
-        <div class="audit-timeline">
-            <?php foreach ($logs as $log): ?>
-                <?php
-                    $style = $actionStyles[$log['action']] ?? 'bg-ink/5 text-ink/60 border-ink/10';
-                    $detailId = 'audit-detail-' . (int) $log['id'];
-                    $hasDetails = !empty($log['old_values']) || !empty($log['new_values']);
-                ?>
-                <article class="audit-event">
-                    <div class="flex flex-wrap items-start justify-between gap-3">
-                        <div class="min-w-0">
-                            <div class="flex flex-wrap items-center gap-2 mb-1">
-                                <span class="px-2.5 py-1 rounded-md text-xs border font-semibold <?= $style ?>">
-                                    <?= htmlspecialchars(str_replace('_', ' ', $log['action'])) ?>
-                                </span>
-                                <span class="text-xs text-ink/45 capitalize"><?= htmlspecialchars(str_replace('_', ' ', $log['module'])) ?></span>
-                            </div>
-                            <p class="text-sm font-semibold text-ink">
-                                <?php if (!empty($log['actor_name'])): ?>
-                                    <?= htmlspecialchars($log['actor_name']) ?>
-                                <?php else: ?>
-                                    System / unknown
-                                <?php endif; ?>
-                                <span class="font-normal text-ink/50">on</span>
-                                <?= htmlspecialchars($log['entity_type']) ?>
-                                <span class="text-ink/40 font-mono text-xs">#<?= htmlspecialchars($log['entity_id']) ?></span>
-                            </p>
-                            <p class="text-xs text-ink/45 mt-1.5">
-                                <?= htmlspecialchars(date('M j, Y · g:i A', strtotime($log['created_at']))) ?>
-                                <?php if (!empty($log['actor_email'])): ?>
+        <div data-filter-root>
+            <div class="audit-timeline" data-paginate-shell>
+                <?php foreach ($logs as $log): ?>
+                    <?php
+                        $style = $actionStyles[$log['action']] ?? 'bg-ink/5 text-ink/60 border-ink/10';
+                        $detailId = 'audit-detail-' . (int) $log['id'];
+                        $hasDetails = !empty($log['old_values']) || !empty($log['new_values']);
+                    ?>
+                    <article class="audit-event" data-filter-item>
+                        <div class="flex flex-wrap items-start justify-between gap-3">
+                            <div class="min-w-0">
+                                <div class="flex flex-wrap items-center gap-2 mb-1">
+                                    <span class="px-2.5 py-1 rounded-md text-xs border font-semibold <?= $style ?>">
+                                        <?= htmlspecialchars(str_replace('_', ' ', $log['action'])) ?>
+                                    </span>
+                                    <span class="text-xs text-ink/45 capitalize"><?= htmlspecialchars(str_replace('_', ' ', $log['module'])) ?></span>
+                                </div>
+                                <p class="text-sm font-semibold text-ink">
+                                    <?php if (!empty($log['actor_name'])): ?>
+                                        <?= htmlspecialchars($log['actor_name']) ?>
+                                    <?php else: ?>
+                                        System / unknown
+                                    <?php endif; ?>
+                                    <span class="font-normal text-ink/50">on</span>
+                                    <?= htmlspecialchars($log['entity_type']) ?>
+                                    <span class="text-ink/40 font-mono text-xs">#<?= htmlspecialchars($log['entity_id']) ?></span>
+                                </p>
+                                <p class="text-xs text-ink/45 mt-1.5">
+                                    <?= htmlspecialchars(date('M j, Y · g:i A', strtotime($log['created_at']))) ?>
+                                    <?php if (!empty($log['actor_email'])): ?>
+                                        <span class="mx-1 text-ink/25">·</span>
+                                        <?= htmlspecialchars($log['actor_email']) ?>
+                                    <?php endif; ?>
                                     <span class="mx-1 text-ink/25">·</span>
-                                    <?= htmlspecialchars($log['actor_email']) ?>
-                                <?php endif; ?>
-                                <span class="mx-1 text-ink/25">·</span>
-                                <span class="font-mono"><?= htmlspecialchars($log['ip_address'] ?? '—') ?></span>
-                            </p>
+                                    <span class="font-mono"><?= htmlspecialchars($log['ip_address'] ?? '—') ?></span>
+                                </p>
+                            </div>
+                            <?php if ($hasDetails): ?>
+                                <button type="button"
+                                        onclick="openModal('<?= $detailId ?>')"
+                                        class="text-xs font-bold px-3 py-2 rounded-lg bg-brand-50 text-brand-700 hover:bg-brand-100 transition shrink-0">
+                                    View details
+                                </button>
+                            <?php endif; ?>
                         </div>
-                        <?php if ($hasDetails): ?>
-                            <button type="button"
-                                    onclick="openModal('<?= $detailId ?>')"
-                                    class="text-xs font-bold px-3 py-2 rounded-lg bg-brand-50 text-brand-700 hover:bg-brand-100 transition shrink-0">
-                                View details
-                            </button>
-                        <?php endif; ?>
-                    </div>
-                </article>
-            <?php endforeach; ?>
+                    </article>
+                <?php endforeach; ?>
+            </div>
         </div>
     <?php endif; ?>
     </div>

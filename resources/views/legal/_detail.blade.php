@@ -125,7 +125,7 @@ $linkedDocCount = count($case['documents'] ?? []);
                                         </div>
                                         <div class="text-right shrink-0">
                                             <?php if ($canManage): ?>
-                                                <form action="<?= url('/legal/' . $case['id'] . '/milestones/' . $m['id'] . '/toggle') ?>" method="POST">
+                                                <form action="<?= url('/legal/' . $case['id'] . '/milestones/' . $m['id'] . '/toggle') ?>" method="POST" data-ajax-action="legal.milestone.toggle" data-ajax-reload-modal="<?= url('/legal/' . $case['id'] . '?modal=1') ?>">
                                                     @csrf
                                                     <input type="hidden" name="completed" value="<?= $m['is_completed'] ? '0' : '1' ?>">
                                                     <button type="submit" class="text-xs font-semibold text-brand-600 hover:text-brand-800 underline">

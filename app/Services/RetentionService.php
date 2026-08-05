@@ -147,6 +147,8 @@ class RetentionService
             $actionTaken = 'reviewed';
         }
 
+        $newStatus = $action === 'review' ? 'due_for_review' : 'disposed';
+
         $this->repo->createDisposalLog([
             'retention_assignment_id' => $assignmentId,
             'action_taken'            => $actionTaken,
@@ -159,7 +161,12 @@ class RetentionService
             'action_taken' => $actionTaken,
         ]);
 
-        return ['success' => true];
+        return [
+            'success' => true,
+            'id' => $assignmentId,
+            'status' => $newStatus,
+            'action_taken' => $actionTaken,
+        ];
     }
 
     /**
@@ -201,7 +208,7 @@ class RetentionService
     {
         $this->repo->releaseLegalHold($holdId);
         AuditLogger::log('retention', 'update', 'legal_hold', $holdId, null, ['status' => 'released']);
-        return ['success' => true];
+        return ['success' => true, 'id' => $holdId, 'released' => true];
     }
 
     public function pendingDisposalCount(): int

@@ -254,6 +254,10 @@
         if (!form) return false;
         confirmAction(message, options || {}).then(function (ok) {
             if (!ok) return;
+            if (form.hasAttribute('data-ajax-action')) {
+                window.submitAjaxForm(form);
+                return;
+            }
             // Native submit() skips the button onclick, so confirm does not loop.
             HTMLFormElement.prototype.submit.call(form);
         });
@@ -540,14 +544,306 @@
         });
     }
 
-    /* ---------- Module list filters ---------- */
+    /* ---------- Module list filters + 10-per-page pagination ---------- */
+    var LIST_PAGE_SIZE = 10;
+
+    function csrfToken() {
+        var meta = document.querySelector('meta[name="csrf-token"]');
+        return meta ? meta.getAttribute('content') : '';
+    }
+
+    function formatVisitStamp(iso) {
+        if (!iso) return '';
+        var d = new Date(String(iso).replace(' ', 'T'));
+        if (isNaN(d.getTime())) return String(iso);
+        return d.toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+    }
+
+    function refreshFilterRoots(scope) {
+        var roots = [];
+        if (scope && scope.closest) {
+            var root = scope.closest('[data-filter-root]');
+            if (root) roots = [root];
+        }
+        if (!roots.length) {
+            roots = Array.prototype.slice.call(document.querySelectorAll('[data-filter-root]'));
+        }
+        roots.forEach(function (root) {
+            if (typeof root._moduleFilterApply === 'function') root._moduleFilterApply();
+        });
+    }
+
+    function applyAjaxDomUpdate(form, data) {
+        var action = (data && data.action) || form.getAttribute('data-ajax-action') || '';
+        var row = form.closest('[data-filter-item], tr, .directory-card, .visitor-onsite-card');
+
+        if (action === 'reservation.decide' && row) {
+            row.remove();
+            refreshFilterRoots(document);
+            return;
+        }
+
+        if ((action === 'visitor.checkin' || action === 'visitor.checkout') && row) {
+            var status = data.status || (action === 'visitor.checkin' ? 'checked_in' : 'checked_out');
+            var visitId = data.id || row.getAttribute('data-visit-id');
+            var visitorsBase = <?= json_encode(url('/visitors')) ?>;
+            var token = csrfToken();
+
+            function updateVisitRow(target) {
+                if (!target) return;
+                target.setAttribute('data-filter-status', status);
+
+                var badge = target.querySelector('[data-status-badge]');
+                if (badge) {
+                    badge.textContent = status.replace(/_/g, ' ');
+                    badge.className = 'inline-block px-2.5 py-1 text-[11px] border rounded-md capitalize ' + (
+                        status === 'checked_in' ? 'bg-brand-50 text-brand-700 border-brand-200'
+                        : status === 'checked_out' ? 'bg-gray-100 text-gray-700 border-gray-200'
+                        : 'bg-gray-50 border-gray-200'
+                    );
+                }
+
+                var timeCell = target.querySelector('[data-visit-times]');
+                if (timeCell) {
+                    function stampParts(iso) {
+                        var d = new Date(String(iso).replace(' ', 'T'));
+                        if (isNaN(d.getTime())) return { day: String(iso), time: '' };
+                        return {
+                            day: d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }),
+                            time: d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+                        };
+                    }
+                    var html = timeCell.innerHTML;
+                    if (status === 'checked_in' && data.check_in_time) {
+                        var inn = stampParts(data.check_in_time);
+                        html = '<div class="text-brand-700 font-medium">In: ' + escapeHtml(inn.day) + '</div>' +
+                            '<div class="text-brand-700/80 text-[10px]">' + escapeHtml(inn.time) + '</div>';
+                    }
+                    if (status === 'checked_out' && data.check_out_time) {
+                        var out = stampParts(data.check_out_time);
+                        if (html.indexOf('In:') === -1) html = '<div class="text-ink/30">—</div>';
+                        html += '<div class="text-ink/50 mt-1">Out: ' + escapeHtml(out.day) + '</div>' +
+                            '<div class="text-ink/40 text-[10px]">' + escapeHtml(out.time) + '</div>';
+                    }
+                    timeCell.innerHTML = html;
+                }
+
+                var actions = target.querySelector('[data-row-actions]');
+                if (actions) {
+                    var watchForm = actions.querySelector('[data-ajax-action="visitor.watchlist"]');
+                    var watchHtml = watchForm ? watchForm.outerHTML : '';
+                    if (status === 'checked_in' && visitId) {
+                        actions.innerHTML =
+                            '<form action="' + visitorsBase + '/' + visitId + '/check-out" method="POST" class="inline" data-ajax-action="visitor.checkout">' +
+                            '<input type="hidden" name="_token" value="' + escapeHtml(token) + '">' +
+                            '<button type="submit" class="text-xs font-bold text-ink hover:text-ink/80 mr-2">Check Out</button></form> ' +
+                            watchHtml;
+                    } else if (status === 'checked_out') {
+                        actions.innerHTML = watchHtml || '<span class="text-ink/30">—</span>';
+                    }
+                }
+            }
+
+            var tableRow = visitId
+                ? document.querySelector('tr[data-visit-id="' + visitId + '"]')
+                : (row.tagName === 'TR' ? row : null);
+            updateVisitRow(tableRow || (row.tagName === 'TR' ? row : null));
+
+            if (status === 'checked_out' && visitId) {
+                var onsite = document.querySelector('.visitor-onsite-card[data-visit-id="' + visitId + '"]');
+                if (onsite) onsite.remove();
+            }
+            refreshFilterRoots(tableRow || row);
+            return;
+        }
+
+        if (action === 'visitor.watchlist') {
+            var visitorId = data.visitor_id;
+            if (!visitorId) {
+                var host = form.closest('[data-visitor-id]');
+                if (host) visitorId = host.getAttribute('data-visitor-id');
+            }
+            var watched = !!data.is_watchlisted;
+            document.querySelectorAll('[data-visitor-id="' + visitorId + '"]').forEach(function (el) {
+                el.setAttribute('data-filter-watch', watched ? 'yes' : 'no');
+                el.classList.toggle('is-watch', watched);
+                var watchBadge = el.querySelector('[data-watch-badge]');
+                if (watchBadge) watchBadge.hidden = !watched;
+                var watchForm = el.querySelector('[data-ajax-action="visitor.watchlist"]');
+                if (watchForm) {
+                    var input = watchForm.querySelector('input[name="watchlist"]');
+                    if (input) input.value = watched ? '0' : '1';
+                    var btn = watchForm.querySelector('button');
+                    if (btn) btn.textContent = watched ? 'Unwatch' : 'Watch';
+                }
+            });
+            refreshFilterRoots(form);
+            return;
+        }
+
+        if (action === 'retention.dispose' && row) {
+            var st = data.status || 'disposed';
+            row.setAttribute('data-filter-status', st);
+            var sBadge = row.querySelector('[data-status-badge]');
+            if (sBadge) {
+                sBadge.textContent = st.replace(/_/g, ' ');
+            }
+            var rActions = row.querySelector('[data-row-actions]');
+            if (rActions) rActions.innerHTML = '<span class="text-ink/30">—</span>';
+            refreshFilterRoots(row);
+            return;
+        }
+
+        if (action === 'retention.release' && row) {
+            row.setAttribute('data-filter-status', 'released');
+            var holdBadge = row.querySelector('[data-status-badge]');
+            if (holdBadge) holdBadge.textContent = 'released';
+            var holdActions = row.querySelector('[data-row-actions]');
+            if (holdActions) holdActions.innerHTML = '<span class="text-xs text-ink/40">Released</span>';
+            refreshFilterRoots(row);
+            return;
+        }
+
+        if (action === 'user.toggle') {
+            var userId = data.id;
+            var card = document.querySelector('.directory-card[data-user-id="' + userId + '"]');
+            if (card && data.status) {
+                card.setAttribute('data-filter-status', data.status);
+                card.classList.toggle('is-inactive', data.status !== 'active');
+                var statusEl = card.querySelector('[data-status-badge]');
+                if (statusEl) {
+                    statusEl.textContent = data.status.charAt(0).toUpperCase() + data.status.slice(1);
+                    statusEl.className = 'px-2.5 py-1 rounded-md text-xs border font-semibold ' + (
+                        data.status === 'active'
+                            ? 'bg-brand-50 text-brand-700 border-brand-300'
+                            : 'bg-ink/5 text-ink/50 border-ink/10'
+                    );
+                }
+                var toggleBtn = card.querySelector('[data-user-toggle]');
+                if (toggleBtn) {
+                    var next = data.status === 'active' ? 'Suspend' : 'Reactivate';
+                    var nameEl = card.querySelector('h3');
+                    var nameText = nameEl ? nameEl.childNodes[0].textContent.trim() : 'User';
+                    toggleBtn.textContent = next;
+                    toggleBtn.className = 'text-xs font-bold px-3 py-2 rounded-lg ' + (
+                        data.status === 'active' ? 'text-accent-700 hover:bg-accent-50' : 'text-brand-700 hover:bg-brand-50'
+                    ) + ' transition';
+                    toggleBtn.setAttribute('onclick',
+                        'openStatusModal(' + userId + ', ' + JSON.stringify(nameText) + ', ' + JSON.stringify(data.status) + ')'
+                    );
+                }
+            }
+            closeModal('statusUserModal');
+            refreshFilterRoots(card || form);
+            return;
+        }
+
+        if (action === 'contract.approve') {
+            if (data.id && data.status) {
+                var crow = document.querySelector('[data-contract-id="' + data.id + '"]');
+                if (crow) {
+                    crow.setAttribute('data-filter-status', data.status);
+                    var cBadge = crow.querySelector('[data-status-badge]');
+                    if (cBadge) cBadge.textContent = String(data.status).replace(/_/g, ' ');
+                }
+            }
+            var reloadUrl = form.getAttribute('data-ajax-reload-modal');
+            if (reloadUrl && typeof window.openRecordModal === 'function') {
+                window.openRecordModal(reloadUrl);
+            }
+            refreshFilterRoots(document);
+            return;
+        }
+
+        if (action === 'legal.milestone.toggle') {
+            var mReload = form.getAttribute('data-ajax-reload-modal');
+            if (mReload && typeof window.openRecordModal === 'function') {
+                window.openRecordModal(mReload);
+            }
+            return;
+        }
+    }
+
+    window.submitAjaxForm = function (form, submitter) {
+        if (!form || form.getAttribute('data-ajax-busy') === '1') return Promise.resolve();
+        form.setAttribute('data-ajax-busy', '1');
+
+        var fd = new FormData(form);
+        if (submitter && submitter.name) {
+            fd.set(submitter.name, submitter.value);
+        }
+
+        return fetch(form.action, {
+            method: (form.method || 'POST').toUpperCase(),
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-TOKEN': csrfToken(),
+                'Accept': 'application/json'
+            },
+            body: fd,
+            credentials: 'same-origin'
+        }).then(function (res) {
+            return res.json().then(function (data) {
+                return { ok: res.ok, data: data };
+            }).catch(function () {
+                return { ok: false, data: { success: false, message: 'Unexpected server response.' } };
+            });
+        }).then(function (result) {
+            form.removeAttribute('data-ajax-busy');
+            var data = result.data || {};
+            var success = result.ok && data.success !== false;
+            var message = data.message || data.error || (success ? 'Updated.' : 'Action failed.');
+            showToast(success ? 'success' : 'error', message);
+            if (success) applyAjaxDomUpdate(form, data);
+            return data;
+        }).catch(function () {
+            form.removeAttribute('data-ajax-busy');
+            showToast('error', 'Network error. Please try again.');
+        });
+    };
+
+    document.addEventListener('submit', function (e) {
+        var form = e.target;
+        if (!form || !form.hasAttribute || !form.hasAttribute('data-ajax-action')) return;
+        // confirmForm already prevents default; skip native confirm path
+        if (e.defaultPrevented) return;
+        e.preventDefault();
+        window.submitAjaxForm(form, e.submitter || null);
+    }, true);
+
     function initModuleFilters(root) {
         if (!root) return;
         var controls = root.querySelectorAll('[data-module-filter]');
         var emptyEl = root.querySelector('[data-filter-empty]');
         var countEl = root.querySelector('[data-filter-count]');
         var clearBtn = root.querySelector('[data-filter-clear]');
-        if (!controls.length) return;
+        var pageState = { page: 1 };
+
+        function paginateShells() {
+            return Array.prototype.filter.call(
+                root.querySelectorAll('.module-table-wrap, .directory-grid, [data-paginate-shell]'),
+                function (shell) {
+                    return !shell.closest('#jsCalendar, .cal-shell');
+                }
+            );
+        }
+
+        function ensurePager(shell) {
+            var pager = shell.parentElement && shell.parentElement.querySelector(':scope > .module-pagination');
+            if (pager && pager._forShell === shell) return pager;
+            // Prefer pager immediately after shell
+            var next = shell.nextElementSibling;
+            if (next && next.classList.contains('module-pagination')) {
+                next._forShell = shell;
+                return next;
+            }
+            pager = document.createElement('div');
+            pager.className = 'module-pagination';
+            pager._forShell = shell;
+            pager.hidden = true;
+            shell.insertAdjacentElement('afterend', pager);
+            return pager;
+        }
 
         function activeFilters() {
             var filters = {};
@@ -575,46 +871,104 @@
             return true;
         }
 
-        function anyVisible(nodes) {
-            var found = false;
-            nodes.forEach(function (item) {
-                if (!item.hidden) found = true;
+        function renderPager(pager, page, totalPages, onChange) {
+            if (totalPages <= 1) {
+                pager.hidden = true;
+                pager.innerHTML = '';
+                return;
+            }
+            pager.hidden = false;
+            var html = '';
+            html += '<button type="button" class="module-pagination-btn" data-page="prev"' + (page <= 1 ? ' disabled' : '') + '>Prev</button>';
+            html += '<span class="module-pagination-meta">Page ' + page + ' of ' + totalPages + '</span>';
+            html += '<button type="button" class="module-pagination-btn" data-page="next"' + (page >= totalPages ? ' disabled' : '') + '>Next</button>';
+            pager.innerHTML = html;
+            pager.querySelectorAll('button[data-page]').forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    if (btn.disabled) return;
+                    var dir = btn.getAttribute('data-page');
+                    onChange(dir === 'next' ? page + 1 : page - 1);
+                });
             });
-            return found;
         }
 
         function apply() {
             var filters = activeFilters();
             var items = root.querySelectorAll('[data-filter-item]');
             var sections = root.querySelectorAll('[data-filter-section]');
-            var visible = 0;
+            var matched = [];
 
             items.forEach(function (item) {
                 var ok = itemMatches(item, filters);
+                item.setAttribute('data-filter-matched', ok ? '1' : '0');
+                if (ok) matched.push(item);
+                // Hide non-matches immediately; pagination will reveal a page of matches
                 item.hidden = !ok;
-                if (ok) visible += 1;
             });
+
+            var shells = paginateShells();
+            var visible = 0;
+
+            if (shells.length) {
+                shells.forEach(function (shell) {
+                    var shellItems = Array.prototype.filter.call(
+                        shell.querySelectorAll('[data-filter-item]'),
+                        function (item) { return item.getAttribute('data-filter-matched') === '1'; }
+                    );
+                    var key = shell.getAttribute('data-page-key') || (shell.className + ':' + Array.prototype.indexOf.call(shells, shell));
+                    if (!pageState[key]) pageState[key] = 1;
+                    var totalPages = Math.max(1, Math.ceil(shellItems.length / LIST_PAGE_SIZE));
+                    if (pageState[key] > totalPages) pageState[key] = totalPages;
+                    var page = pageState[key];
+                    var start = (page - 1) * LIST_PAGE_SIZE;
+                    var end = start + LIST_PAGE_SIZE;
+
+                    shellItems.forEach(function (item, idx) {
+                        var onPage = idx >= start && idx < end;
+                        item.hidden = !onPage;
+                        if (onPage) visible += 1;
+                    });
+
+                    // Non-matched already hidden
+                    shell.hidden = shellItems.length === 0;
+                    var pager = ensurePager(shell);
+                    renderPager(pager, page, totalPages, function (nextPage) {
+                        pageState[key] = nextPage;
+                        apply();
+                    });
+                });
+
+                // Items outside shells (e.g. calendar events): keep filter-only behavior
+                items.forEach(function (item) {
+                    if (item.closest('.module-table-wrap, .directory-grid, [data-paginate-shell]')) return;
+                    if (item.getAttribute('data-filter-matched') === '1') {
+                        item.hidden = false;
+                        visible += 1;
+                    }
+                });
+            } else {
+                matched.forEach(function (item) {
+                    item.hidden = false;
+                    visible += 1;
+                });
+            }
 
             sections.forEach(function (section) {
                 var sectionItems = section.querySelectorAll('[data-filter-item]');
-                section.hidden = sectionItems.length > 0 && !anyVisible(sectionItems);
+                var any = false;
+                sectionItems.forEach(function (item) {
+                    if (item.getAttribute('data-filter-matched') === '1') any = true;
+                });
+                section.hidden = sectionItems.length > 0 && !any;
             });
 
-            /* Hide hollow table / grid shells so empty state is only the message */
-            root.querySelectorAll('.module-table-wrap, .directory-grid').forEach(function (shell) {
-                var shellItems = shell.querySelectorAll('[data-filter-item]');
-                if (!shellItems.length) return;
-                shell.hidden = !anyVisible(shellItems);
-            });
-
-            /* Facilities keeps the calendar as the empty state — never swap it for a message box */
             var hasCalendar = !!root.querySelector('#jsCalendar, .cal-shell');
-            if (emptyEl) emptyEl.hidden = hasCalendar || visible !== 0;
-            if (countEl) countEl.textContent = visible + ' of ' + items.length + ' shown';
+            if (emptyEl) emptyEl.hidden = hasCalendar || matched.length !== 0;
+            if (countEl) countEl.textContent = matched.length + ' of ' + items.length + ' shown';
             if (clearBtn) clearBtn.hidden = Object.keys(filters).length === 0;
 
             if (typeof window.famsRestagger === 'function') {
-                root.querySelectorAll('.module-table-wrap, .directory-grid, .module-insight-panel').forEach(function (shell) {
+                root.querySelectorAll('.module-table-wrap, .directory-grid, .module-insight-panel, [data-paginate-shell]').forEach(function (shell) {
                     if (!shell.hidden) window.famsRestagger(shell);
                 });
             }
@@ -622,13 +976,21 @@
 
         root._moduleFilterApply = apply;
 
+        // Reset to page 1 when filters change
         controls.forEach(function (el) {
-            el.addEventListener('input', apply);
-            el.addEventListener('change', apply);
+            el.addEventListener('input', function () {
+                Object.keys(pageState).forEach(function (k) { if (k !== 'page') pageState[k] = 1; });
+                apply();
+            });
+            el.addEventListener('change', function () {
+                Object.keys(pageState).forEach(function (k) { if (k !== 'page') pageState[k] = 1; });
+                apply();
+            });
         });
         if (clearBtn) {
             clearBtn.addEventListener('click', function () {
                 controls.forEach(function (el) { el.value = ''; });
+                Object.keys(pageState).forEach(function (k) { if (k !== 'page') pageState[k] = 1; });
                 apply();
             });
         }

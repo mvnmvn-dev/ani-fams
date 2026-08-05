@@ -135,7 +135,11 @@ class LegalCaseService
     public function toggleMilestone(int $milestoneId, bool $completed): array
     {
         $this->repo->toggleMilestone($milestoneId, $completed ? 1 : 0);
-        return ['success' => true];
+        return [
+            'success' => true,
+            'id' => $milestoneId,
+            'completed' => $completed,
+        ];
     }
 
     /**

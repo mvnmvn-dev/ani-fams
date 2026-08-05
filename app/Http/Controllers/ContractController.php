@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\RespondsWithFlashOrJson;
 use App\Services\ContractService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -9,6 +10,8 @@ use Illuminate\Support\Facades\DB;
 
 class ContractController extends Controller
 {
+    use RespondsWithFlashOrJson;
+
     public function index(ContractService $service)
     {
         $users = DB::table('users')->where('status', 'active')->select('id', 'full_name', 'email')->orderBy('full_name')->get()->map(fn ($r) => (array) $r)->all();
@@ -82,10 +85,15 @@ class ContractController extends Controller
             (string) $request->input('decision'),
             (string) $request->input('comments', '')
         );
+        $success = (bool) ($result['success'] ?? false);
+        $message = $success ? 'Contract approval decision registered.' : (string) ($result['error'] ?? 'Unable to record decision.');
 
-        return redirect()->route('contracts.index', ['open' => $id])->with(
-            $result['success'] ? 'flash_success' : 'flash_error',
-            $result['success'] ? 'Contract approval decision registered.' : $result['error']
+        return $this->flashOrJson(
+            $request,
+            redirect()->route('contracts.index', ['open' => $id]),
+            $success,
+            $message,
+            array_merge(['action' => 'contract.approve'], $result)
         );
     }
 

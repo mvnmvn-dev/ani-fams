@@ -144,6 +144,7 @@ $upcomingApproved = array_slice($upcomingApproved, 0, 5);
                             <tbody>
                                 <?php foreach ($pendingReservations as $r): ?>
                                     <tr data-filter-item
+                                        data-reservation-id="<?= (int) $r['id'] ?>"
                                         data-filter-status="<?= htmlspecialchars($r['status']) ?>"
                                         data-filter-facility="<?= htmlspecialchars($r['facility_name']) ?>"
                                         data-filter-search="<?= htmlspecialchars(strtolower($r['facility_name'] . ' ' . $r['purpose'] . ' ' . ($r['requester_name'] ?? ''))) ?>">
@@ -154,12 +155,12 @@ $upcomingApproved = array_slice($upcomingApproved, 0, 5);
                                         <td class="text-ink/70"><?= htmlspecialchars($r['purpose']) ?></td>
                                         <td class="text-ink/70"><?= htmlspecialchars($r['requester_name']) ?></td>
                                         <td class="text-right whitespace-nowrap">
-                                            <form action="<?= url('/reservations/' . $r['id'] . '/decide') ?>" method="POST" class="inline">
+                                            <form action="<?= url('/reservations/' . $r['id'] . '/decide') ?>" method="POST" class="inline" data-ajax-action="reservation.decide">
                                                 @csrf
                                                 <input type="hidden" name="decision" value="approved">
                                                 <button class="text-xs font-bold text-brand-700 hover:text-brand-900 mr-3">Approve</button>
                                             </form>
-                                            <form action="<?= url('/reservations/' . $r['id'] . '/decide') ?>" method="POST" class="inline">
+                                            <form action="<?= url('/reservations/' . $r['id'] . '/decide') ?>" method="POST" class="inline" data-ajax-action="reservation.decide">
                                                 @csrf
                                                 <input type="hidden" name="decision" value="rejected">
                                                 <button class="text-xs font-bold text-accent-700 hover:text-accent-600">Reject</button>

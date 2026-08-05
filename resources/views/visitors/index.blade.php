@@ -112,7 +112,7 @@ $recentCheckIns = array_slice($recentCheckIns, 0, 5);
             </div>
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 <?php foreach ($onSite as $visit): ?>
-                    <div class="visitor-onsite-card <?= $visit['is_watchlisted'] ? 'is-watch' : '' ?>">
+                    <div class="visitor-onsite-card <?= $visit['is_watchlisted'] ? 'is-watch' : '' ?>" data-visit-id="<?= (int) $visit['id'] ?>" data-visitor-id="<?= (int) $visit['visitor_id'] ?>">
                         <div class="flex items-start justify-between gap-2 mb-3">
                             <div class="min-w-0">
                                 <div class="flex flex-wrap items-center gap-1.5">
@@ -152,12 +152,12 @@ $recentCheckIns = array_slice($recentCheckIns, 0, 5);
                         </div>
                         <?php if ($canCheckIn): ?>
                             <div class="mt-3 pt-3 border-t border-ink/8 flex gap-2">
-                                <form action="<?= url('/visitors/' . $visit['id'] . '/check-out') ?>" method="POST" class="flex-1">
+                                <form action="<?= url('/visitors/' . $visit['id'] . '/check-out') ?>" method="POST" class="flex-1" data-ajax-action="visitor.checkout">
                                     @csrf
                                     <button type="submit" class="w-full text-xs font-bold px-3 py-2 rounded-lg bg-ink text-sand hover:bg-ink/80 transition">Check Out</button>
                                 </form>
                                 <?php if ($canManage): ?>
-                                    <form action="<?= url('/visitors/' . $visit['visitor_id'] . '/toggle-watchlist') ?>" method="POST">
+                                    <form action="<?= url('/visitors/' . $visit['visitor_id'] . '/toggle-watchlist') ?>" method="POST" data-ajax-action="visitor.watchlist">
                                         @csrf
                                         <input type="hidden" name="watchlist" value="<?= $visit['is_watchlisted'] ? '0' : '1' ?>">
                                         <button type="submit" class="text-xs font-bold px-3 py-2 rounded-lg border border-accent-200 text-accent-700 hover:bg-accent-50 transition" title="<?= $visit['is_watchlisted'] ? 'Remove from watchlist' : 'Add to watchlist' ?>">
@@ -218,15 +218,15 @@ $recentCheckIns = array_slice($recentCheckIns, 0, 5);
                             <?php foreach ($visits as $visit): ?>
                                 <tr class="<?= $visit['is_watchlisted'] ? 'is-watch' : '' ?>"
                                     data-filter-item
+                                    data-visit-id="<?= (int) $visit['id'] ?>"
+                                    data-visitor-id="<?= (int) $visit['visitor_id'] ?>"
                                     data-filter-status="<?= htmlspecialchars($visit['status']) ?>"
                                     data-filter-watch="<?= $visit['is_watchlisted'] ? 'yes' : 'no' ?>"
                                     data-filter-search="<?= htmlspecialchars(strtolower($visit['visitor_name'] . ' ' . $visit['host_name'] . ' ' . ($visit['visitor_company'] ?? '') . ' ' . ($visit['purpose'] ?? '') . ' ' . ($visit['allowed_areas'] ?? ''))) ?>">
                                     <td>
                                         <div class="font-semibold flex flex-wrap items-center gap-1.5">
                                             <?= htmlspecialchars($visit['visitor_name']) ?>
-                                            <?php if ($visit['is_watchlisted']): ?>
-                                                <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-accent-100 text-accent-700 uppercase tracking-wide border border-accent-200">Watch</span>
-                                            <?php endif; ?>
+                                            <span data-watch-badge class="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-accent-100 text-accent-700 uppercase tracking-wide border border-accent-200" <?= $visit['is_watchlisted'] ? '' : 'hidden' ?>>Watch</span>
                                         </div>
                                         <div class="text-[11px] text-ink/45 mt-0.5"><?= htmlspecialchars($visit['visitor_company'] ?: 'Individual') ?></div>
                                     </td>
@@ -236,7 +236,7 @@ $recentCheckIns = array_slice($recentCheckIns, 0, 5);
                                         <?= date('M d, Y', strtotime($visit['scheduled_at'])) ?>
                                         <div class="text-[10px] text-ink/40"><?= date('g:i A', strtotime($visit['scheduled_at'])) ?></div>
                                     </td>
-                                    <td class="whitespace-nowrap text-xs">
+                                    <td class="whitespace-nowrap text-xs" data-visit-times>
                                         <?php if ($visit['check_in_time']): ?>
                                             <div class="text-brand-700 font-medium">In: <?= date('M j, Y', strtotime($visit['check_in_time'])) ?></div>
                                             <div class="text-brand-700/80 text-[10px]"><?= date('g:i A', strtotime($visit['check_in_time'])) ?></div>
@@ -249,26 +249,26 @@ $recentCheckIns = array_slice($recentCheckIns, 0, 5);
                                         <?php endif; ?>
                                     </td>
                                     <td>
-                                        <span class="inline-block px-2.5 py-1 text-[11px] border rounded-md capitalize <?= $statusStyles[$visit['status']] ?? 'bg-gray-50 border-gray-200' ?>">
+                                        <span data-status-badge class="inline-block px-2.5 py-1 text-[11px] border rounded-md capitalize <?= $statusStyles[$visit['status']] ?? 'bg-gray-50 border-gray-200' ?>">
                                             <?= str_replace('_', ' ', $visit['status']) ?>
                                         </span>
                                     </td>
-                                    <td class="text-right whitespace-nowrap">
+                                    <td class="text-right whitespace-nowrap" data-row-actions>
                                         <?php if ($canCheckIn): ?>
                                             <?php if ($visit['status'] === 'scheduled'): ?>
-                                                <form action="<?= url('/visitors/' . $visit['id'] . '/check-in') ?>" method="POST" class="inline">
+                                                <form action="<?= url('/visitors/' . $visit['id'] . '/check-in') ?>" method="POST" class="inline" data-ajax-action="visitor.checkin">
                                                     @csrf
                                                     <button type="submit" class="text-xs font-bold text-brand-700 hover:text-brand-900 mr-2">Check In</button>
                                                 </form>
                                             <?php elseif ($visit['status'] === 'checked_in'): ?>
-                                                <form action="<?= url('/visitors/' . $visit['id'] . '/check-out') ?>" method="POST" class="inline">
+                                                <form action="<?= url('/visitors/' . $visit['id'] . '/check-out') ?>" method="POST" class="inline" data-ajax-action="visitor.checkout">
                                                     @csrf
                                                     <button type="submit" class="text-xs font-bold text-ink hover:text-ink/80 mr-2">Check Out</button>
                                                 </form>
                                             <?php endif; ?>
                                         <?php endif; ?>
                                         <?php if ($canManage): ?>
-                                            <form action="<?= url('/visitors/' . $visit['visitor_id'] . '/toggle-watchlist') ?>" method="POST" class="inline">
+                                            <form action="<?= url('/visitors/' . $visit['visitor_id'] . '/toggle-watchlist') ?>" method="POST" class="inline" data-ajax-action="visitor.watchlist">
                                                 @csrf
                                                 <input type="hidden" name="watchlist" value="<?= $visit['is_watchlisted'] ? '0' : '1' ?>">
                                                 <button type="submit" class="text-xs font-bold text-accent-700 hover:text-accent-600">

@@ -2,12 +2,15 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\RespondsWithFlashOrJson;
 use App\Services\VisitorService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
 class VisitorController extends Controller
 {
+    use RespondsWithFlashOrJson;
+
     public function index(VisitorService $service)
     {
         return view('visitors.index', [
@@ -32,33 +35,48 @@ class VisitorController extends Controller
         );
     }
 
-    public function checkIn(string $id, VisitorService $service)
+    public function checkIn(Request $request, string $id, VisitorService $service)
     {
         $result = $service->checkIn((int) $id);
+        $success = (bool) ($result['success'] ?? false);
+        $message = $success ? 'Visitor checked in successfully.' : (string) ($result['error'] ?? 'Unable to check in.');
 
-        return redirect()->route('visitors.index')->with(
-            $result['success'] ? 'flash_success' : 'flash_error',
-            $result['success'] ? 'Visitor checked in successfully.' : $result['error']
+        return $this->flashOrJson(
+            $request,
+            redirect()->route('visitors.index'),
+            $success,
+            $message,
+            array_merge(['action' => 'visitor.checkin'], $result)
         );
     }
 
-    public function checkOut(string $id, VisitorService $service)
+    public function checkOut(Request $request, string $id, VisitorService $service)
     {
         $result = $service->checkOut((int) $id);
+        $success = (bool) ($result['success'] ?? false);
+        $message = $success ? 'Visitor checked out successfully.' : (string) ($result['error'] ?? 'Unable to check out.');
 
-        return redirect()->route('visitors.index')->with(
-            $result['success'] ? 'flash_success' : 'flash_error',
-            $result['success'] ? 'Visitor checked out successfully.' : $result['error']
+        return $this->flashOrJson(
+            $request,
+            redirect()->route('visitors.index'),
+            $success,
+            $message,
+            array_merge(['action' => 'visitor.checkout'], $result)
         );
     }
 
     public function toggleWatchlist(Request $request, string $id, VisitorService $service)
     {
         $result = $service->toggleWatchlist((int) $id, $request->boolean('watchlist'));
+        $success = (bool) ($result['success'] ?? false);
+        $message = $success ? 'Visitor watchlist status updated.' : (string) ($result['error'] ?? 'Unable to update watchlist.');
 
-        return redirect()->route('visitors.index')->with(
-            $result['success'] ? 'flash_success' : 'flash_error',
-            $result['success'] ? 'Visitor watchlist status updated.' : $result['error']
+        return $this->flashOrJson(
+            $request,
+            redirect()->route('visitors.index'),
+            $success,
+            $message,
+            array_merge(['action' => 'visitor.watchlist'], $result)
         );
     }
 }

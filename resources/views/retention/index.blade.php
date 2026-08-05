@@ -167,6 +167,7 @@ $dueReviewList = array_slice($dueReviewList, 0, 5);
                                     ?>
                                     <tr class="<?= $overdue ? 'is-watch' : '' ?>"
                                         data-filter-item
+                                        data-assignment-id="<?= (int) $asg['id'] ?>"
                                         data-filter-panel="schedule"
                                         data-filter-status="<?= htmlspecialchars(($overdue ? 'overdue ' : '') . $asg['status']) ?>"
                                         data-filter-search="<?= htmlspecialchars(strtolower($asg['document_title'] . ' ' . $asg['document_number'] . ' ' . $asg['policy_name'] . ' ' . $asg['disposal_action'])) ?>">
@@ -187,16 +188,16 @@ $dueReviewList = array_slice($dueReviewList, 0, 5);
                                             <?php endif; ?>
                                         </td>
                                         <td>
-                                            <span class="inline-block px-2 py-0.5 text-[11px] border rounded capitalize <?= $asgStatusStyles[$asg['status']] ?? 'bg-gray-50 border-gray-200' ?>">
+                                            <span data-status-badge class="inline-block px-2 py-0.5 text-[11px] border rounded capitalize <?= $asgStatusStyles[$asg['status']] ?? 'bg-gray-50 border-gray-200' ?>">
                                                 <?= str_replace('_', ' ', $asg['status']) ?>
                                             </span>
                                         </td>
-                                        <td class="text-right whitespace-nowrap">
+                                        <td class="text-right whitespace-nowrap" data-row-actions>
                                             <?php if ($canManage && $asg['status'] !== 'disposed'): ?>
                                                 <?php if ($asg['status'] === 'on_legal_hold'): ?>
                                                     <span class="text-xs text-accent-700 font-semibold">Hold locked</span>
                                                 <?php else: ?>
-                                                    <form action="<?= url('/retention/' . $asg['id'] . '/dispose') ?>" method="POST" class="inline">
+                                                    <form action="<?= url('/retention/' . $asg['id'] . '/dispose') ?>" method="POST" class="inline" data-ajax-action="retention.dispose">
                                                         @csrf
                                                         <button type="submit" class="text-xs font-semibold <?= $overdue ? 'text-accent-700 hover:text-red-900' : 'text-brand-700 hover:text-brand-900' ?>" onclick="return confirmForm(event, 'Execute disposal action (<?= htmlspecialchars($asg['disposal_action'], ENT_QUOTES) ?>) for this record?', { confirmLabel: 'Process', danger: true })">
                                                             Process <?= ucfirst($asg['disposal_action']) ?>
@@ -244,6 +245,7 @@ $dueReviewList = array_slice($dueReviewList, 0, 5);
                                 <?php foreach ($holds as $hold): ?>
                                     <?php $holdStatus = $hold['released_at'] === null ? 'locked' : 'released'; ?>
                                     <tr data-filter-item
+                                        data-hold-id="<?= (int) $hold['id'] ?>"
                                         data-filter-panel="hold"
                                         data-filter-status="<?= $holdStatus ?>"
                                         data-filter-search="<?= htmlspecialchars(strtolower($hold['reason'] . ' ' . ($hold['case_title'] ?? '') . ' ' . $hold['placed_by_name'] . ' ' . ($hold['documents_on_hold'] ?? ''))) ?>">
@@ -259,14 +261,14 @@ $dueReviewList = array_slice($dueReviewList, 0, 5);
                                         </td>
                                         <td>
                                             <?php if ($holdStatus === 'locked'): ?>
-                                                <span class="inline-block px-2 py-0.5 text-[11px] border border-accent-200 bg-accent-50 text-accent-700 rounded">Locked</span>
+                                                <span data-status-badge class="inline-block px-2 py-0.5 text-[11px] border border-accent-200 bg-accent-50 text-accent-700 rounded">Locked</span>
                                             <?php else: ?>
-                                                <span class="inline-block px-2 py-0.5 text-[11px] border border-gray-200 bg-gray-100 text-gray-600 rounded">Released</span>
+                                                <span data-status-badge class="inline-block px-2 py-0.5 text-[11px] border border-gray-200 bg-gray-100 text-gray-600 rounded">Released</span>
                                             <?php endif; ?>
                                         </td>
-                                        <td class="text-right whitespace-nowrap">
+                                        <td class="text-right whitespace-nowrap" data-row-actions>
                                             <?php if ($holdStatus === 'locked' && $canManage): ?>
-                                                <form action="<?= url('/retention/holds/' . $hold['id'] . '/release') ?>" method="POST" class="inline">
+                                                <form action="<?= url('/retention/holds/' . $hold['id'] . '/release') ?>" method="POST" class="inline" data-ajax-action="retention.release">
                                                     @csrf
                                                     <button type="submit" class="text-xs font-semibold text-accent-700 hover:text-red-900" onclick="return confirmForm(event, 'Release this legal hold?', { title: 'Release legal hold', confirmLabel: 'Release Hold', danger: true })">
                                                         Release

@@ -120,10 +120,11 @@ class ContractService
 
         $this->repo->updateApprovalStepStatus($approvalId, $decision, $comments);
 
+        $contractStatus = 'in_review';
         if ($decision === 'rejected') {
             $this->repo->updateContractStatus($contractId, 'draft');
+            $contractStatus = 'draft';
         } else {
-            // Check if there are any remaining pending approvals
             $approvals = $this->repo->getApprovals($contractId);
             $allApproved = true;
             foreach ($approvals as $app) {
@@ -134,6 +135,7 @@ class ContractService
             }
             if ($allApproved) {
                 $this->repo->updateContractStatus($contractId, 'active');
+                $contractStatus = 'active';
             }
         }
 
@@ -146,7 +148,12 @@ class ContractService
             ['approval_id' => $approvalId, 'decision' => $decision, 'comments' => $comments]
         );
 
-        return ['success' => true];
+        return [
+            'success' => true,
+            'id' => $contractId,
+            'status' => $contractStatus,
+            'decision' => $decision,
+        ];
     }
 
     /**

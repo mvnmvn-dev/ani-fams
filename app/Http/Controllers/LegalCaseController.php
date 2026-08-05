@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\RespondsWithFlashOrJson;
 use App\Services\LegalCaseService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -9,6 +10,8 @@ use Illuminate\Support\Facades\DB;
 
 class LegalCaseController extends Controller
 {
+    use RespondsWithFlashOrJson;
+
     public function index(LegalCaseService $service)
     {
         $counsels = DB::table('employees')->select('id', 'full_name', 'position')->orderBy('full_name')->get()->map(fn ($r) => (array) $r)->all();
@@ -80,9 +83,15 @@ class LegalCaseController extends Controller
     public function toggleMilestone(Request $request, string $caseId, string $milestoneId, LegalCaseService $service)
     {
         $result = $service->toggleMilestone((int) $milestoneId, $request->boolean('completed'));
-        return redirect()->route('legal.index', ['open' => $caseId])->with(
-            $result['success'] ? 'flash_success' : 'flash_error',
-            $result['success'] ? 'Milestone status updated.' : $result['error']
+        $success = (bool) ($result['success'] ?? false);
+        $message = $success ? 'Milestone status updated.' : (string) ($result['error'] ?? 'Unable to update milestone.');
+
+        return $this->flashOrJson(
+            $request,
+            redirect()->route('legal.index', ['open' => $caseId]),
+            $success,
+            $message,
+            array_merge(['action' => 'legal.milestone.toggle', 'case_id' => (int) $caseId], $result)
         );
     }
 
