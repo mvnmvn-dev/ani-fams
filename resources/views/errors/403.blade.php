@@ -1,21 +1,20 @@
-<?php
-$pageTitle = 'Access denied';
-$showSidebar = auth()->check();
-require __DIR__ . '/../partials/header.php';
-if ($showSidebar) {
-    echo '<div class="flex">';
-    require __DIR__ . '/../partials/sidebar.php';
-    echo '<main class="flex-1 p-8 max-w-6xl">';
-}
-?>
-<div class="max-w-lg <?= $showSidebar ? '' : 'mx-auto mt-24' ?> text-center">
-    <p class="font-display text-3xl text-ink mb-2">403 — Access denied</p>
-    <p class="text-ink/60 text-sm">Your role doesn't include the permission needed for this page.
-        If you believe this is a mistake, contact your administrator.</p>
-    <a href="<?= url('/dashboard') ?>" class="inline-block mt-6 text-sm text-brand-700 underline underline-offset-2">Back to dashboard</a>
-</div>
-<?php
-if ($showSidebar) {
-    echo '</main></div>';
-}
-require __DIR__ . '/../partials/footer.php';
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Access denied</title>
+    <style>
+        body { margin: 0; font-family: Inter, system-ui, sans-serif; background: #F8F8F8; color: #1E293B; }
+        .wrap { max-width: 28rem; margin: 6rem auto; text-align: center; padding: 0 1rem; }
+        a { color: #142E4C; }
+    </style>
+</head>
+<body>
+    <div class="wrap">
+        <p style="font-size:1.75rem;font-weight:700;margin:0 0 .5rem">403 — Access denied</p>
+        <p style="color:#64748B;font-size:.9rem">Your role doesn't include the permission needed for this page.</p>
+        <a href="{{ url('/dashboard') }}">Back to dashboard</a>
+    </div>
+</body>
+</html>

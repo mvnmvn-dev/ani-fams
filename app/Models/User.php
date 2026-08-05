@@ -22,6 +22,16 @@ class User extends Authenticatable
         'password_hash',
     ];
 
+    /** @var string Column Laravel Auth uses for password rehash/update */
+    protected $authPasswordName = 'password_hash';
+
+    /**
+     * FAMS users table has no remember_token column — disable remember-me updates on logout.
+     *
+     * @var string
+     */
+    protected $rememberTokenName = '';
+
     public $timestamps = true;
 
     const CREATED_AT = 'created_at';
@@ -30,12 +40,15 @@ class User extends Authenticatable
     public function getAuthPassword(): string
     {
         // Legacy seeds use $2b$ (PHP password_hash); Laravel bcrypt expects $2y$.
-        return str_replace('$2b$', '$2y$', $this->password_hash);
+        return str_replace('$2b$', '$2y$', (string) $this->password_hash);
     }
 
     public function setPasswordAttribute(string $value): void
     {
-        $this->attributes['password_hash'] = Hash::make($value);
+        // Avoid double-hashing when a hashed value is assigned (e.g. auth rehash paths).
+        $this->attributes['password_hash'] = Hash::isHashed($value)
+            ? $value
+            : Hash::make($value);
     }
 
     public function role(): BelongsTo

@@ -47,9 +47,23 @@ class LoginController extends Controller
             AuditLogger::log('auth', 'logout', 'user', Auth::id());
         }
 
-        Auth::logout();
-        $request->session()->invalidate();
-        $request->session()->regenerateToken();
+        try {
+            // Avoid remember_token cycling on schemas without that column.
+            Auth::logoutCurrentDevice();
+        } catch (\Throwable $e) {
+            Auth::forgetUser();
+            report($e);
+        }
+
+        try {
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+        } catch (\Throwable $e) {
+            // e.g. SESSION_DRIVER=database but sessions table missing
+            report($e);
+            $request->session()->flush();
+            $request->session()->regenerateToken();
+        }
 
         return redirect()->route('login');
     }
