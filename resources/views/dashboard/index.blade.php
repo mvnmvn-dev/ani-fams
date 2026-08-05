@@ -145,7 +145,7 @@ $contractsInPipeline = count(array_filter($recentContracts, static fn($c) => in_
 
     <!-- Charts -->
     <div class="grid grid-cols-1 xl:grid-cols-3 gap-5">
-        <div class="xl:col-span-2 chart-card">
+        <div class="xl:col-span-2 chart-card is-reveal">
             <div class="flex items-center justify-between mb-4">
                 <div>
                     <h2 class="section-title">Activity (7 days)</h2>
@@ -156,7 +156,7 @@ $contractsInPipeline = count(array_filter($recentContracts, static fn($c) => in_
                 <canvas id="activityChart"></canvas>
             </div>
         </div>
-        <div class="chart-card">
+        <div class="chart-card is-reveal">
             <div class="mb-3">
                 <h2 class="section-title">Workload mix</h2>
                 <p class="type-meta">Open items by module</p>
@@ -171,7 +171,7 @@ $contractsInPipeline = count(array_filter($recentContracts, static fn($c) => in_
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        <div class="chart-card">
+        <div class="chart-card is-reveal">
             <div class="mb-3">
                 <h2 class="section-title">Reservation status</h2>
                 <p class="type-meta">Distribution of your visible bookings</p>
@@ -183,7 +183,7 @@ $contractsInPipeline = count(array_filter($recentContracts, static fn($c) => in_
                 <div class="chart-donut-legend" id="reservationLegend"></div>
             </div>
         </div>
-        <div class="chart-card">
+        <div class="chart-card is-reveal">
             <div class="mb-3">
                 <h2 class="section-title">Visitor status</h2>
                 <p class="type-meta">Scheduled through completed visits</p>
@@ -199,7 +199,7 @@ $contractsInPipeline = count(array_filter($recentContracts, static fn($c) => in_
 
     <!-- Tables -->
     <div class="grid grid-cols-1 xl:grid-cols-2 gap-5 items-stretch">
-        <div class="dash-panel">
+        <div class="dash-panel is-reveal">
             <div class="dash-panel-head">
                 <div>
                     <h2 class="section-title">Recent reservations</h2>
@@ -233,8 +233,8 @@ $contractsInPipeline = count(array_filter($recentContracts, static fn($c) => in_
                         <?php if (empty($recentReservations)): ?>
                             <tr><td colspan="3" class="px-5 py-10 text-center text-ink/40">No reservations yet.</td></tr>
                         <?php else: ?>
-                            <?php foreach ($recentReservations as $r): ?>
-                                <tr class="hover:bg-gray-50/70 transition-colors dash-row" data-filter-status="<?= htmlspecialchars($r['status']) ?>">
+                            <?php foreach ($recentReservations as $i => $r): ?>
+                                <tr class="hover:bg-gray-50/70 transition-colors dash-row" data-filter-status="<?= htmlspecialchars($r['status']) ?>" style="animation-delay: <?= min($i * 0.05, 0.35) ?>s">
                                     <td class="px-5 py-3.5">
                                         <p class="font-semibold text-ink"><?= htmlspecialchars($r['facility_name']) ?></p>
                                         <p class="text-[11px] text-ink/45 mt-0.5"><?= htmlspecialchars($r['purpose'] ?? '') ?></p>
@@ -256,7 +256,7 @@ $contractsInPipeline = count(array_filter($recentContracts, static fn($c) => in_
             </div>
         </div>
 
-        <div class="dash-panel">
+        <div class="dash-panel is-reveal">
             <div class="dash-panel-head">
                 <div>
                     <h2 class="section-title">Recent visits</h2>
@@ -290,8 +290,8 @@ $contractsInPipeline = count(array_filter($recentContracts, static fn($c) => in_
                         <?php if (empty($recentVisits)): ?>
                             <tr><td colspan="3" class="px-5 py-10 text-center text-ink/40">No visits logged yet.</td></tr>
                         <?php else: ?>
-                            <?php foreach ($recentVisits as $v): ?>
-                                <tr class="hover:bg-gray-50/70 transition-colors dash-row" data-filter-status="<?= htmlspecialchars($v['status']) ?>">
+                            <?php foreach ($recentVisits as $i => $v): ?>
+                                <tr class="hover:bg-gray-50/70 transition-colors dash-row" data-filter-status="<?= htmlspecialchars($v['status']) ?>" style="animation-delay: <?= min($i * 0.05, 0.35) ?>s">
                                     <td class="px-5 py-3.5">
                                         <p class="font-semibold text-ink"><?= htmlspecialchars($v['visitor_name']) ?></p>
                                         <p class="text-[11px] text-ink/45 mt-0.5"><?= htmlspecialchars($v['purpose'] ?? '') ?></p>
@@ -314,7 +314,7 @@ $contractsInPipeline = count(array_filter($recentContracts, static fn($c) => in_
 
     <!-- Attention + contracts -->
     <div class="grid grid-cols-1 xl:grid-cols-5 gap-5 items-stretch">
-        <div class="xl:col-span-3 dash-panel dash-panel-tall">
+        <div class="xl:col-span-3 dash-panel dash-panel-tall is-reveal">
             <div class="dash-panel-head">
                 <div>
                     <h2 class="section-title">Needs attention</h2>
@@ -327,8 +327,8 @@ $contractsInPipeline = count(array_filter($recentContracts, static fn($c) => in_
                     <p class="px-5 py-12 text-center text-ink/40 text-sm">You're all caught up — nothing needs attention right now.</p>
                 <?php else: ?>
                     <ul class="divide-y divide-ink/5">
-                        <?php foreach ($attentionItems as $item): ?>
-                            <li>
+                        <?php foreach ($attentionItems as $i => $item): ?>
+                            <li class="dash-attn-item" style="animation-delay: <?= min($i * 0.05, 0.35) ?>s">
                                 <a href="<?= url($item['href']) ?>" class="flex items-center gap-4 px-5 py-3.5 hover:bg-gray-50/70 transition-colors">
                                     <span class="text-[10px] font-bold uppercase tracking-wider text-ink/40 w-20 shrink-0"><?= htmlspecialchars($item['module']) ?></span>
                                     <span class="min-w-0 flex-1">
@@ -346,7 +346,7 @@ $contractsInPipeline = count(array_filter($recentContracts, static fn($c) => in_
             </div>
         </div>
 
-        <div class="xl:col-span-2 dash-panel dash-panel-tall">
+        <div class="xl:col-span-2 dash-panel dash-panel-tall is-reveal">
             <div class="dash-panel-head">
                 <div>
                     <h2 class="section-title">Contracts</h2>
@@ -368,8 +368,8 @@ $contractsInPipeline = count(array_filter($recentContracts, static fn($c) => in_
                         <?php if (empty($recentContracts)): ?>
                             <tr><td colspan="2" class="px-5 py-10 text-center text-ink/40">No contracts yet.</td></tr>
                         <?php else: ?>
-                            <?php foreach ($recentContracts as $c): ?>
-                                <tr class="hover:bg-gray-50/70 transition-colors">
+                            <?php foreach ($recentContracts as $i => $c): ?>
+                                <tr class="hover:bg-gray-50/70 transition-colors dash-animate-row" style="animation-delay: <?= min($i * 0.05, 0.35) ?>s">
                                     <td class="px-5 py-3.5">
                                         <a href="<?= url('/contracts/' . $c['id']) ?>" data-record-modal class="font-semibold text-ink hover:text-brand-700 transition">
                                             <?= htmlspecialchars($c['title']) ?>
@@ -502,6 +502,12 @@ html.dark .dash-panel a.hover\:bg-gray-50\/70:hover {
 
     Chart.defaults.font.family = 'Inter, ui-sans-serif, system-ui, sans-serif';
     Chart.defaults.color = muted;
+    Chart.defaults.animation = {
+        duration: 1100,
+        easing: 'easeOutQuart'
+    };
+
+    var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
     var centerTextPlugin = {
         id: 'centerText',
@@ -538,7 +544,7 @@ html.dark .dash-panel a.hover\:bg-gray-50\/70:hover {
         container.innerHTML = labels.map(function (label, i) {
             var count = values[i];
             var pct = total ? Math.round((count / total) * 100) : 0;
-            return '<div class="chart-legend-row">' +
+            return '<div class="chart-legend-row" style="animation-delay:' + (0.15 + i * 0.06) + 's">' +
                 '<span class="chart-legend-swatch" style="background:' + colors[i] + '"></span>' +
                 '<span class="chart-legend-label">' + label + '</span>' +
                 '<span class="chart-legend-pct">' + pct + '%</span>' +
@@ -570,13 +576,22 @@ html.dark .dash-panel a.hover\:bg-gray-50\/70:hover {
                     backgroundColor: colors,
                     borderWidth: 3,
                     borderColor: '#fff',
-                    hoverOffset: 4
+                    hoverOffset: 6
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: true,
                 cutout: '72%',
+                animation: reduceMotion ? false : {
+                    animateRotate: true,
+                    animateScale: true,
+                    duration: 1200,
+                    easing: 'easeOutQuart',
+                    delay: function (ctx) {
+                        return ctx.type === 'data' ? ctx.dataIndex * 80 : 0;
+                    }
+                },
                 plugins: { legend: { display: false }, tooltip: {
                     callbacks: {
                         label: function (ctx) {
@@ -640,6 +655,13 @@ html.dark .dash-panel a.hover\:bg-gray-50\/70:hover {
                 responsive: true,
                 maintainAspectRatio: false,
                 interaction: { mode: 'index', intersect: false },
+                animation: reduceMotion ? false : {
+                    duration: 1300,
+                    easing: 'easeOutQuart',
+                    delay: function (ctx) {
+                        return ctx.type === 'data' ? ctx.dataIndex * 40 + (ctx.datasetIndex || 0) * 90 : 0;
+                    }
+                },
                 plugins: {
                     legend: {
                         position: 'bottom',
@@ -700,7 +722,15 @@ html.dark .dash-panel a.hover\:bg-gray-50\/70:hover {
             body.querySelectorAll('.dash-row').forEach(function (row) {
                 var match = status === 'all' || row.getAttribute('data-filter-status') === status;
                 row.style.display = match ? '' : 'none';
-                if (match) visible++;
+                if (match) {
+                    if (!reduceMotion) {
+                        row.style.animation = 'none';
+                        void row.offsetWidth;
+                        row.style.animation = '';
+                        row.style.animationDelay = (visible * 0.04) + 's';
+                    }
+                    visible++;
+                }
             });
             var empty = body.querySelector('.dash-filter-empty');
             if (empty) empty.classList.toggle('hidden', visible > 0);

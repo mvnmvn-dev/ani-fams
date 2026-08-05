@@ -285,7 +285,7 @@
             display: grid;
             grid-template-columns: 1fr;
             gap: 1rem;
-            align-items: start;
+            align-items: stretch;
         }
         @media (min-width: 1100px) {
             .dash-overview {
@@ -295,34 +295,66 @@
         }
         .stat-kpi-grid--dashboard {
             grid-template-columns: repeat(2, minmax(0, 1fr));
+            height: 100%;
+            gap: 0.85rem;
+            grid-auto-rows: 1fr;
+            align-content: stretch;
         }
         @media (min-width: 768px) {
             .stat-kpi-grid--dashboard { grid-template-columns: repeat(3, minmax(0, 1fr)); }
         }
-
+        .stat-kpi-grid--dashboard > .stat-kpi-card {
+            height: 100%;
+            min-height: 7.25rem;
+            padding: 1.25rem 1.2rem;
+            display: flex;
+            align-items: center;
+        }
+        .stat-kpi-grid--dashboard .stat-kpi-card-inner {
+            align-items: center;
+            width: 100%;
+        }
+        .stat-kpi-grid--dashboard .stat-kpi-icon {
+            width: 3.35rem;
+            height: 3.35rem;
+        }
+        .stat-kpi-grid--dashboard .stat-kpi-icon svg {
+            width: 1.45rem;
+            height: 1.45rem;
+        }
         .dash-quick-access {
             background: #fff;
             border: 1px solid rgba(78, 84, 92, 0.08);
             border-radius: 0.85rem;
             box-shadow: 0 2px 10px rgba(20, 46, 76, 0.07);
             padding: 0.9rem 0.85rem;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
         }
         .dash-quick-head {
             margin-bottom: 0.55rem;
             padding: 0 0.25rem;
+            flex-shrink: 0;
         }
         .dash-quick-head .section-title { margin: 0; font-size: 0.9375rem; }
         .dash-quick-head .type-meta { margin: 0.1rem 0 0; }
         .dash-quick-list {
             display: flex;
             flex-direction: column;
-            gap: 0.2rem;
+            gap: 0.15rem;
+            flex: 1;
+            justify-content: space-evenly;
         }
         @media (max-width: 1099px) {
             .dash-quick-list {
                 display: grid;
                 grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
                 gap: 0.25rem;
+                justify-content: initial;
+            }
+            .stat-kpi-grid--dashboard > .stat-kpi-card {
+                min-height: 0;
             }
         }
         .dash-quick-item {
@@ -678,10 +710,10 @@
             .app-clock { display: flex; }
         }
         .app-clock-time {
-            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            font-family: Inter, ui-sans-serif, system-ui, sans-serif;
             font-size: 0.95rem;
-            font-weight: 700;
-            letter-spacing: 0.04em;
+            font-weight: 600;
+            letter-spacing: -0.01em;
             color: #4E545C;
             font-variant-numeric: tabular-nums;
         }
@@ -2764,6 +2796,84 @@
             text-align: right;
             min-width: 1.75rem;
             font-variant-numeric: tabular-nums;
+        }
+        @keyframes chartCardIn {
+            from { opacity: 0; transform: translateY(18px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes tableRowIn {
+            from { opacity: 0; transform: translateX(-8px); }
+            to   { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes legendRowIn {
+            from { opacity: 0; transform: translateY(6px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes kpiPopIn {
+            from { opacity: 0; transform: translateY(12px) scale(0.97); }
+            to   { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        /* Shared reveal for dashboard + all modules */
+        .ui-reveal {
+            opacity: 0;
+        }
+        .ui-reveal.is-visible {
+            animation: chartCardIn 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
+        }
+        .chart-card.is-reveal,
+        .dash-panel.is-reveal {
+            opacity: 0;
+        }
+        .chart-card.is-reveal.is-visible,
+        .dash-panel.is-reveal.is-visible {
+            animation: chartCardIn 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
+        }
+        .chart-legend-row {
+            opacity: 0;
+            animation: legendRowIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+        }
+
+        .ui-row {
+            opacity: 0;
+            animation: tableRowIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+        }
+        .ui-row.ui-row--kpi {
+            animation-name: kpiPopIn;
+        }
+        .ui-reveal:not(.is-visible) .ui-row,
+        .dash-panel.is-reveal:not(.is-visible) .ui-row,
+        .chart-card.is-reveal:not(.is-visible) .ui-row {
+            animation: none;
+            opacity: 0;
+        }
+
+        .dash-panel-body tbody tr.dash-row,
+        .dash-panel-body tbody tr.dash-animate-row,
+        .dash-panel-body .dash-attn-item {
+            opacity: 0;
+            animation: tableRowIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+        }
+        .dash-panel:not(.is-visible) .dash-panel-body tbody tr.dash-row,
+        .dash-panel:not(.is-visible) .dash-panel-body tbody tr.dash-animate-row,
+        .dash-panel:not(.is-visible) .dash-panel-body .dash-attn-item {
+            animation: none;
+            opacity: 0;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .ui-reveal,
+            .chart-card.is-reveal,
+            .dash-panel.is-reveal,
+            .chart-legend-row,
+            .ui-row,
+            .dash-panel-body tbody tr.dash-row,
+            .dash-panel-body tbody tr.dash-animate-row,
+            .dash-panel-body .dash-attn-item {
+                opacity: 1 !important;
+                animation: none !important;
+                transform: none !important;
+            }
         }
         @media (max-width: 480px) {
             .chart-donut-layout { flex-direction: column; }

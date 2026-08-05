@@ -612,6 +612,12 @@
             if (emptyEl) emptyEl.hidden = hasCalendar || visible !== 0;
             if (countEl) countEl.textContent = visible + ' of ' + items.length + ' shown';
             if (clearBtn) clearBtn.hidden = Object.keys(filters).length === 0;
+
+            if (typeof window.famsRestagger === 'function') {
+                root.querySelectorAll('.module-table-wrap, .directory-grid, .module-insight-panel').forEach(function (shell) {
+                    if (!shell.hidden) window.famsRestagger(shell);
+                });
+            }
         }
 
         root._moduleFilterApply = apply;
@@ -630,6 +636,78 @@
     }
 
     document.querySelectorAll('[data-filter-root]').forEach(initModuleFilters);
+
+    /* ---------- Module / dashboard UI reveals ---------- */
+    (function initUiReveals() {
+        var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+        function staggerRows(root, selector, kpi) {
+            if (!root) return;
+            var idx = 0;
+            root.querySelectorAll(selector).forEach(function (el) {
+                if (el.classList.contains('dash-filter-empty')) return;
+                el.classList.add('ui-row');
+                if (kpi) el.classList.add('ui-row--kpi');
+                el.style.animationDelay = Math.min(idx * 0.045, 0.4) + 's';
+                idx++;
+            });
+        }
+
+        window.famsRestagger = function (root) {
+            if (reduceMotion || !root) return;
+            var idx = 0;
+            root.querySelectorAll('.ui-row, .dash-row, .dash-animate-row, .dash-attn-item').forEach(function (el) {
+                if (el.hidden || el.style.display === 'none' || el.classList.contains('hidden')) return;
+                el.style.animation = 'none';
+                void el.offsetWidth;
+                el.style.animation = '';
+                el.style.animationDelay = (idx * 0.04) + 's';
+                idx++;
+            });
+        };
+
+        var blocks = [];
+        document.querySelectorAll(
+            '.module-table-wrap, .module-insight-panel, .stat-kpi-grid, .directory-grid, .audit-timeline, .chart-card, .dash-panel'
+        ).forEach(function (el) {
+            el.classList.add('ui-reveal');
+            if (el.classList.contains('chart-card') || el.classList.contains('dash-panel')) {
+                el.classList.add('is-reveal');
+            }
+            staggerRows(el, '.module-table tbody tr');
+            staggerRows(el, '.module-feed-item');
+            staggerRows(el, '.module-insight-list > li');
+            staggerRows(el, '.stat-kpi-card, .module-kpi-card', true);
+            if (el.classList.contains('directory-grid')) {
+                staggerRows(el, '[data-filter-item]', true);
+            }
+            if (el.classList.contains('audit-timeline')) {
+                staggerRows(el, '.audit-event');
+            }
+            staggerRows(el, '.dash-row, .dash-animate-row, .dash-attn-item');
+            blocks.push(el);
+        });
+
+        if (!blocks.length) return;
+
+        if (reduceMotion || !('IntersectionObserver' in window)) {
+            blocks.forEach(function (el) { el.classList.add('is-visible'); });
+            return;
+        }
+
+        var io = new IntersectionObserver(function (entries) {
+            entries.forEach(function (entry) {
+                if (!entry.isIntersecting) return;
+                entry.target.classList.add('is-visible');
+                io.unobserve(entry.target);
+            });
+        }, { threshold: 0.1, rootMargin: '0px 0px -20px 0px' });
+
+        blocks.forEach(function (el, i) {
+            el.style.animationDelay = ((i % 3) * 0.06) + 's';
+            io.observe(el);
+        });
+    })();
 })();
 </script>
 </body>
