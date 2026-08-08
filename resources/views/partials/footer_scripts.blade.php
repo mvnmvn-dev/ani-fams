@@ -137,6 +137,13 @@
                 searchResults.hidden = true;
             }
         });
+        searchResults.addEventListener('click', function (e) {
+            var link = e.target.closest('a[href="#sessions"]');
+            if (!link) return;
+            e.preventDefault();
+            searchResults.hidden = true;
+            if (typeof openModal === 'function') openModal('sessionsModal');
+        });
         document.addEventListener('keydown', function (e) {
             if ((e.ctrlKey || e.metaKey) && String(e.key).toLowerCase() === 'k') {
                 e.preventDefault();
@@ -559,6 +566,18 @@
         return d.toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
     }
 
+    /** Ensure list rows are marked for filter/pagination (covers plain tables). */
+    function ensureFilterItems(scope) {
+        if (!scope || !scope.querySelectorAll) return;
+        scope.querySelectorAll('.module-table-wrap tbody > tr, .directory-grid > .directory-card, [data-paginate-shell] > *').forEach(function (el) {
+            if (el.classList.contains('dash-filter-empty')) return;
+            if (el.matches('tr') && el.querySelector('td[colspan]') && (el.textContent || '').toLowerCase().indexOf('no ') !== -1) return;
+            if (!el.hasAttribute('data-filter-item')) {
+                el.setAttribute('data-filter-item', '');
+            }
+        });
+    }
+
     function refreshFilterRoots(scope) {
         var roots = [];
         if (scope && scope.closest) {
@@ -784,19 +803,20 @@
             credentials: 'same-origin'
         }).then(function (res) {
             return res.json().then(function (data) {
-                return { ok: res.ok, data: data };
+                return { ok: res.ok, status: res.status, data: data };
             }).catch(function () {
-                return { ok: false, data: { success: false, message: 'Unexpected server response.' } };
+                return { ok: res.ok, status: res.status, data: {} };
             });
         }).then(function (result) {
             form.removeAttribute('data-ajax-busy');
-            var data = result.data || {};
-            var success = result.ok && data.success !== false;
-            var message = data.message || data.error || (success ? 'Updated.' : 'Action failed.');
-            showToast(success ? 'success' : 'error', message);
-            if (success) applyAjaxDomUpdate(form, data);
-            return data;
-        }).catch(function () {
+            var d = result.data;
+            if (result.ok && (d.success || d.success === undefined)) {
+                if (d.message) showToast('success', d.message);
+                applyAjaxDomUpdate(form, d);
+            } else {
+                showToast('error', d.error || d.message || 'Action failed.');
+            }
+        }).catch(function (err) {
             form.removeAttribute('data-ajax-busy');
             showToast('error', 'Network error. Please try again.');
         });
@@ -804,15 +824,130 @@
 
     document.addEventListener('submit', function (e) {
         var form = e.target;
-        if (!form || !form.hasAttribute || !form.hasAttribute('data-ajax-action')) return;
-        // confirmForm already prevents default; skip native confirm path
-        if (e.defaultPrevented) return;
+        if (form.hasAttribute('data-ajax-action')) {
+            e.preventDefault();
+            window.submitAjaxForm(form, e.submitter);
+        }
+    });
+
+    /* ---------- Global Signature Pad Handler ---------- */
+    var activeSignature = null;
+
+    function getCanvasCoordinates(canvas, e) {
+        var rect = canvas.getBoundingClientRect();
+        var scaleX = canvas.width / rect.width;
+        var scaleY = canvas.height / rect.height;
+        var clientX = e.clientX;
+        var clientY = e.clientY;
+        if (e.touches && e.touches.length > 0) {
+            clientX = e.touches[0].clientX;
+            clientY = e.touches[0].clientY;
+        } else if (e.changedTouches && e.changedTouches.length > 0) {
+            clientX = e.changedTouches[0].clientX;
+            clientY = e.changedTouches[0].clientY;
+        }
+        return [
+            (clientX - rect.left) * scaleX,
+            (clientY - rect.top) * scaleY
+        ];
+    }
+
+    function initCanvasCtx(canvas) {
+        if (canvas._initialized) return canvas.getContext('2d');
+        var ctx = canvas.getContext('2d');
+        ctx.lineWidth = 2;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.strokeStyle = '#0f172a';
+        canvas._initialized = true;
+        canvas._hasDrawn = false;
+        return ctx;
+    }
+
+    document.addEventListener('mousedown', function(e) {
+        var canvas = e.target.closest('canvas[data-signature-pad]');
+        if (!canvas) return;
+        activeSignature = canvas;
+        var ctx = initCanvasCtx(canvas);
+        canvas._isDrawing = true;
+        canvas._hasDrawn = true;
+        var coords = getCanvasCoordinates(canvas, e);
+        canvas._lastX = coords[0];
+        canvas._lastY = coords[1];
+    });
+
+    document.addEventListener('mousemove', function(e) {
+        if (!activeSignature || !activeSignature._isDrawing) return;
+        var canvas = activeSignature;
+        var ctx = canvas.getContext('2d');
+        var coords = getCanvasCoordinates(canvas, e);
+        ctx.beginPath();
+        ctx.moveTo(canvas._lastX, canvas._lastY);
+        ctx.lineTo(coords[0], coords[1]);
+        ctx.stroke();
+        canvas._lastX = coords[0];
+        canvas._lastY = coords[1];
+    });
+
+    document.addEventListener('mouseup', function(e) {
+        if (activeSignature) activeSignature._isDrawing = false;
+        activeSignature = null;
+    });
+
+    document.addEventListener('touchstart', function(e) {
+        var canvas = e.target.closest('canvas[data-signature-pad]');
+        if (!canvas) return;
+        e.preventDefault(); 
+        activeSignature = canvas;
+        var ctx = initCanvasCtx(canvas);
+        canvas._isDrawing = true;
+        canvas._hasDrawn = true;
+        var coords = getCanvasCoordinates(canvas, e);
+        canvas._lastX = coords[0];
+        canvas._lastY = coords[1];
+    }, { passive: false });
+
+    document.addEventListener('touchmove', function(e) {
+        if (!activeSignature || !activeSignature._isDrawing) return;
         e.preventDefault();
-        window.submitAjaxForm(form, e.submitter || null);
-    }, true);
+        var canvas = activeSignature;
+        var ctx = canvas.getContext('2d');
+        var coords = getCanvasCoordinates(canvas, e);
+        ctx.beginPath();
+        ctx.moveTo(canvas._lastX, canvas._lastY);
+        ctx.lineTo(coords[0], coords[1]);
+        ctx.stroke();
+        canvas._lastX = coords[0];
+        canvas._lastY = coords[1];
+    }, { passive: false });
+
+    document.addEventListener('touchend', function(e) {
+        if (activeSignature) activeSignature._isDrawing = false;
+        activeSignature = null;
+    });
+
+    window.clearSignaturePad = function(id) {
+        var canvas = document.getElementById(id);
+        if (!canvas) return;
+        var ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        canvas._hasDrawn = false;
+    };
+
+    window.submitSignaturePad = function(form, canvasId, inputId) {
+        var canvas = document.getElementById(canvasId);
+        var input = document.getElementById(inputId);
+        if (!canvas || !canvas._hasDrawn) {
+            alert('Please provide your signature before submitting.');
+            return false;
+        }
+        input.value = canvas.toDataURL('image/png');
+        return true;
+    };
 
     function initModuleFilters(root) {
         if (!root) return;
+        ensureFilterItems(root);
         var controls = root.querySelectorAll('[data-module-filter]');
         var emptyEl = root.querySelector('[data-filter-empty]');
         var countEl = root.querySelector('[data-filter-count]');
@@ -893,6 +1028,7 @@
         }
 
         function apply() {
+            ensureFilterItems(root);
             var filters = activeFilters();
             var items = root.querySelectorAll('[data-filter-item]');
             var sections = root.querySelectorAll('[data-filter-section]');
@@ -947,9 +1083,22 @@
                     }
                 });
             } else {
-                matched.forEach(function (item) {
-                    item.hidden = false;
-                    visible += 1;
+                // No dedicated shell — still paginate flat item lists in groups of 10
+                var totalPages = Math.max(1, Math.ceil(matched.length / LIST_PAGE_SIZE));
+                if (pageState.page > totalPages) pageState.page = totalPages;
+                var page = pageState.page || 1;
+                var start = (page - 1) * LIST_PAGE_SIZE;
+                var end = start + LIST_PAGE_SIZE;
+                matched.forEach(function (item, idx) {
+                    var onPage = idx >= start && idx < end;
+                    item.hidden = !onPage;
+                    if (onPage) visible += 1;
+                });
+                var flatPagerHost = root.querySelector('[data-filter-empty]') || root.lastElementChild || root;
+                var pager = ensurePager(flatPagerHost);
+                renderPager(pager, page, totalPages, function (nextPage) {
+                    pageState.page = nextPage;
+                    apply();
                 });
             }
 
@@ -964,7 +1113,11 @@
 
             var hasCalendar = !!root.querySelector('#jsCalendar, .cal-shell');
             if (emptyEl) emptyEl.hidden = hasCalendar || matched.length !== 0;
-            if (countEl) countEl.textContent = matched.length + ' of ' + items.length + ' shown';
+            if (countEl) {
+                var showing = Math.min(LIST_PAGE_SIZE, matched.length - ((pageState.page || 1) - 1) * LIST_PAGE_SIZE);
+                if (shells.length) showing = visible;
+                countEl.textContent = matched.length + ' match' + (matched.length === 1 ? '' : 'es') + ' · ' + Math.max(0, showing) + ' on this page';
+            }
             if (clearBtn) clearBtn.hidden = Object.keys(filters).length === 0;
 
             if (typeof window.famsRestagger === 'function') {
@@ -998,6 +1151,17 @@
     }
 
     document.querySelectorAll('[data-filter-root]').forEach(initModuleFilters);
+
+    // Auto-wrap orphan module tables (no data-filter-root yet) so they still paginate at 10/page.
+    document.querySelectorAll('.module-table-wrap, .directory-grid, [data-paginate-shell]').forEach(function (shell) {
+        if (shell.closest('[data-filter-root]')) return;
+        if (shell.closest('#jsCalendar, .cal-shell, .dash-panel')) return;
+        var wrap = document.createElement('div');
+        wrap.setAttribute('data-filter-root', '');
+        shell.parentNode.insertBefore(wrap, shell);
+        wrap.appendChild(shell);
+        initModuleFilters(wrap);
+    });
 
     /* ---------- Module / dashboard UI reveals ---------- */
     (function initUiReveals() {

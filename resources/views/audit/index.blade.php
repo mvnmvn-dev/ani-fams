@@ -62,6 +62,17 @@ if (!function_exists('audit_pretty_json')) {
         'subtitle' => 'History of actions taken across the system.',
         'badge' => '<span class="inline-flex items-center px-2.5 py-1 rounded-lg bg-ink/5 border border-ink/10 text-ink/60 text-[11px] font-bold">'
             . number_format($total) . ' entries</span>',
+        'actions' => function () use ($filters) {
+            $qs = http_build_query(array_filter($filters));
+            ?>
+            <a href="<?= route('audit.export') . ($qs ? '?' . $qs : '') ?>" class="btn-secondary mr-2 inline-flex items-center gap-1.5" style="text-decoration: none; display: inline-flex; align-items: center; padding: 0.5rem 1rem; border-radius: 0.75rem;">
+                Export CSV
+            </a>
+            <a href="<?= route('audit.export.pdf') . ($qs ? '?' . $qs : '') ?>" class="btn-secondary mr-2 inline-flex items-center gap-1.5" style="text-decoration: none; display: inline-flex; align-items: center; padding: 0.5rem 1rem; border-radius: 0.75rem;">
+                Export PDF
+            </a>
+            <?php
+        },
     ]);
     ?>
 

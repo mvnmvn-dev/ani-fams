@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Support\TopbarData;
+use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Gate;
@@ -17,9 +18,13 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        Paginator::useTailwind();
+        Paginator::defaultView('pagination::tailwind');
+        Paginator::defaultSimpleView('pagination::simple-tailwind');
+
         Gate::before(function ($user, string $ability) {
             if (str_contains($ability, '.')) {
-            return $user->canPermission($ability);
+                return $user->canPermission($ability);
             }
 
             return null;

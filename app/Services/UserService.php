@@ -3,8 +3,10 @@
 namespace App\Services;
 
 use App\Repositories\UserRepository;
-
 use App\Support\AuditLogger;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Auth;
+
 class UserService
 {
     public function __construct(private UserRepository $repo) {}
@@ -23,15 +25,16 @@ class UserService
     public function createUser(array $input): array
     {
         $fullName = trim($input['full_name'] ?? '');
-        $email    = trim($input['email'] ?? '');
+        $email = trim($input['email'] ?? '');
         $password = $input['password'] ?? '';
-        $roleId   = (int) ($input['role_id'] ?? 0);
+        $roleId = (int) ($input['role_id'] ?? 0);
+        $departmentId = ! empty($input['department_id']) ? (int) $input['department_id'] : null;
 
-        if ($fullName === '' || $email === '' || $password === '' || !$roleId) {
+        if ($fullName === '' || $email === '' || $password === '' || ! $roleId) {
             return ['success' => false, 'error' => 'Please fill in all fields.'];
         }
 
-        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        if (! filter_var($email, FILTER_VALIDATE_EMAIL)) {
             return ['success' => false, 'error' => 'Please enter a valid email address.'];
         }
 
@@ -45,16 +48,111 @@ class UserService
 
         $userId = $this->repo->create([
             'full_name' => $fullName,
-            'email'     => $email,
-            'password'  => $password,
-            'role_id'   => $roleId,
+            'email' => $email,
+            'password' => $password,
+            'role_id' => $roleId,
+            'department_id' => $departmentId,
         ]);
 
         AuditLogger::log('users', 'create', 'user', $userId, null, [
             'full_name' => $fullName,
-            'email'     => $email,
-            'role_id'   => $roleId,
+            'email' => $email,
+            'role_id' => $roleId,
         ]);
+
+        return ['success' => true];
+    }
+
+    /**
+     * Import users from CSV with columns: full_name,email,password,role_code,department_id(optional)
+     *
+     * @return array{success: bool, error?: string, imported?: int, skipped?: int, errors?: list<string>}
+     */
+    public function importCsv(UploadedFile $file): array
+    {
+        $handle = fopen($file->getRealPath(), 'r');
+        if (! $handle) {
+            return ['success' => false, 'error' => 'Unable to read uploaded CSV.'];
+        }
+
+        $header = fgetcsv($handle);
+        if (! $header) {
+            fclose($handle);
+
+            return ['success' => false, 'error' => 'CSV is empty.'];
+        }
+
+        $header = array_map(static fn ($h) => strtolower(trim((string) $h)), $header);
+        $required = ['full_name', 'email', 'password', 'role_code'];
+        foreach ($required as $col) {
+            if (! in_array($col, $header, true)) {
+                fclose($handle);
+
+                return ['success' => false, 'error' => "CSV must include column: {$col}"];
+            }
+        }
+
+        $imported = 0;
+        $skipped = 0;
+        $errors = [];
+        $line = 1;
+
+        while (($row = fgetcsv($handle)) !== false) {
+            $line++;
+            if (count(array_filter($row, static fn ($v) => trim((string) $v) !== '')) === 0) {
+                continue;
+            }
+            $data = [];
+            foreach ($header as $i => $key) {
+                $data[$key] = trim((string) ($row[$i] ?? ''));
+            }
+
+            $roleId = $this->repo->findRoleIdByCode($data['role_code'] ?? '');
+            if (! $roleId) {
+                $skipped++;
+                $errors[] = "Line {$line}: unknown role_code '{$data['role_code']}'";
+
+                continue;
+            }
+
+            $result = $this->createUser([
+                'full_name' => $data['full_name'] ?? '',
+                'email' => $data['email'] ?? '',
+                'password' => $data['password'] ?? '',
+                'role_id' => $roleId,
+                'department_id' => $data['department_id'] ?? null,
+            ]);
+
+            if ($result['success'] ?? false) {
+                $imported++;
+            } else {
+                $skipped++;
+                $errors[] = "Line {$line}: " . ($result['error'] ?? 'failed');
+            }
+        }
+
+        fclose($handle);
+
+        AuditLogger::log('users', 'import', 'user', Auth::id(), null, [
+            'imported' => $imported,
+            'skipped' => $skipped,
+        ]);
+
+        return [
+            'success' => true,
+            'imported' => $imported,
+            'skipped' => $skipped,
+            'errors' => array_slice($errors, 0, 20),
+        ];
+    }
+
+    public function softDelete(int $id): array
+    {
+        if ((int) Auth::id() === $id) {
+            return ['success' => false, 'error' => 'You cannot delete your own account.'];
+        }
+        $this->repo->softDelete($id);
+        AuditLogger::log('users', 'soft_delete', 'user', $id);
 
         return ['success' => true];
     }

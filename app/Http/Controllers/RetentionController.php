@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\ExportsData;
 use App\Http\Controllers\Concerns\RespondsWithFlashOrJson;
 use App\Services\RetentionService;
 use Illuminate\Http\Request;
@@ -10,6 +11,10 @@ use Illuminate\Support\Facades\Auth;
 class RetentionController extends Controller
 {
     use RespondsWithFlashOrJson;
+    use ExportsData {
+        exportCsv as streamExportCsv;
+        exportPdf as streamExportPdf;
+    }
 
     public function index(RetentionService $service)
     {
@@ -83,5 +88,46 @@ class RetentionController extends Controller
             $message,
             array_merge(['action' => 'retention.release'], $result)
         );
+    }
+
+    public function exportCsv(RetentionService $service)
+    {
+        $assignments = $service->listAssignments();
+        $headers = ['ID', 'Document Title', 'Document Number', 'Owner Name', 'Policy Name', 'Disposal Action', 'Retention Start Date', 'Calculated Disposal Date', 'Status'];
+        $rows = [];
+        foreach ($assignments as $row) {
+            $rows[] = [
+                $row['id'] ?? '',
+                $row['document_title'] ?? '',
+                $row['document_number'] ?? '',
+                $row['owner_name'] ?? '',
+                $row['policy_name'] ?? '',
+                $row['disposal_action'] ?? '',
+                $row['retention_start_date'] ?? '',
+                $row['calculated_disposal_date'] ?? '',
+                $row['status'] ?? '',
+            ];
+        }
+
+        return $this->streamExportCsv('retention_assignments', $headers, $rows);
+    }
+
+    public function exportPdf(RetentionService $service)
+    {
+        $assignments = $service->listAssignments();
+        $headers = ['ID', 'Document', 'Owner', 'Policy', 'Disposal Date', 'Status'];
+        $rows = [];
+        foreach ($assignments as $row) {
+            $rows[] = [
+                $row['id'] ?? '',
+                $row['document_title'] ?? '',
+                $row['owner_name'] ?? '',
+                $row['policy_name'] ?? '',
+                $row['calculated_disposal_date'] ?? '',
+                $row['status'] ?? '',
+            ];
+        }
+
+        return $this->streamExportPdf('retention_assignments', 'Retention Assignments Export', $headers, $rows);
     }
 }

@@ -48,8 +48,26 @@ CREATE TABLE IF NOT EXISTS users (
     photo_path VARCHAR(500) NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    deleted_at DATETIME NULL,
     FOREIGN KEY (department_id) REFERENCES departments(id) ON DELETE SET NULL,
     FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE RESTRICT
+);
+
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+    email VARCHAR(150) NOT NULL PRIMARY KEY,
+    token VARCHAR(255) NOT NULL,
+    created_at DATETIME NULL
+);
+
+CREATE TABLE IF NOT EXISTS sessions (
+    id VARCHAR(255) NOT NULL PRIMARY KEY,
+    user_id INT UNSIGNED NULL,
+    ip_address VARCHAR(45) NULL,
+    user_agent TEXT NULL,
+    payload LONGTEXT NOT NULL,
+    last_activity INT NOT NULL,
+    INDEX sessions_user_id_index (user_id),
+    INDEX sessions_last_activity_index (last_activity)
 );
 
 CREATE TABLE IF NOT EXISTS audit_logs (
@@ -215,11 +233,37 @@ CREATE TABLE IF NOT EXISTS reservations (
     status ENUM('pending','approved','rejected','cancelled') DEFAULT 'pending',
     approved_by INT UNSIGNED NULL,
     approved_at DATETIME NULL,
+    series_id VARCHAR(36) NULL,
+    recurrence_rule ENUM('none','daily','weekly','monthly') DEFAULT 'none',
+    recurrence_until DATE NULL,
+    is_maintenance TINYINT(1) DEFAULT 0,
+    reminder_sent_at DATETIME NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    deleted_at DATETIME NULL,
     FOREIGN KEY (facility_id) REFERENCES facilities(id) ON DELETE CASCADE,
     FOREIGN KEY (requested_by) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (approved_by) REFERENCES users(id) ON DELETE SET NULL,
-    INDEX idx_facility_time (facility_id, start_datetime, end_datetime)
+    INDEX idx_facility_time (facility_id, start_datetime, end_datetime),
+    INDEX idx_series (series_id)
+);
+
+CREATE TABLE IF NOT EXISTS equipment_items (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(150) NOT NULL,
+    category VARCHAR(100) NULL,
+    quantity_available INT UNSIGNED DEFAULT 1,
+    status ENUM('available','maintenance','retired') DEFAULT 'available',
+    notes VARCHAR(255) NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS reservation_equipment (
+    reservation_id BIGINT UNSIGNED NOT NULL,
+    equipment_id INT UNSIGNED NOT NULL,
+    quantity INT UNSIGNED DEFAULT 1,
+    PRIMARY KEY (reservation_id, equipment_id),
+    FOREIGN KEY (reservation_id) REFERENCES reservations(id) ON DELETE CASCADE,
+    FOREIGN KEY (equipment_id) REFERENCES equipment_items(id) ON DELETE CASCADE
 );
 
 INSERT INTO facilities (name, type, location, capacity, status) VALUES
@@ -227,6 +271,13 @@ INSERT INTO facilities (name, type, location, capacity, status) VALUES
 ('Conference Room B', 'room', '2nd Floor - Main Building', 6, 'available'),
 ('Company Van 1', 'vehicle', 'Motor Pool', 8, 'available'),
 ('Auditorium', 'venue', 'Ground Floor', 150, 'available')
+ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO equipment_items (name, category, quantity_available, status) VALUES
+('Projector Kit', 'AV', 4, 'available'),
+('Laptop Cart', 'IT', 2, 'available'),
+('Whiteboard Set', 'Office', 6, 'available'),
+('Conference Phone', 'AV', 3, 'available')
 ON DUPLICATE KEY UPDATE name = VALUES(name);
 
 -- ===================== EMPLOYEES =====================
@@ -265,7 +316,8 @@ CREATE TABLE IF NOT EXISTS visitors (
     phone VARCHAR(30) NULL,
     photo_path VARCHAR(500) NULL,
     is_watchlisted BOOLEAN DEFAULT FALSE,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    deleted_at DATETIME NULL
 );
 
 CREATE TABLE IF NOT EXISTS visits (
@@ -279,6 +331,7 @@ CREATE TABLE IF NOT EXISTS visits (
     badge_code VARCHAR(50) NULL,
     status ENUM('scheduled','checked_in','checked_out','no_show','denied') DEFAULT 'scheduled',
     notes TEXT NULL,
+    deleted_at DATETIME NULL,
     FOREIGN KEY (visitor_id) REFERENCES visitors(id) ON DELETE CASCADE,
     FOREIGN KEY (host_employee_id) REFERENCES employees(id) ON DELETE CASCADE
 );
@@ -320,6 +373,7 @@ CREATE TABLE IF NOT EXISTS documents (
     confidentiality ENUM('public','internal','confidential','restricted') DEFAULT 'internal',
     status ENUM('draft','active','archived','disposed') DEFAULT 'active',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    deleted_at DATETIME NULL,
     FOREIGN KEY (category_id) REFERENCES document_categories(id) ON DELETE SET NULL,
     FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE
 );
@@ -330,6 +384,7 @@ CREATE TABLE IF NOT EXISTS document_versions (
     version_no INT UNSIGNED NOT NULL,
     file_path VARCHAR(500) NOT NULL,
     checksum VARCHAR(64) NULL,
+    content_text LONGTEXT NULL,
     uploaded_by INT UNSIGNED NOT NULL,
     uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     change_notes VARCHAR(255) NULL,
@@ -404,8 +459,10 @@ CREATE TABLE IF NOT EXISTS legal_cases (
     assigned_counsel_id INT UNSIGNED NULL,
     external_counsel_name VARCHAR(255) NULL,
     risk_level ENUM('low','medium','high','critical') DEFAULT 'medium',
+    budget_amount DECIMAL(14,2) NULL,
     description TEXT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    deleted_at DATETIME NULL,
     FOREIGN KEY (assigned_counsel_id) REFERENCES employees(id) ON DELETE SET NULL
 );
 
@@ -463,6 +520,7 @@ CREATE TABLE IF NOT EXISTS legal_case_milestones (
     milestone_date DATETIME NOT NULL,
     description VARCHAR(255) NULL,
     is_completed BOOLEAN DEFAULT FALSE,
+    reminder_sent_at DATETIME NULL,
     FOREIGN KEY (case_id) REFERENCES legal_cases(id) ON DELETE CASCADE,
     INDEX idx_milestone_date (milestone_date)
 );
@@ -484,6 +542,27 @@ CREATE TABLE IF NOT EXISTS legal_case_costs (
     FOREIGN KEY (case_id) REFERENCES legal_cases(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS legal_vendors (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    vendor_type ENUM('counsel','vendor','expert','other') DEFAULT 'counsel',
+    contact_name VARCHAR(150) NULL,
+    email VARCHAR(150) NULL,
+    phone VARCHAR(50) NULL,
+    firm VARCHAR(255) NULL,
+    notes TEXT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS legal_case_vendors (
+    case_id INT UNSIGNED NOT NULL,
+    vendor_id INT UNSIGNED NOT NULL,
+    role_note VARCHAR(255) NULL,
+    PRIMARY KEY (case_id, vendor_id),
+    FOREIGN KEY (case_id) REFERENCES legal_cases(id) ON DELETE CASCADE,
+    FOREIGN KEY (vendor_id) REFERENCES legal_vendors(id) ON DELETE CASCADE
+);
+
 -- ===================== MODULE 6: CONTRACT MANAGEMENT =====================
 CREATE TABLE IF NOT EXISTS contract_types (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -495,11 +574,43 @@ INSERT INTO contract_types (name) VALUES
 ('Vendor Agreement'), ('NDA'), ('Lease'), ('Partnership Agreement'), ('Employment Contract')
 ON DUPLICATE KEY UPDATE name = name;
 
+CREATE TABLE IF NOT EXISTS contract_templates (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(150) NOT NULL,
+    contract_type_id INT UNSIGNED NULL,
+    body_text TEXT NOT NULL,
+    default_value DECIMAL(14,2) NULL,
+    is_active TINYINT(1) DEFAULT 1,
+    created_by INT UNSIGNED NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (contract_type_id) REFERENCES contract_types(id) ON DELETE SET NULL,
+    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS contract_approval_chains (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(150) NOT NULL,
+    contract_type_id INT UNSIGNED NULL,
+    is_default TINYINT(1) DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (contract_type_id) REFERENCES contract_types(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS contract_approval_chain_steps (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    chain_id INT UNSIGNED NOT NULL,
+    approver_id INT UNSIGNED NOT NULL,
+    sequence_order INT UNSIGNED NOT NULL,
+    FOREIGN KEY (chain_id) REFERENCES contract_approval_chains(id) ON DELETE CASCADE,
+    FOREIGN KEY (approver_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS contracts (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     contract_number VARCHAR(100) NOT NULL UNIQUE,
     title VARCHAR(255) NOT NULL,
     contract_type_id INT UNSIGNED NULL,
+    template_id INT UNSIGNED NULL,
     counterparty_name VARCHAR(255) NOT NULL,
     counterparty_contact VARCHAR(255) NULL,
     owner_id INT UNSIGNED NOT NULL,
@@ -511,11 +622,19 @@ CREATE TABLE IF NOT EXISTS contracts (
     renewal_notice_days INT UNSIGNED DEFAULT 30,
     status ENUM('draft','in_review','pending_signature','active','expired','terminated','renewed') DEFAULT 'draft',
     related_case_id INT UNSIGNED NULL,
+    signature_token VARCHAR(64) NULL,
+    signed_at DATETIME NULL,
+    signed_by_name VARCHAR(150) NULL,
+    signed_ip VARCHAR(45) NULL,
+    signature_path VARCHAR(500) NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    deleted_at DATETIME NULL,
     FOREIGN KEY (contract_type_id) REFERENCES contract_types(id) ON DELETE SET NULL,
+    FOREIGN KEY (template_id) REFERENCES contract_templates(id) ON DELETE SET NULL,
     FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (related_case_id) REFERENCES legal_cases(id) ON DELETE SET NULL,
-    INDEX idx_end_date (end_date)
+    INDEX idx_end_date (end_date),
+    INDEX idx_signature_token (signature_token)
 );
 
 CREATE TABLE IF NOT EXISTS contract_approvals (
@@ -552,3 +671,24 @@ CREATE TABLE IF NOT EXISTS contract_amendments (
     FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
 );
 
+-- ===================== QUEUE JOBS =====================
+CREATE TABLE IF NOT EXISTS jobs (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    queue VARCHAR(255) NOT NULL,
+    payload LONGTEXT NOT NULL,
+    attempts TINYINT UNSIGNED NOT NULL,
+    reserved_at INT UNSIGNED NULL,
+    available_at INT UNSIGNED NOT NULL,
+    created_at INT UNSIGNED NOT NULL,
+    INDEX jobs_queue_index (queue)
+);
+
+CREATE TABLE IF NOT EXISTS failed_jobs (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    uuid VARCHAR(255) NOT NULL UNIQUE,
+    connection TEXT NOT NULL,
+    queue TEXT NOT NULL,
+    payload LONGTEXT NOT NULL,
+    exception LONGTEXT NOT NULL,
+    failed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);

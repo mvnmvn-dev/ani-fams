@@ -3,11 +3,15 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Support\Facades\Hash;
 
 class User extends Authenticatable
 {
+    use SoftDeletes;
+
     protected $fillable = [
         'department_id',
         'full_name',
@@ -71,6 +75,11 @@ class User extends Authenticatable
         $code = $this->role?->code;
 
         return $code !== null && in_array($code, $codes, true);
+    }
+
+    public function notifications(): HasMany
+    {
+        return $this->hasMany(Notification::class);
     }
 
     /** @return list<string> */

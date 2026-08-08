@@ -37,6 +37,9 @@ arsort($deptCounts);
         'subtitle' => 'Create accounts and assign Admin, Staff, or Employee roles.',
         'actions' => function () {
             ?>
+            <button type="button" onclick="openModal('importUsersModal')" class="btn-secondary mr-2">
+                Import CSV
+            </button>
             <button type="button" onclick="openModal('createUserModal')" class="btn-primary">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
@@ -196,7 +199,7 @@ arsort($deptCounts);
                 </svg>
             </button>
         </div>
-        <form action="<?= url('/users') ?>" method="POST" class="p-8 space-y-5">
+        <form action="<?= route('users.store') ?>" method="POST" class="p-8 space-y-5">
     @csrf
             <div class="space-y-1.5">
                 <label class="block text-xs font-bold uppercase tracking-wider text-ink/60">Full name</label>
@@ -240,6 +243,29 @@ arsort($deptCounts);
     </div>
 </div>
 
+<!-- Modal: Import users CSV -->
+<div id="importUsersModal" class="modal-overlay hidden">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full border border-ink/10 overflow-hidden animate-fade-in-up" onclick="event.stopPropagation()">
+        <div class="px-8 py-5 border-b border-ink/10 flex justify-between items-center bg-gray-50/50">
+            <h3 class="font-sans text-xl font-bold text-ink">Import users (CSV)</h3>
+            <button type="button" onclick="closeModal('importUsersModal')" class="text-ink/40 hover:text-ink/60 transition">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+        <form action="<?= route('users.import') ?>" method="POST" enctype="multipart/form-data" class="p-8 space-y-4">
+            @csrf
+            <p class="text-xs text-ink/55">Columns: <code>full_name,email,password,role_code,department_id</code> (department_id optional).</p>
+            <input type="file" name="csv_file" accept=".csv,text/csv" required class="w-full text-sm">
+            <div class="pt-4 border-t border-ink/10 flex justify-end gap-3">
+                <button type="button" onclick="closeModal('importUsersModal')" class="px-5 py-3 rounded-xl border border-ink/10 text-ink/70 font-semibold text-sm">Cancel</button>
+                <button type="submit" class="px-6 py-3 rounded-xl bg-brand-700 text-white font-semibold text-sm">Import</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <!-- Modal: Confirm Status Change -->
 <div id="statusUserModal" class="modal-overlay hidden">
     <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full border border-ink/10 overflow-hidden animate-fade-in-up" onclick="event.stopPropagation()">
@@ -273,7 +299,9 @@ arsort($deptCounts);
 function openStatusModal(id, name, status) {
     var next = status === 'active' ? 'Suspend' : 'Reactivate';
     var form = document.getElementById('statusUserForm');
-    form.action = <?= json_encode(url('/users/')) ?> + id + '/toggle-status';
+    form.action = (typeof window.appUrl === 'function')
+        ? window.appUrl('users/' + id + '/toggle-status')
+        : (window.location.pathname.replace(/\/+$/, '') + '/' + id + '/toggle-status');
     document.getElementById('statusCurrentValue').value = status;
     document.getElementById('statusModalTitle').textContent = next + ' user';
     document.getElementById('statusModalBody').textContent =

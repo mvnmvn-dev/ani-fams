@@ -2,6 +2,7 @@
 
 namespace App\Repositories;
 
+use App\Support\DepartmentFilter;
 use PDO;
 
 class ContractRepository
@@ -10,29 +11,43 @@ class ContractRepository
 
     public function all(int $userId, bool $canManageAll): array
     {
+        [$deptSql, $deptBindings] = DepartmentFilter::sqlOnUserAlias('u');
+
         if ($canManageAll) {
             $sql = "SELECT c.*, ct.name AS type_name, u.full_name AS owner_name
                     FROM contracts c
                     LEFT JOIN contract_types ct ON ct.id = c.contract_type_id
                     JOIN users u ON u.id = c.owner_id
+                    WHERE c.deleted_at IS NULL
+                      AND u.deleted_at IS NULL
+                      {$deptSql}
                     ORDER BY c.created_at DESC";
-            return $this->pdo()->query($sql)->fetchAll();
-        } else {
-            // Employees only see contracts they own, or are asked to approve
-            $sql = "SELECT DISTINCT c.*, ct.name AS type_name, u.full_name AS owner_name
-                    FROM contracts c
-                    LEFT JOIN contract_types ct ON ct.id = c.contract_type_id
-                    JOIN users u ON u.id = c.owner_id
-                    LEFT JOIN contract_approvals ca ON ca.contract_id = c.id
-                    WHERE c.owner_id = :owner_id OR ca.approver_id = :approver_id
-                    ORDER BY c.created_at DESC";
+            if ($deptBindings === []) {
+                return $this->pdo()->query($sql)->fetchAll();
+            }
             $stmt = $this->pdo()->prepare($sql);
-            $stmt->execute([
-                'owner_id'    => $userId,
-                'approver_id' => $userId,
-            ]);
+            $stmt->execute($deptBindings);
+
             return $stmt->fetchAll();
         }
+
+        $sql = "SELECT DISTINCT c.*, ct.name AS type_name, u.full_name AS owner_name
+                FROM contracts c
+                LEFT JOIN contract_types ct ON ct.id = c.contract_type_id
+                JOIN users u ON u.id = c.owner_id
+                LEFT JOIN contract_approvals ca ON ca.contract_id = c.id
+                WHERE c.deleted_at IS NULL
+                  AND u.deleted_at IS NULL
+                  AND (c.owner_id = :owner_id OR ca.approver_id = :approver_id)
+                  {$deptSql}
+                ORDER BY c.created_at DESC";
+        $stmt = $this->pdo()->prepare($sql);
+        $stmt->execute(array_merge([
+            'owner_id' => $userId,
+            'approver_id' => $userId,
+        ], $deptBindings));
+
+        return $stmt->fetchAll();
     }
 
     public function find(int $id): ?array
@@ -43,43 +58,256 @@ class ContractRepository
              LEFT JOIN contract_types ct ON ct.id = c.contract_type_id
              JOIN users u ON u.id = c.owner_id
              LEFT JOIN legal_cases lc ON lc.id = c.related_case_id
-             WHERE c.id = :id"
+             WHERE c.id = :id AND c.deleted_at IS NULL"
         );
         $stmt->execute(['id' => $id]);
         $row = $stmt->fetch();
+
         return $row ?: null;
+    }
+
+    public function softDelete(int $id): void
+    {
+        $stmt = $this->pdo()->prepare('UPDATE contracts SET deleted_at = CURRENT_TIMESTAMP WHERE id = :id AND deleted_at IS NULL');
+        $stmt->execute(['id' => $id]);
     }
 
     public function create(array $data): int
     {
         $stmt = $this->pdo()->prepare(
-            "INSERT INTO contracts (contract_number, title, contract_type_id, counterparty_name, counterparty_contact, 
+            "INSERT INTO contracts (contract_number, title, contract_type_id, template_id, counterparty_name, counterparty_contact,
                                     owner_id, value_amount, currency, start_date, end_date, auto_renew, renewal_notice_days, status, related_case_id)
-             VALUES (:contract_number, :title, :contract_type_id, :counterparty_name, :counterparty_contact, 
+             VALUES (:contract_number, :title, :contract_type_id, :template_id, :counterparty_name, :counterparty_contact,
                      :owner_id, :value_amount, :currency, :start_date, :end_date, :auto_renew, :renewal_notice_days, 'draft', :related_case_id)"
         );
         $stmt->execute([
-            'contract_number'     => $data['contract_number'],
-            'title'               => $data['title'],
-            'contract_type_id'    => !empty($data['contract_type_id']) ? (int) $data['contract_type_id'] : null,
-            'counterparty_name'   => $data['counterparty_name'],
-            'counterparty_contact'=> $data['counterparty_contact'] ?? null,
-            'owner_id'            => $data['owner_id'],
-            'value_amount'        => isset($data['value_amount']) && $data['value_amount'] !== '' && $data['value_amount'] !== null
+            'contract_number' => $data['contract_number'],
+            'title' => $data['title'],
+            'contract_type_id' => ! empty($data['contract_type_id']) ? (int) $data['contract_type_id'] : null,
+            'template_id' => ! empty($data['template_id']) ? (int) $data['template_id'] : null,
+            'counterparty_name' => $data['counterparty_name'],
+            'counterparty_contact' => $data['counterparty_contact'] ?? null,
+            'owner_id' => $data['owner_id'],
+            'value_amount' => isset($data['value_amount']) && $data['value_amount'] !== '' && $data['value_amount'] !== null
                 ? (float) $data['value_amount'] : null,
-            'currency'            => $data['currency'] ?? 'PHP',
-            'start_date'          => $data['start_date'],
-            'end_date'            => !empty($data['end_date']) ? $data['end_date'] : null,
-            'auto_renew'          => !empty($data['auto_renew']) ? 1 : 0,
-            'renewal_notice_days' => !empty($data['renewal_notice_days']) ? (int) $data['renewal_notice_days'] : 30,
-            'related_case_id'     => !empty($data['related_case_id']) ? (int) $data['related_case_id'] : null,
+            'currency' => $data['currency'] ?? 'PHP',
+            'start_date' => $data['start_date'],
+            'end_date' => ! empty($data['end_date']) ? $data['end_date'] : null,
+            'auto_renew' => ! empty($data['auto_renew']) ? 1 : 0,
+            'renewal_notice_days' => ! empty($data['renewal_notice_days']) ? (int) $data['renewal_notice_days'] : 30,
+            'related_case_id' => ! empty($data['related_case_id']) ? (int) $data['related_case_id'] : null,
         ]);
+
         return (int) $this->pdo()->lastInsertId();
+    }
+
+    public function allTemplates(): array
+    {
+        return $this->pdo()->query(
+            "SELECT t.*, ct.name AS type_name, u.full_name AS creator_name
+             FROM contract_templates t
+             LEFT JOIN contract_types ct ON ct.id = t.contract_type_id
+             LEFT JOIN users u ON u.id = t.created_by
+             WHERE t.is_active = 1
+             ORDER BY t.name ASC"
+        )->fetchAll();
+    }
+
+    public function createTemplate(array $data): int
+    {
+        $stmt = $this->pdo()->prepare(
+            'INSERT INTO contract_templates (name, contract_type_id, body_text, default_value, is_active, created_by)
+             VALUES (:name, :contract_type_id, :body_text, :default_value, :is_active, :created_by)'
+        );
+        $stmt->execute([
+            'name' => $data['name'],
+            'contract_type_id' => ! empty($data['contract_type_id']) ? (int) $data['contract_type_id'] : null,
+            'body_text' => $data['body_text'] ?? '',
+            'default_value' => isset($data['default_value']) && $data['default_value'] !== '' && $data['default_value'] !== null
+                ? (float) $data['default_value'] : null,
+            'is_active' => isset($data['is_active']) ? ((int) (bool) $data['is_active']) : 1,
+            'created_by' => ! empty($data['created_by']) ? (int) $data['created_by'] : null,
+        ]);
+
+        return (int) $this->pdo()->lastInsertId();
+    }
+
+    public function findTemplate(int $id): ?array
+    {
+        $stmt = $this->pdo()->prepare(
+            "SELECT t.*, ct.name AS type_name
+             FROM contract_templates t
+             LEFT JOIN contract_types ct ON ct.id = t.contract_type_id
+             WHERE t.id = :id"
+        );
+        $stmt->execute(['id' => $id]);
+        $row = $stmt->fetch();
+
+        return $row ?: null;
+    }
+
+    public function allChains(): array
+    {
+        $chains = $this->pdo()->query(
+            "SELECT c.*, ct.name AS type_name
+             FROM contract_approval_chains c
+             LEFT JOIN contract_types ct ON ct.id = c.contract_type_id
+             ORDER BY c.is_default DESC, c.name ASC"
+        )->fetchAll();
+
+        foreach ($chains as &$chain) {
+            $chain['steps'] = $this->getChainSteps((int) $chain['id']);
+        }
+        unset($chain);
+
+        return $chains;
+    }
+
+    public function createChain(string $name, ?int $typeId, bool $isDefault, array $approverIds): int
+    {
+        if ($isDefault && $typeId) {
+            $clear = $this->pdo()->prepare(
+                'UPDATE contract_approval_chains SET is_default = 0 WHERE contract_type_id = :typeId'
+            );
+            $clear->execute(['typeId' => $typeId]);
+        }
+
+        $stmt = $this->pdo()->prepare(
+            'INSERT INTO contract_approval_chains (name, contract_type_id, is_default)
+             VALUES (:name, :contract_type_id, :is_default)'
+        );
+        $stmt->execute([
+            'name' => $name,
+            'contract_type_id' => $typeId ?: null,
+            'is_default' => $isDefault ? 1 : 0,
+        ]);
+        $chainId = (int) $this->pdo()->lastInsertId();
+
+        $stepStmt = $this->pdo()->prepare(
+            'INSERT INTO contract_approval_chain_steps (chain_id, approver_id, sequence_order)
+             VALUES (:chain_id, :approver_id, :sequence_order)'
+        );
+        $seq = 1;
+        foreach ($approverIds as $approverId) {
+            $approverId = (int) $approverId;
+            if ($approverId <= 0) {
+                continue;
+            }
+            $stepStmt->execute([
+                'chain_id' => $chainId,
+                'approver_id' => $approverId,
+                'sequence_order' => $seq++,
+            ]);
+        }
+
+        return $chainId;
+    }
+
+    public function getChainSteps(int $chainId): array
+    {
+        $stmt = $this->pdo()->prepare(
+            "SELECT s.*, u.full_name AS approver_name, u.email AS approver_email
+             FROM contract_approval_chain_steps s
+             JOIN users u ON u.id = s.approver_id
+             WHERE s.chain_id = :chainId
+             ORDER BY s.sequence_order ASC"
+        );
+        $stmt->execute(['chainId' => $chainId]);
+
+        return $stmt->fetchAll();
+    }
+
+    public function findDefaultChainForType(int $typeId): ?array
+    {
+        $stmt = $this->pdo()->prepare(
+            'SELECT * FROM contract_approval_chains
+             WHERE contract_type_id = :typeId AND is_default = 1
+             ORDER BY id DESC LIMIT 1'
+        );
+        $stmt->execute(['typeId' => $typeId]);
+        $row = $stmt->fetch();
+
+        return $row ?: null;
+    }
+
+    public function findChain(int $id): ?array
+    {
+        $stmt = $this->pdo()->prepare('SELECT * FROM contract_approval_chains WHERE id = :id');
+        $stmt->execute(['id' => $id]);
+        $row = $stmt->fetch();
+
+        return $row ?: null;
+    }
+
+    public function spendRollupByType(): array
+    {
+        return $this->pdo()->query(
+            "SELECT COALESCE(ct.name, 'General') AS type_name,
+                    COUNT(*) AS contract_count,
+                    COALESCE(SUM(c.value_amount), 0) AS total_value
+             FROM contracts c
+             LEFT JOIN contract_types ct ON ct.id = c.contract_type_id
+             WHERE c.deleted_at IS NULL
+             GROUP BY COALESCE(ct.name, 'General')
+             ORDER BY total_value DESC"
+        )->fetchAll();
+    }
+
+    public function findBySignatureToken(string $token): ?array
+    {
+        $stmt = $this->pdo()->prepare(
+            "SELECT c.*, ct.name AS type_name, u.full_name AS owner_name
+             FROM contracts c
+             LEFT JOIN contract_types ct ON ct.id = c.contract_type_id
+             JOIN users u ON u.id = c.owner_id
+             WHERE c.signature_token = :token AND c.deleted_at IS NULL"
+        );
+        $stmt->execute(['token' => $token]);
+        $row = $stmt->fetch();
+
+        return $row ?: null;
+    }
+
+    public function setSignature(int $contractId, ?string $token, ?string $signedAt, ?string $name, ?string $ip, ?string $signaturePath = null): void
+    {
+        $stmt = $this->pdo()->prepare(
+            'UPDATE contracts
+             SET signature_token = :token,
+                 signed_at = :signed_at,
+                 signed_by_name = :signed_by_name,
+                 signed_ip = :signed_ip,
+                 signature_path = COALESCE(:signature_path, signature_path)
+             WHERE id = :id'
+        );
+        $stmt->execute([
+            'token' => $token,
+            'signed_at' => $signedAt,
+            'signed_by_name' => $name,
+            'signed_ip' => $ip,
+            'signature_path' => $signaturePath,
+            'id' => $contractId,
+        ]);
+    }
+
+    public function findAmendment(int $contractId, int $amendmentId): ?array
+    {
+        $stmt = $this->pdo()->prepare(
+            "SELECT ca.*, u.full_name AS creator_name, d.title AS document_title, d.current_version_id, dv.file_path
+             FROM contract_amendments ca
+             JOIN users u ON u.id = ca.created_by
+             LEFT JOIN documents d ON d.id = ca.document_id AND d.deleted_at IS NULL
+             LEFT JOIN document_versions dv ON dv.id = d.current_version_id
+             WHERE ca.contract_id = :contractId AND ca.id = :amendmentId"
+        );
+        $stmt->execute(['contractId' => $contractId, 'amendmentId' => $amendmentId]);
+        $row = $stmt->fetch();
+
+        return $row ?: null;
     }
 
     public function allTypes(): array
     {
-        return $this->pdo()->query("SELECT * FROM contract_types ORDER BY name")->fetchAll();
+        return $this->pdo()->query('SELECT * FROM contract_types ORDER BY name')->fetchAll();
     }
 
     public function getApprovals(int $contractId): array
@@ -92,6 +320,7 @@ class ContractRepository
              ORDER BY ca.sequence_order ASC"
         );
         $stmt->execute(['contractId' => $contractId]);
+
         return $stmt->fetchAll();
     }
 
@@ -102,8 +331,8 @@ class ContractRepository
              VALUES (:contract_id, :approver_id, :sequence_order, 'pending')"
         );
         $stmt->execute([
-            'contract_id'    => $data['contract_id'],
-            'approver_id'    => $data['approver_id'],
+            'contract_id' => $data['contract_id'],
+            'approver_id' => $data['approver_id'],
             'sequence_order' => $data['sequence_order'],
         ]);
     }
@@ -111,14 +340,14 @@ class ContractRepository
     public function updateApprovalStepStatus(int $approvalId, string $status, ?string $comments): void
     {
         $stmt = $this->pdo()->prepare(
-            "UPDATE contract_approvals SET status = :status, comments = :comments, decided_at = NOW() WHERE id = :id"
+            'UPDATE contract_approvals SET status = :status, comments = :comments, decided_at = CURRENT_TIMESTAMP WHERE id = :id'
         );
         $stmt->execute(['status' => $status, 'comments' => $comments, 'id' => $approvalId]);
     }
 
     public function updateContractStatus(int $contractId, string $status): void
     {
-        $stmt = $this->pdo()->prepare("UPDATE contracts SET status = :status WHERE id = :id");
+        $stmt = $this->pdo()->prepare('UPDATE contracts SET status = :status WHERE id = :id');
         $stmt->execute(['status' => $status, 'id' => $contractId]);
     }
 
@@ -128,29 +357,31 @@ class ContractRepository
             "SELECT ca.*, u.full_name AS creator_name, d.title AS document_title, d.current_version_id, dv.file_path
              FROM contract_amendments ca
              JOIN users u ON u.id = ca.created_by
-             LEFT JOIN documents d ON d.id = ca.document_id
+             LEFT JOIN documents d ON d.id = ca.document_id AND d.deleted_at IS NULL
              LEFT JOIN document_versions dv ON dv.id = d.current_version_id
              WHERE ca.contract_id = :contractId
              ORDER BY ca.amendment_number ASC"
         );
         $stmt->execute(['contractId' => $contractId]);
+
         return $stmt->fetchAll();
     }
 
     public function createAmendment(array $data): int
     {
         $stmt = $this->pdo()->prepare(
-            "INSERT INTO contract_amendments (contract_id, amendment_number, description, effective_date, document_id, created_by)
-             VALUES (:contract_id, :amendment_number, :description, :effective_date, :document_id, :created_by)"
+            'INSERT INTO contract_amendments (contract_id, amendment_number, description, effective_date, document_id, created_by)
+             VALUES (:contract_id, :amendment_number, :description, :effective_date, :document_id, :created_by)'
         );
         $stmt->execute([
-            'contract_id'      => $data['contract_id'],
+            'contract_id' => $data['contract_id'],
             'amendment_number' => $data['amendment_number'],
-            'description'      => $data['description'],
-            'effective_date'   => $data['effective_date'],
-            'document_id'      => $data['document_id'] ?: null,
-            'created_by'       => $data['created_by'],
+            'description' => $data['description'],
+            'effective_date' => $data['effective_date'],
+            'document_id' => $data['document_id'] ?: null,
+            'created_by' => $data['created_by'],
         ]);
+
         return (int) $this->pdo()->lastInsertId();
     }
 
@@ -162,25 +393,33 @@ class ContractRepository
              JOIN contract_documents cd ON cd.document_id = d.id
              LEFT JOIN document_categories dc ON dc.id = d.category_id
              LEFT JOIN document_versions dv ON dv.id = d.current_version_id
-             WHERE cd.contract_id = :contractId"
+             WHERE cd.contract_id = :contractId AND d.deleted_at IS NULL"
         );
         $stmt->execute(['contractId' => $contractId]);
+
         return $stmt->fetchAll();
     }
 
     public function addDocument(int $contractId, int $documentId): void
     {
-        $stmt = $this->pdo()->prepare(
-            "INSERT INTO contract_documents (contract_id, document_id) VALUES (:contractId, :documentId)
-             ON DUPLICATE KEY UPDATE document_id = document_id"
-        );
+        $driver = $this->pdo()->getAttribute(PDO::ATTR_DRIVER_NAME);
+        if ($driver === 'sqlite') {
+            $stmt = $this->pdo()->prepare(
+                'INSERT OR IGNORE INTO contract_documents (contract_id, document_id) VALUES (:contractId, :documentId)'
+            );
+        } else {
+            $stmt = $this->pdo()->prepare(
+                'INSERT INTO contract_documents (contract_id, document_id) VALUES (:contractId, :documentId)
+                 ON DUPLICATE KEY UPDATE document_id = document_id'
+            );
+        }
         $stmt->execute(['contractId' => $contractId, 'documentId' => $documentId]);
     }
 
     public function countActiveContracts(): int
     {
         return (int) $this->pdo()
-            ->query("SELECT COUNT(*) FROM contracts WHERE status = 'active'")
+            ->query("SELECT COUNT(*) FROM contracts WHERE status = 'active' AND deleted_at IS NULL")
             ->fetchColumn();
     }
 }

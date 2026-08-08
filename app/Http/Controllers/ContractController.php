@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\ExportsData;
 use App\Http\Controllers\Concerns\RespondsWithFlashOrJson;
 use App\Services\ContractService;
 use Illuminate\Http\Request;
@@ -11,6 +12,10 @@ use Illuminate\Support\Facades\DB;
 class ContractController extends Controller
 {
     use RespondsWithFlashOrJson;
+    use ExportsData {
+        exportCsv as streamExportCsv;
+        exportPdf as streamExportPdf;
+    }
 
     public function index(ContractService $service)
     {
@@ -21,11 +26,71 @@ class ContractController extends Controller
             'pageTitle' => 'Contract Management',
             'contracts' => $service->listContracts(),
             'types' => $service->types(),
+            'templates' => $service->templates(),
+            'chains' => $service->approvalChains(),
+            'spendRollup' => $service->spendRollup(),
             'users' => $users,
             'cases' => $cases,
             'canCreate' => Auth::user()->canPermission('contract.create'),
             'canManage' => Auth::user()->canPermission('contract.manage'),
             'openRecordId' => request()->query('open'),
+        ]);
+    }
+
+    public function storeTemplate(Request $request, ContractService $service)
+    {
+        $result = $service->createTemplate($request->all());
+
+        return redirect()->route('contracts.index')->with(
+            $result['success'] ? 'flash_success' : 'flash_error',
+            $result['success'] ? 'Contract template saved.' : $result['error']
+        );
+    }
+
+    public function storeChain(Request $request, ContractService $service)
+    {
+        $result = $service->saveApprovalChain($request->all());
+
+        return redirect()->route('contracts.index')->with(
+            $result['success'] ? 'flash_success' : 'flash_error',
+            $result['success'] ? 'Approval chain saved.' : $result['error']
+        );
+    }
+
+    public function showSignForm(string $token, ContractService $service)
+    {
+        $result = $service->contractBySignToken($token);
+        if (! $result['success']) {
+            return redirect()->route('contracts.index')->with('flash_error', $result['error']);
+        }
+
+        return redirect()->route('contracts.index', ['open' => $result['contract']['id']]);
+    }
+
+    public function submitSign(Request $request, string $token, ContractService $service)
+    {
+        $result = $service->signByToken($token, (string) $request->input('signer_name', ''), $request->ip(), $request->input('signature_data'));
+
+        return redirect()->route('contracts.index')->with(
+            $result['success'] ? 'flash_success' : 'flash_error',
+            $result['success'] ? 'Contract signed and activated.' : $result['error']
+        );
+    }
+
+    public function amendmentDiff(string $id, string $amendmentId, ContractService $service)
+    {
+        $result = $service->amendmentDiff((int) $id, (int) $amendmentId);
+        if (request()->ajax() || request()->wantsJson()) {
+            return response()->json($result);
+        }
+        if (! ($result['success'] ?? false)) {
+            return redirect()->route('contracts.index', ['open' => $id])->with('flash_error', $result['error'] ?? 'Unable to diff.');
+        }
+
+        return view('contracts.amendment_diff', [
+            'pageTitle' => 'Amendment Diff',
+            'contractId' => (int) $id,
+            'result' => $result,
         ]);
     }
 
@@ -112,5 +177,63 @@ class ContractController extends Controller
             $result['success'] ? 'flash_success' : 'flash_error',
             $result['success'] ? 'Amendment recorded.' : $result['error']
         );
+    }
+
+    public function destroy(string $id, ContractService $service)
+    {
+        $result = $service->softDelete((int) $id);
+
+        return redirect()->route('contracts.index')->with(
+            $result['success'] ? 'flash_success' : 'flash_error',
+            $result['success'] ? 'Contract moved to trash.' : ($result['error'] ?? 'Unable to delete.')
+        );
+    }
+
+    public function exportCsv(ContractService $service)
+    {
+        $contracts = $service->listContracts();
+        $headers = ['ID', 'Contract Number', 'Title', 'Type', 'Counterparty Name', 'Counterparty Contact', 'Owner Name', 'Value Amount', 'Currency', 'Start Date', 'End Date', 'Auto Renew', 'Status', 'Created At'];
+        $rows = [];
+        foreach ($contracts as $row) {
+            $rows[] = [
+                $row['id'] ?? '',
+                $row['contract_number'] ?? '',
+                $row['title'] ?? '',
+                $row['type_name'] ?? '',
+                $row['counterparty_name'] ?? '',
+                $row['counterparty_contact'] ?? '',
+                $row['owner_name'] ?? '',
+                $row['value_amount'] ?? '',
+                $row['currency'] ?? '',
+                $row['start_date'] ?? '',
+                $row['end_date'] ?? '',
+                ! empty($row['auto_renew']) ? 'Yes' : 'No',
+                $row['status'] ?? '',
+                $row['created_at'] ?? '',
+            ];
+        }
+
+        return $this->streamExportCsv('contracts', $headers, $rows);
+    }
+
+    public function exportPdf(ContractService $service)
+    {
+        $contracts = $service->listContracts();
+        $headers = ['ID', 'Number', 'Title', 'Type', 'Counterparty', 'Owner', 'Value', 'Status'];
+        $rows = [];
+        foreach ($contracts as $row) {
+            $rows[] = [
+                $row['id'] ?? '',
+                $row['contract_number'] ?? '',
+                $row['title'] ?? '',
+                $row['type_name'] ?? '',
+                $row['counterparty_name'] ?? '',
+                $row['owner_name'] ?? '',
+                trim(($row['currency'] ?? '') . ' ' . ($row['value_amount'] ?? '')),
+                $row['status'] ?? '',
+            ];
+        }
+
+        return $this->streamExportPdf('contracts', 'Contracts Export', $headers, $rows);
     }
 }

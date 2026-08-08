@@ -259,7 +259,7 @@
     <div class="login-box" role="dialog" aria-labelledby="login-heading">
         <aside class="login-box-brand">
             <div class="login-brand-lockup">
-                <img src="{{ asset('images/system-logo.png') }}"
+                <img src="{{ asset('images/system-logo.svg') }}"
                      alt="{{ config('app.name') }} logo"
                      class="login-brand-logo">
                 <div class="login-brand-text">
@@ -305,6 +305,9 @@
                     </div>
                 </div>
                 <button type="submit" class="login-submit">Log in</button>
+                <p style="margin:0.85rem 0 0; text-align:center;">
+                    <a href="{{ route('password.request') }}" style="font-size:0.85rem; font-weight:600; color:#142E4C; text-decoration:none;">Forgot password?</a>
+                </p>
             </form>
         </section>
     </div>

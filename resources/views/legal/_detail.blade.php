@@ -25,6 +25,12 @@ $linkedDocCount = count($case['documents'] ?? []);
             <p class="text-xs text-ink/50 font-mono mt-1">Case Number: <?= htmlspecialchars($case['case_number']) ?></p>
         </div>
         <div class="flex flex-wrap items-center gap-2">
+            <button type="button" onclick="window.print()" class="btn-secondary btn-sm inline-flex items-center gap-1">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h8z"/>
+                </svg>
+                Print / Save PDF
+            </button>
             <?php if ($canManage): ?>
                 <button type="button" onclick="openModal('partyModal')" class="btn-secondary btn-sm">+ Party</button>
                 <button type="button" onclick="openModal('documentModal')" class="btn-secondary btn-sm">+ Link Document</button>
@@ -43,6 +49,19 @@ $linkedDocCount = count($case['documents'] ?? []);
                 <strong class="tabular-nums text-ink"><?= $totalCosts > 0 ? number_format($totalCosts, 2) : '0.00' ?></strong>
             </div>
             <div class="module-stat-row">
+                <span class="text-ink/70">Budget</span>
+                <strong class="tabular-nums text-ink"><?= isset($case['budget_amount']) && $case['budget_amount'] !== null ? number_format((float) $case['budget_amount'], 2) : '—' ?></strong>
+            </div>
+            <div class="module-stat-row">
+                <span class="text-ink/70">Variance</span>
+                <strong class="tabular-nums <?= isset($case['variance']) && $case['variance'] < 0 ? 'text-accent-700' : 'text-ink' ?>">
+                    <?= isset($case['variance']) && $case['variance'] !== null ? number_format((float) $case['variance'], 2) : '—' ?>
+                    <?php if (!empty($case['pct_used'])): ?>
+                        <span class="text-ink/40 text-xs">(<?= $case['pct_used'] ?>% used)</span>
+                    <?php endif; ?>
+                </strong>
+            </div>
+            <div class="module-stat-row">
                 <span class="text-ink/70">Parties involved</span>
                 <strong class="tabular-nums text-ink"><?= $partyCount ?></strong>
             </div>
@@ -54,6 +73,17 @@ $linkedDocCount = count($case['documents'] ?? []);
                 <span class="text-ink/70">Risk level</span>
                 <strong class="capitalize <?= in_array($case['risk_level'] ?? '', ['high', 'critical'], true) ? 'text-accent-700' : 'text-ink' ?>"><?= htmlspecialchars($case['risk_level'] ?? 'medium') ?></strong>
             </div>
+            <?php if ($canManage): ?>
+            <form action="<?= url('/legal/' . $case['id'] . '/budget') ?>" method="POST" class="mt-3 flex gap-2 items-end">
+                @csrf
+                <div class="flex-1 space-y-1">
+                    <label class="text-[10px] font-bold uppercase text-ink/40">Update budget</label>
+                    <input type="number" step="0.01" min="0" name="budget_amount" value="<?= htmlspecialchars((string) ($case['budget_amount'] ?? '')) ?>"
+                           class="w-full border border-ink/15 rounded-md px-2 py-1.5 text-sm">
+                </div>
+                <button class="btn-secondary btn-sm">Save</button>
+            </form>
+            <?php endif; ?>
         </div>
         @include('partials.module_feed_list', [
             'title' => 'Upcoming milestones',
@@ -65,6 +95,32 @@ $linkedDocCount = count($case['documents'] ?? []);
             ], $upcomingMilestones),
             'empty' => 'No pending milestones scheduled.',
         ])
+    </div>
+
+    <div class="bg-white border border-ink/10 rounded-xl p-5 shadow-sm">
+        <div class="flex items-center justify-between mb-3">
+            <h3 class="font-sans text-base font-bold text-ink">Vendors / Counsel contacts</h3>
+            <?php if ($canManage): ?>
+                <button type="button" onclick="openModal('linkVendorModal')" class="btn-secondary btn-sm">Link Contact</button>
+            <?php endif; ?>
+        </div>
+        <?php if (empty($case['vendors'])): ?>
+            <p class="text-sm text-ink/40">No vendors linked yet.</p>
+        <?php else: ?>
+            <div class="space-y-2">
+                <?php foreach ($case['vendors'] as $v): ?>
+                    <div class="flex justify-between text-sm border-b border-ink/5 pb-2">
+                        <div>
+                            <p class="font-semibold text-ink"><?= htmlspecialchars($v['name']) ?>
+                                <span class="text-ink/40 text-xs capitalize">(<?= htmlspecialchars($v['vendor_type'] ?? 'counsel') ?>)</span>
+                            </p>
+                            <p class="text-ink/50 text-xs"><?= htmlspecialchars($v['firm'] ?? '') ?> <?= htmlspecialchars($v['email'] ?? '') ?></p>
+                        </div>
+                        <span class="text-xs text-ink/50"><?= htmlspecialchars($v['role_note'] ?? '') ?></span>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+        <?php endif; ?>
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -364,6 +420,35 @@ $linkedDocCount = count($case['documents'] ?? []);
             <div class="pt-4 border-t border-ink/10 flex justify-end gap-3">
                 <button type="button" onclick="closeModal('costModal')" class="px-4 py-2.5 rounded-lg border border-ink/10 hover:bg-gray-50 text-ink/70 font-semibold text-sm transition">Cancel</button>
                 <button type="submit" class="px-5 py-2.5 rounded-lg bg-brand-700 hover:bg-brand-600 text-white font-semibold text-sm transition">Log Expense</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="linkVendorModal" class="modal-overlay hidden" hidden>
+    <div class="bg-white rounded-xl shadow-xl max-w-lg w-full border border-ink/10 overflow-hidden" onclick="event.stopPropagation()">
+        <div class="px-6 py-4 border-b border-ink/10 flex justify-between items-center bg-gray-50/50">
+            <h3 class="font-sans text-lg font-bold text-ink">Link Vendor / Counsel</h3>
+            <button type="button" onclick="closeModal('linkVendorModal')" class="text-ink/40">✕</button>
+        </div>
+        <form action="<?= url('/legal/' . $case['id'] . '/vendors') ?>" method="POST" class="p-6 space-y-4">
+            @csrf
+            <div class="space-y-1">
+                <label class="block text-xs font-semibold uppercase tracking-wider text-ink/60">Contact</label>
+                <select name="vendor_id" required class="w-full border border-ink/15 rounded-lg p-2.5 text-sm bg-sand/10">
+                    <option value="">— Select —</option>
+                    <?php foreach (($vendors ?? []) as $v): ?>
+                        <option value="<?= (int) $v['id'] ?>"><?= htmlspecialchars($v['name']) ?> (<?= htmlspecialchars($v['vendor_type'] ?? 'counsel') ?>)</option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="space-y-1">
+                <label class="block text-xs font-semibold uppercase tracking-wider text-ink/60">Role note</label>
+                <input type="text" name="role_note" placeholder="e.g. Lead outside counsel" class="w-full border border-ink/15 rounded-lg p-2.5 text-sm bg-sand/10">
+            </div>
+            <div class="pt-4 flex justify-end gap-3">
+                <button type="button" onclick="closeModal('linkVendorModal')" class="px-4 py-2.5 rounded-lg border border-ink/10 text-sm">Cancel</button>
+                <button type="submit" class="px-5 py-2.5 rounded-lg bg-brand-700 text-white text-sm font-semibold">Link</button>
             </div>
         </form>
     </div>

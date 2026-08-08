@@ -44,15 +44,27 @@ $recentCheckIns = array_slice($recentCheckIns, 0, 5);
         'title' => 'Visitors',
         'subtitle' => 'Pre-register visitors, check-in/out, and track who is on the premises.',
         'actions' => function () use ($canRegister) {
-            if (!$canRegister) return;
             ?>
-            <button onclick="openModal('registerModal')" class="btn-primary">
+            <a href="<?= route('visitors.export') ?>" class="btn-secondary mr-2 inline-flex items-center gap-1.5" style="text-decoration: none; display: inline-flex; align-items: center; padding: 0.5rem 1rem; border-radius: 0.75rem;">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
                 </svg>
-                Pre-Register Visitor
-            </button>
+                Export CSV
+            </a>
+            <a href="<?= route('visitors.export.pdf') ?>" class="btn-secondary mr-2 inline-flex items-center gap-1.5" style="text-decoration: none; display: inline-flex; align-items: center; padding: 0.5rem 1rem; border-radius: 0.75rem;">
+                Export PDF
+            </a>
             <?php
+            if ($canRegister) {
+                ?>
+                <button onclick="openModal('registerModal')" class="btn-primary">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                    </svg>
+                    Pre-Register Visitor
+                </button>
+                <?php
+            }
         },
     ]);
     ?>
@@ -151,7 +163,8 @@ $recentCheckIns = array_slice($recentCheckIns, 0, 5);
                             <?php endif; ?>
                         </div>
                         <?php if ($canCheckIn): ?>
-                            <div class="mt-3 pt-3 border-t border-ink/8 flex gap-2">
+                            <div class="mt-3 pt-3 border-t border-ink/8 flex gap-2 flex-wrap">
+                                <a href="<?= route('visitors.badge', $visit['id']) ?>" class="text-xs font-bold px-3 py-2 rounded-lg border border-brand-200 text-brand-700 hover:bg-brand-50 transition" target="_blank">Badge</a>
                                 <form action="<?= url('/visitors/' . $visit['id'] . '/check-out') ?>" method="POST" class="flex-1" data-ajax-action="visitor.checkout">
                                     @csrf
                                     <button type="submit" class="w-full text-xs font-bold px-3 py-2 rounded-lg bg-ink text-sand hover:bg-ink/80 transition">Check Out</button>
@@ -261,6 +274,7 @@ $recentCheckIns = array_slice($recentCheckIns, 0, 5);
                                                     <button type="submit" class="text-xs font-bold text-brand-700 hover:text-brand-900 mr-2">Check In</button>
                                                 </form>
                                             <?php elseif ($visit['status'] === 'checked_in'): ?>
+                                                <a href="<?= route('visitors.badge', $visit['id']) ?>" class="text-xs font-bold text-brand-700 hover:text-brand-900 mr-2" target="_blank">Badge</a>
                                                 <form action="<?= url('/visitors/' . $visit['id'] . '/check-out') ?>" method="POST" class="inline" data-ajax-action="visitor.checkout">
                                                     @csrf
                                                     <button type="submit" class="text-xs font-bold text-ink hover:text-ink/80 mr-2">Check Out</button>
@@ -300,7 +314,7 @@ $recentCheckIns = array_slice($recentCheckIns, 0, 5);
             </button>
         </div>
         
-        <form action="<?= url('/visitors') ?>" method="POST" class="p-8 space-y-5 max-h-[80vh] overflow-y-auto">
+        <form action="<?= url('/visitors') ?>" method="POST" enctype="multipart/form-data" class="p-8 space-y-5 max-h-[80vh] overflow-y-auto">
     @csrf
             <div class="space-y-1.5">
                 <label class="block text-xs font-bold uppercase tracking-wider text-ink/60">Visitor Profile</label>
@@ -336,6 +350,10 @@ $recentCheckIns = array_slice($recentCheckIns, 0, 5);
                 <div class="space-y-1.5">
                     <label class="block text-xs font-semibold text-ink/75">Govt ID Number (e.g. Passport, License)</label>
                     <input type="text" name="id_number" class="w-full border border-ink/15 rounded-xl p-3 text-sm bg-sand/10 focus:border-brand-500 outline-none">
+                </div>
+                <div class="space-y-1.5">
+                    <label class="block text-xs font-semibold text-ink/75">Photo (camera or upload)</label>
+                    <input type="file" name="photo" accept="image/*" capture="user" class="w-full text-xs file:mr-3 file:py-2 file:px-4 file:rounded-md file:border-0 file:bg-brand-50 file:text-brand-700">
                 </div>
                 <div class="flex items-center gap-2.5 pt-1">
                     <input type="checkbox" name="is_watchlisted" id="is_watchlisted" value="1" class="rounded border-ink/10 text-brand-600 focus:ring-brand-500">

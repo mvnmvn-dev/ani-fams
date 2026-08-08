@@ -65,19 +65,52 @@ arsort($typeCounts);
 render_page_header([
     'title'    => 'Contracts',
     'subtitle' => 'Draft agreements, manage approval routing, and track renewals.',
-    'actions'  => function () use ($canCreate) {
-        if (!$canCreate) return;
+    'actions'  => function () use ($canCreate, $canManage) {
         ?>
-        <button onclick="openModal('contractModal')" class="btn-primary">
+        <a href="<?= route('contracts.export') ?>" class="btn-secondary mr-2 inline-flex items-center gap-1.5" style="text-decoration: none; display: inline-flex; align-items: center; padding: 0.5rem 1rem; border-radius: 0.75rem;">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
             </svg>
-            Draft Contract
-        </button>
+            Export CSV
+        </a>
+        <a href="<?= route('contracts.export.pdf') ?>" class="btn-secondary mr-2 inline-flex items-center gap-1.5" style="text-decoration: none; display: inline-flex; align-items: center; padding: 0.5rem 1rem; border-radius: 0.75rem;">
+            Export PDF
+        </a>
         <?php
+        if ($canManage) {
+            ?>
+            <button onclick="openModal('templateModal')" class="btn-secondary mr-2">Template</button>
+            <button onclick="openModal('chainModal')" class="btn-secondary mr-2">Approval Chain</button>
+            <?php
+        }
+        if ($canCreate) {
+            ?>
+            <button onclick="openModal('contractModal')" class="btn-primary">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                </svg>
+                Draft Contract
+            </button>
+            <?php
+        }
     },
 ]);
 ?>
+
+<?php if (!empty($spendRollup)): ?>
+<div class="module-insight-panel">
+    <h3 class="module-insight-title">Spend rollup by type</h3>
+    <p class="module-insight-sub">Total contract value grouped by type</p>
+    <?php foreach ($spendRollup as $row): ?>
+        <div class="module-stat-row">
+            <span class="text-ink/70"><?= htmlspecialchars($row['type_name'] ?? 'General') ?>
+                <span class="text-ink/40 text-xs">(<?= (int) ($row['contract_count'] ?? 0) ?>)</span>
+            </span>
+            <strong class="tabular-nums text-ink">₱<?= number_format((float) ($row['total_value'] ?? 0), 0) ?></strong>
+        </div>
+    <?php endforeach; ?>
+</div>
+<?php endif; ?>
 
 @include('partials.stat_kpi_grid', ['cards' => [
     ['label' => 'Active contracts', 'value' => $statusCounts['active'] + $statusCounts['renewed'], 'hint' => 'Live agreements in force', 'tone' => 'navy', 'icon' => 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z'],
@@ -121,6 +154,21 @@ render_page_header([
         <div class="module-stat-row">
             <span class="text-ink/70"><?= htmlspecialchars($type) ?></span>
             <strong class="tabular-nums text-ink"><?= $count ?></strong>
+        </div>
+    <?php endforeach; ?>
+</div>
+<?php endif; ?>
+
+<?php if (!empty($spendRollup)): ?>
+<div class="module-insight-panel">
+    <h3 class="module-insight-title">Spend rollup by type</h3>
+    <p class="module-insight-sub">Total contract value grouped by type</p>
+    <?php foreach ($spendRollup as $row): ?>
+        <div class="module-stat-row">
+            <span class="text-ink/70"><?= htmlspecialchars($row['type_name'] ?? 'General') ?>
+                <span class="text-ink/40 text-xs">(<?= (int) ($row['contract_count'] ?? 0) ?>)</span>
+            </span>
+            <strong class="tabular-nums text-ink">₱<?= number_format((float) ($row['total_value'] ?? 0), 0) ?></strong>
         </div>
     <?php endforeach; ?>
 </div>
@@ -241,6 +289,15 @@ render_page_header([
         <form action="<?= url('/contracts') ?>" method="POST" enctype="multipart/form-data" class="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
             @csrf
             <div class="space-y-1">
+                <label class="block text-xs font-semibold text-ink/65">Template (optional)</label>
+                <select name="template_id" class="w-full border border-ink/15 rounded-md p-2.5 text-sm bg-sand/10">
+                    <option value="">— None —</option>
+                    <?php foreach (($templates ?? []) as $tpl): ?>
+                        <option value="<?= (int) $tpl['id'] ?>"><?= htmlspecialchars($tpl['name']) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="space-y-1">
                 <label class="block text-xs font-semibold text-ink/65">Contract Title</label>
                 <input type="text" name="title" required placeholder="e.g. Office Cleaning Services SLA" class="w-full border border-ink/15 rounded-md p-2.5 text-sm bg-sand/10 focus:border-brand-500 outline-none">
             </div>
@@ -282,6 +339,15 @@ render_page_header([
                 <input type="file" name="contract_file" class="w-full text-sm file:mr-3 file:py-2 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-brand-50 file:text-brand-700">
             </div>
             <div class="space-y-1">
+                <label class="block text-xs font-semibold text-ink/65">Saved approval chain (optional)</label>
+                <select name="approval_chain_id" class="w-full border border-ink/15 rounded-md p-2.5 text-sm bg-sand/10">
+                    <option value="">— Manual selection below —</option>
+                    <?php foreach (($chains ?? []) as $chain): ?>
+                        <option value="<?= (int) $chain['id'] ?>"><?= htmlspecialchars($chain['name']) ?><?= !empty($chain['is_default']) ? ' (default)' : '' ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="space-y-1">
                 <label class="block text-xs font-semibold text-ink/65">Approval Sequence</label>
                 <div class="border border-ink/15 rounded-md p-3 bg-gray-50 max-h-36 overflow-y-auto space-y-2">
                     <?php foreach ($users as $u): ?>
@@ -291,8 +357,12 @@ render_page_header([
                         </label>
                     <?php endforeach; ?>
                 </div>
-                <p class="text-[11px] text-ink/40 mt-1">Select approvers in the required sign-off order.</p>
+                <p class="text-[11px] text-ink/40 mt-1">Select approvers in the required sign-off order, or use a saved chain.</p>
             </div>
+            <label class="flex items-center gap-2 text-xs text-ink/70">
+                <input type="checkbox" name="skip_signature" value="1" class="rounded border-ink/10">
+                Skip e-signature (activate immediately when no approvers)
+            </label>
             <div class="space-y-1">
                 <label class="block text-xs font-semibold text-ink/65">Related Legal Case (Optional)</label>
                 <select name="related_case_id" class="w-full border border-ink/15 rounded-md p-2.5 text-sm bg-sand/10 focus:border-brand-500 outline-none">
@@ -309,6 +379,64 @@ render_page_header([
             <div class="pt-4 border-t border-ink/10 flex justify-end gap-3">
                 <button type="button" onclick="closeModal('contractModal')" class="px-4 py-2 rounded-md border border-ink/10 hover:bg-gray-50 text-ink/70 font-semibold text-sm">Cancel</button>
                 <button type="submit" class="px-4 py-2 rounded-md bg-brand-700 hover:bg-brand-600 text-white font-semibold text-sm">Submit Draft</button>
+            </div>
+        </form>
+    </div>
+</div>
+<?php endif; ?>
+
+<?php if (!empty($canManage)): ?>
+<div id="templateModal" class="modal-overlay hidden">
+    <div class="bg-white rounded-lg shadow-xl max-w-lg w-full border border-ink/10" onclick="event.stopPropagation()">
+        <div class="px-6 py-4 border-b border-ink/10 flex justify-between items-center">
+            <h3 class="text-lg font-semibold">New Contract Template</h3>
+            <button onclick="closeModal('templateModal')">✕</button>
+        </div>
+        <form action="<?= url('/contracts/templates') ?>" method="POST" class="p-6 space-y-3">
+            @csrf
+            <input type="text" name="name" required placeholder="Template name" class="w-full border border-ink/15 rounded-md p-2.5 text-sm">
+            <select name="contract_type_id" class="w-full border border-ink/15 rounded-md p-2.5 text-sm">
+                <option value="">Type (optional)</option>
+                <?php foreach ($types as $t): ?>
+                    <option value="<?= $t['id'] ?>"><?= htmlspecialchars($t['name']) ?></option>
+                <?php endforeach; ?>
+            </select>
+            <input type="number" step="0.01" name="default_value" placeholder="Default value" class="w-full border border-ink/15 rounded-md p-2.5 text-sm">
+            <textarea name="body_text" required rows="5" placeholder="Template body / clauses" class="w-full border border-ink/15 rounded-md p-2.5 text-sm"></textarea>
+            <div class="flex justify-end gap-2">
+                <button type="button" onclick="closeModal('templateModal')" class="btn-secondary">Cancel</button>
+                <button class="btn-primary">Save Template</button>
+            </div>
+        </form>
+    </div>
+</div>
+<div id="chainModal" class="modal-overlay hidden">
+    <div class="bg-white rounded-lg shadow-xl max-w-lg w-full border border-ink/10" onclick="event.stopPropagation()">
+        <div class="px-6 py-4 border-b border-ink/10 flex justify-between items-center">
+            <h3 class="text-lg font-semibold">Approval Chain</h3>
+            <button onclick="closeModal('chainModal')">✕</button>
+        </div>
+        <form action="<?= url('/contracts/chains') ?>" method="POST" class="p-6 space-y-3">
+            @csrf
+            <input type="text" name="name" required placeholder="Chain name" class="w-full border border-ink/15 rounded-md p-2.5 text-sm">
+            <select name="contract_type_id" class="w-full border border-ink/15 rounded-md p-2.5 text-sm">
+                <option value="">Type (optional)</option>
+                <?php foreach ($types as $t): ?>
+                    <option value="<?= $t['id'] ?>"><?= htmlspecialchars($t['name']) ?></option>
+                <?php endforeach; ?>
+            </select>
+            <label class="flex items-center gap-2 text-xs"><input type="checkbox" name="is_default" value="1"> Default for selected type</label>
+            <div class="border border-ink/15 rounded-md p-3 max-h-40 overflow-y-auto space-y-2">
+                <?php foreach ($users as $u): ?>
+                    <label class="flex items-center gap-2 text-xs">
+                        <input type="checkbox" name="approvers[]" value="<?= $u['id'] ?>">
+                        <?= htmlspecialchars($u['full_name']) ?>
+                    </label>
+                <?php endforeach; ?>
+            </div>
+            <div class="flex justify-end gap-2">
+                <button type="button" onclick="closeModal('chainModal')" class="btn-secondary">Cancel</button>
+                <button class="btn-primary">Save Chain</button>
             </div>
         </form>
     </div>

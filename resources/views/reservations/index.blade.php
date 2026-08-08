@@ -45,15 +45,34 @@ $upcomingApproved = array_slice($upcomingApproved, 0, 5);
             ? 'All reservation requests across the organization.'
             : 'Your reservation requests.',
         'actions' => function () {
-            if (!can_perm('reservation.create')) return;
             ?>
-            <button onclick="openModal('reservationModal')" class="btn-primary">
+            <a href="<?= route('reservations.export') ?>" class="btn-secondary mr-2 inline-flex items-center gap-1.5" style="text-decoration: none; display: inline-flex; align-items: center; padding: 0.5rem 1rem; border-radius: 0.75rem;">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
                 </svg>
-                New Reservation Request
-            </button>
+                Export CSV
+            </a>
+            <a href="<?= route('reservations.export.pdf') ?>" class="btn-secondary mr-2 inline-flex items-center gap-1.5" style="text-decoration: none; display: inline-flex; align-items: center; padding: 0.5rem 1rem; border-radius: 0.75rem;">
+                Export PDF
+            </a>
             <?php
+            if (can_perm('reservation.create')) {
+                ?>
+                <button onclick="openModal('reservationModal')" class="btn-primary">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                    </svg>
+                    New Reservation Request
+                </button>
+                <?php
+            }
+            if (!empty($canManage)) {
+                ?>
+                <button onclick="openModal('maintenanceModal')" class="btn-secondary ml-2">
+                    Maintenance Block
+                </button>
+                <?php
+            }
         },
     ]);
     ?>
@@ -89,7 +108,25 @@ $upcomingApproved = array_slice($upcomingApproved, 0, 5);
         ])
     </div>
 
-    <?php if (!empty($facilityUsage)): ?>
+    <?php
+    /** @var array $utilization */
+    $utilization = $utilization ?? [];
+    ?>
+    <?php if (!empty($utilization)): ?>
+    <div class="module-insight-panel">
+        <h3 class="module-insight-title">Facility utilization analytics</h3>
+        <p class="module-insight-sub">Approved booking counts and hours (excludes maintenance blocks)</p>
+        <?php foreach (array_slice($utilization, 0, 8) as $row): ?>
+            <div class="module-stat-row">
+                <span class="text-ink/70"><?= htmlspecialchars($row['name'] ?? '') ?></span>
+                <strong class="tabular-nums text-ink">
+                    <?= (int) ($row['booking_count'] ?? 0) ?> booking<?= ((int) ($row['booking_count'] ?? 0)) === 1 ? '' : 's' ?>
+                    · <?= number_format((float) ($row['hours_booked'] ?? 0), 1) ?>h
+                </strong>
+            </div>
+        <?php endforeach; ?>
+    </div>
+    <?php elseif (!empty($facilityUsage)): ?>
     <div class="module-insight-panel">
         <h3 class="module-insight-title">Facility utilization</h3>
         <p class="module-insight-sub">Approved bookings per facility (all time in view)</p>
@@ -180,20 +217,35 @@ $upcomingApproved = array_slice($upcomingApproved, 0, 5);
                 <div class="module-empty">No reservations yet.</div>
             <?php else: ?>
                 <div class="cal-shell" id="jsCalendar"></div>
+                <div class="mt-3 flex flex-wrap items-center gap-3">
+                    <label class="text-xs font-bold uppercase tracking-wider text-ink/50">Calendar facility</label>
+                    <select id="calFacilityFilter" class="rounded-xl border border-ink/15 px-3 py-2 text-sm bg-sand/10">
+                        <option value="">All facilities</option>
+                        <?php foreach ($facilities as $f): ?>
+                            <option value="<?= (int) $f['id'] ?>"><?= htmlspecialchars($f['name']) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
                 <script>
                 (function () {
                     var MIN = '2026-07';
                     var MAX = '2030-12';
                     var TODAY = <?= json_encode($todayKey) ?>;
                     var MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-                    var reservations = <?= json_encode(array_values($reservations), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+                    var allReservations = <?= json_encode(array_values($reservations), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+                    var reservations = allReservations.slice();
+                    var facilityFilter = '';
 
                     var byDay = {};
-                    reservations.forEach(function (r) {
-                        var key = r.start_datetime.substring(0, 10);
-                        if (!byDay[key]) byDay[key] = [];
-                        byDay[key].push(r);
-                    });
+                    function rebuildByDay() {
+                        byDay = {};
+                        reservations.forEach(function (r) {
+                            var key = String(r.start_datetime).substring(0, 10);
+                            if (!byDay[key]) byDay[key] = [];
+                            byDay[key].push(r);
+                        });
+                    }
+                    rebuildByDay();
 
                     var now = new Date();
                     var currentMonth = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
@@ -203,7 +255,7 @@ $upcomingApproved = array_slice($upcomingApproved, 0, 5);
                     function pad2(n) { return n < 10 ? '0' + n : '' + n; }
 
                     function formatTime(dt) {
-                        var d = new Date(dt.replace(' ', 'T'));
+                        var d = new Date(String(dt).replace(' ', 'T'));
                         var h = d.getHours(), m = d.getMinutes();
                         var ampm = h >= 12 ? 'pm' : 'am';
                         h = h % 12 || 12;
@@ -212,7 +264,7 @@ $upcomingApproved = array_slice($upcomingApproved, 0, 5);
 
                     function esc(s) {
                         var el = document.createElement('span');
-                        el.textContent = s;
+                        el.textContent = s == null ? '' : String(s);
                         return el.innerHTML;
                     }
 
@@ -221,6 +273,16 @@ $upcomingApproved = array_slice($upcomingApproved, 0, 5);
                         if (root && typeof root._moduleFilterApply === 'function') {
                             root._moduleFilterApply();
                         }
+                    }
+
+                    function applyFacilityFilter() {
+                        var sel = document.getElementById('calFacilityFilter');
+                        facilityFilter = sel ? sel.value : '';
+                        reservations = allReservations.filter(function (r) {
+                            return !facilityFilter || String(r.facility_id) === String(facilityFilter);
+                        });
+                        rebuildByDay();
+                        render(currentMonth);
                     }
 
                     function render(ym) {
@@ -273,14 +335,15 @@ $upcomingApproved = array_slice($upcomingApproved, 0, 5);
                             html += '<div class="cal-events">';
                             events.forEach(function (r) {
                                 var search = (r.facility_name + ' ' + r.purpose + ' ' + (r.requester_name || '')).toLowerCase();
-                                html += '<div class="cal-event is-' + esc(r.status) + '"'
+                                var maint = Number(r.is_maintenance) === 1;
+                                html += '<div class="cal-event is-' + esc(r.status) + (maint ? ' is-maintenance' : '') + '"'
                                     + ' data-filter-item'
                                     + ' data-filter-status="' + esc(r.status) + '"'
                                     + ' data-filter-facility="' + esc(r.facility_name) + '"'
                                     + ' data-filter-search="' + esc(search) + '"'
-                                    + ' title="' + esc(r.facility_name + ' \u00b7 ' + r.purpose + ' \u00b7 ' + r.status) + '">'
+                                    + ' title="' + esc(r.facility_name + ' · ' + r.purpose + ' · ' + (maint ? 'maintenance' : r.status)) + '">'
                                     + '<span class="cal-event-time">' + formatTime(r.start_datetime) + '</span>'
-                                    + '<span class="cal-event-title">' + esc(r.facility_name) + '</span>'
+                                    + '<span class="cal-event-title">' + esc(maint ? '🛠 ' + r.facility_name : r.facility_name) + '</span>'
                                     + '</div>';
                             });
                             html += '</div></div>';
@@ -297,7 +360,7 @@ $upcomingApproved = array_slice($upcomingApproved, 0, 5);
                             + '<span><i style="background:#CCAD9F"></i>Pending</span>'
                             + '<span><i style="background:#142E4C"></i>Approved</span>'
                             + '<span><i style="background:#A06A56"></i>Rejected</span>'
-                            + '<span><i style="background:#94a3b8"></i>Cancelled</span>'
+                            + '<span><i style="background:#64748b"></i>Maintenance</span>'
                             + '</div>';
 
                         el.innerHTML = html;
@@ -313,6 +376,9 @@ $upcomingApproved = array_slice($upcomingApproved, 0, 5);
 
                         refreshFilters();
                     }
+
+                    var filterEl = document.getElementById('calFacilityFilter');
+                    if (filterEl) filterEl.addEventListener('change', applyFacilityFilter);
 
                     render(currentMonth);
                 })();
@@ -349,7 +415,7 @@ $upcomingApproved = array_slice($upcomingApproved, 0, 5);
                 <label class="block text-xs font-bold uppercase tracking-wider text-ink/60">Purpose of Booking</label>
                 <input type="text" name="purpose" required maxlength="255"
                        class="w-full rounded-xl border border-ink/15 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-sand/10"
-                       placeholder="e.g. Board Meeting, Maintenance, Client Presentation">
+                       placeholder="e.g. Board Meeting, Client Presentation">
             </div>
             <div class="grid grid-cols-2 gap-4">
                 <div class="space-y-1.5">
@@ -363,6 +429,35 @@ $upcomingApproved = array_slice($upcomingApproved, 0, 5);
                            class="w-full rounded-xl border border-ink/15 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-sand/10">
                 </div>
             </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div class="space-y-1.5">
+                    <label class="block text-xs font-bold uppercase tracking-wider text-ink/60">Repeat</label>
+                    <select name="recurrence_rule" class="w-full rounded-xl border border-ink/15 px-4 py-3 text-sm bg-sand/10">
+                        <option value="none">Does not repeat</option>
+                        <option value="daily">Daily</option>
+                        <option value="weekly">Weekly</option>
+                        <option value="monthly">Monthly</option>
+                    </select>
+                </div>
+                <div class="space-y-1.5">
+                    <label class="block text-xs font-bold uppercase tracking-wider text-ink/60">Repeat until</label>
+                    <input type="date" name="recurrence_until"
+                           class="w-full rounded-xl border border-ink/15 px-4 py-3 text-sm bg-sand/10">
+                </div>
+            </div>
+            <?php if (!empty($equipment)): ?>
+            <div class="space-y-2">
+                <label class="block text-xs font-bold uppercase tracking-wider text-ink/60">Equipment add-ons</label>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-40 overflow-y-auto">
+                    <?php foreach ($equipment as $eq): ?>
+                        <label class="flex items-center gap-2 text-sm text-ink/80 border border-ink/10 rounded-xl px-3 py-2">
+                            <input type="checkbox" name="equipment_ids[]" value="<?= (int) $eq['id'] ?>" class="rounded border-ink/20 text-brand-600">
+                            <span><?= htmlspecialchars($eq['name']) ?> <span class="text-ink/40">(<?= (int) $eq['quantity_available'] ?> avail.)</span></span>
+                        </label>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+            <?php endif; ?>
             <div class="pt-6 border-t border-ink/10 flex justify-end gap-3.5">
                 <button type="button" onclick="closeModal('reservationModal')" class="px-5 py-3 rounded-xl border border-ink/10 hover:bg-gray-50 text-ink/70 font-semibold text-sm transition">
                     Cancel
@@ -370,6 +465,52 @@ $upcomingApproved = array_slice($upcomingApproved, 0, 5);
                 <button type="submit" class="px-6 py-3 rounded-xl bg-brand-700 hover:bg-brand-600 text-white font-semibold text-sm transition shadow-sm">
                     Submit Request
                 </button>
+            </div>
+        </form>
+    </div>
+</div>
+<?php endif; ?>
+
+<?php if (!empty($canManage)): ?>
+<div id="maintenanceModal" class="modal-overlay hidden">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-xl w-full overflow-hidden border border-ink/10 animate-fade-in-up" onclick="event.stopPropagation()">
+        <div class="px-8 py-5 border-b border-ink/10 flex justify-between items-center bg-gray-50/50">
+            <h3 class="font-sans text-xl font-bold text-ink">Schedule Maintenance Block</h3>
+            <button onclick="closeModal('maintenanceModal')" class="text-ink/40 hover:text-ink/60 transition">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+        <form action="<?= url('/reservations/maintenance') ?>" method="POST" class="p-8 space-y-6">
+            @csrf
+            <div class="space-y-1.5">
+                <label class="block text-xs font-bold uppercase tracking-wider text-ink/60">Facility</label>
+                <select name="facility_id" required class="w-full rounded-xl border border-ink/15 px-4 py-3 text-sm bg-sand/10">
+                    <option value="">Select…</option>
+                    <?php foreach (($manageFacilities ?: $facilities) as $f): ?>
+                        <option value="<?= $f['id'] ?>"><?= htmlspecialchars($f['name']) ?> (<?= htmlspecialchars($f['status'] ?? 'available') ?>)</option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="space-y-1.5">
+                <label class="block text-xs font-bold uppercase tracking-wider text-ink/60">Notes</label>
+                <input type="text" name="purpose" maxlength="255" placeholder="e.g. HVAC servicing"
+                       class="w-full rounded-xl border border-ink/15 px-4 py-3 text-sm bg-sand/10">
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div class="space-y-1.5">
+                    <label class="block text-xs font-bold uppercase tracking-wider text-ink/60">Start</label>
+                    <input type="datetime-local" name="start_datetime" required class="w-full rounded-xl border border-ink/15 px-4 py-3 text-sm bg-sand/10">
+                </div>
+                <div class="space-y-1.5">
+                    <label class="block text-xs font-bold uppercase tracking-wider text-ink/60">End</label>
+                    <input type="datetime-local" name="end_datetime" required class="w-full rounded-xl border border-ink/15 px-4 py-3 text-sm bg-sand/10">
+                </div>
+            </div>
+            <div class="pt-6 border-t border-ink/10 flex justify-end gap-3.5">
+                <button type="button" onclick="closeModal('maintenanceModal')" class="px-5 py-3 rounded-xl border border-ink/10 text-ink/70 font-semibold text-sm">Cancel</button>
+                <button type="submit" class="px-6 py-3 rounded-xl bg-brand-700 text-white font-semibold text-sm">Block Facility</button>
             </div>
         </form>
     </div>

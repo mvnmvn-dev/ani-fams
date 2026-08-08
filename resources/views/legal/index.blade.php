@@ -50,18 +50,56 @@ $onHoldCases = array_slice($onHoldCases, 0, 5);
         'title'    => 'Legal Cases',
         'subtitle' => 'Track legal matters, filings, counsel assignments, and case status.',
         'actions'  => function () use ($canManage) {
-            if (!$canManage) return;
             ?>
-            <button onclick="openModal('caseModal')" class="btn-primary">
+            <a href="<?= route('legal.export') ?>" class="btn-secondary mr-2 inline-flex items-center gap-1.5" style="text-decoration: none; display: inline-flex; align-items: center; padding: 0.5rem 1rem; border-radius: 0.75rem;">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
                 </svg>
-                File Legal Case
-            </button>
+                Export CSV
+            </a>
+            <a href="<?= route('legal.export.pdf') ?>" class="btn-secondary mr-2 inline-flex items-center gap-1.5" style="text-decoration: none; display: inline-flex; align-items: center; padding: 0.5rem 1rem; border-radius: 0.75rem;">
+                Export PDF
+            </a>
             <?php
+            if ($canManage) {
+                ?>
+                <button onclick="openModal('vendorModal')" class="btn-secondary mr-2">+ Vendor / Counsel</button>
+                <button onclick="openModal('caseModal')" class="btn-primary">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                    </svg>
+                    File Legal Case
+                </button>
+                <?php
+            }
         },
     ]);
     ?>
+
+    <?php $budgetRollup = $budgetRollup ?? []; ?>
+    <?php if (!empty($budgetRollup)): ?>
+    <div class="module-insight-panel">
+        <h3 class="module-insight-title">Budget vs actual</h3>
+        <p class="module-insight-sub">Case budgets compared to logged expenses</p>
+        <?php foreach (array_slice($budgetRollup, 0, 8) as $row): ?>
+            <?php
+                $budget = $row['budget_amount'] !== null ? (float) $row['budget_amount'] : null;
+                $cost = (float) ($row['total_cost'] ?? 0);
+                $variance = $row['variance'] ?? ($budget !== null ? $budget - $cost : null);
+            ?>
+            <div class="module-stat-row">
+                <span class="text-ink/70"><?= htmlspecialchars($row['case_number'] ?? '') ?> · <?= htmlspecialchars($row['title'] ?? '') ?></span>
+                <strong class="tabular-nums text-ink">
+                    <?= $budget !== null ? number_format($budget, 0) : '—' ?> /
+                    <?= number_format($cost, 0) ?>
+                    <?php if ($variance !== null): ?>
+                        <span class="<?= $variance < 0 ? 'text-accent-700' : 'text-brand-700' ?>">(<?= number_format($variance, 0) ?>)</span>
+                    <?php endif; ?>
+                </strong>
+            </div>
+        <?php endforeach; ?>
+    </div>
+    <?php endif; ?>
 
     @include('partials.stat_kpi_grid', ['cards' => [
         ['label' => 'Active matters', 'value' => $activeMatter, 'hint' => 'Open or in progress', 'tone' => 'navy', 'icon' => 'M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3'],
@@ -305,12 +343,66 @@ $onHoldCases = array_slice($onHoldCases, 0, 5);
                 <input type="text" name="external_counsel_name" placeholder="e.g. SyCip Salazar Law Firm" class="w-full border border-ink/15 rounded-md p-2.5 text-sm bg-sand/10 focus:border-brand-500 outline-none">
             </div>
             <div class="space-y-1">
+                <label class="block text-xs font-semibold text-ink/65">Budget Amount (Optional)</label>
+                <input type="number" name="budget_amount" step="0.01" min="0" placeholder="e.g. 250000"
+                       class="w-full border border-ink/15 rounded-md p-2.5 text-sm bg-sand/10 focus:border-brand-500 outline-none">
+            </div>
+            <div class="space-y-1">
                 <label class="block text-xs font-semibold text-ink/65">Brief Summary</label>
                 <textarea name="description" rows="3" class="w-full border border-ink/15 rounded-md p-2.5 text-sm bg-sand/10 focus:border-brand-500 outline-none"></textarea>
             </div>
             <div class="pt-4 border-t border-ink/10 flex justify-end gap-3">
                 <button type="button" onclick="closeModal('caseModal')" class="px-4 py-2 rounded-md border border-ink/10 hover:bg-gray-50 text-ink/70 font-semibold text-sm">Cancel</button>
                 <button type="submit" class="px-4 py-2 rounded-md bg-brand-700 hover:bg-brand-600 text-white font-semibold text-sm">Register Case</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="vendorModal" class="modal-overlay hidden">
+    <div class="bg-white rounded-lg shadow-xl max-w-lg w-full border border-ink/10 overflow-hidden" onclick="event.stopPropagation()">
+        <div class="px-6 py-4 border-b border-ink/10 flex justify-between items-center bg-gray-50/50">
+            <h3 class="text-lg font-semibold text-ink">Add Vendor / Counsel Contact</h3>
+            <button onclick="closeModal('vendorModal')" class="text-ink/40 hover:text-ink/60">✕</button>
+        </div>
+        <form action="<?= url('/legal/vendors') ?>" method="POST" class="p-6 space-y-4">
+            @csrf
+            <div class="space-y-1">
+                <label class="block text-xs font-semibold text-ink/65">Name</label>
+                <input type="text" name="name" required class="w-full border border-ink/15 rounded-md p-2.5 text-sm bg-sand/10">
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div class="space-y-1">
+                    <label class="block text-xs font-semibold text-ink/65">Type</label>
+                    <select name="vendor_type" class="w-full border border-ink/15 rounded-md p-2.5 text-sm bg-sand/10">
+                        <option value="counsel">Counsel</option>
+                        <option value="vendor">Vendor</option>
+                        <option value="expert">Expert</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+                <div class="space-y-1">
+                    <label class="block text-xs font-semibold text-ink/65">Firm</label>
+                    <input type="text" name="firm" class="w-full border border-ink/15 rounded-md p-2.5 text-sm bg-sand/10">
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div class="space-y-1">
+                    <label class="block text-xs font-semibold text-ink/65">Contact</label>
+                    <input type="text" name="contact_name" class="w-full border border-ink/15 rounded-md p-2.5 text-sm bg-sand/10">
+                </div>
+                <div class="space-y-1">
+                    <label class="block text-xs font-semibold text-ink/65">Email</label>
+                    <input type="email" name="email" class="w-full border border-ink/15 rounded-md p-2.5 text-sm bg-sand/10">
+                </div>
+            </div>
+            <div class="space-y-1">
+                <label class="block text-xs font-semibold text-ink/65">Phone</label>
+                <input type="text" name="phone" class="w-full border border-ink/15 rounded-md p-2.5 text-sm bg-sand/10">
+            </div>
+            <div class="pt-3 flex justify-end gap-2">
+                <button type="button" onclick="closeModal('vendorModal')" class="px-4 py-2 rounded-md border border-ink/10 text-sm">Cancel</button>
+                <button type="submit" class="px-4 py-2 rounded-md bg-brand-700 text-white text-sm font-semibold">Save Contact</button>
             </div>
         </form>
     </div>

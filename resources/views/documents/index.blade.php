@@ -50,18 +50,58 @@ $recentFeed = array_map(static fn($d) => [
         'title' => 'Documents',
         'subtitle' => 'Corporate document archive, version control, and access management.',
         'actions' => function () use ($canUpload) {
-            if (!$canUpload) return;
             ?>
-            <button onclick="openModal('uploadModal')" class="btn-primary">
+            <a href="<?= route('documents.export') ?>" class="btn-secondary mr-2 inline-flex items-center gap-1.5" style="text-decoration: none; display: inline-flex; align-items: center; padding: 0.5rem 1rem; border-radius: 0.75rem;">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
                 </svg>
-                Upload Document
-            </button>
+                Export CSV
+            </a>
+            <a href="<?= route('documents.export.pdf') ?>" class="btn-secondary mr-2 inline-flex items-center gap-1.5" style="text-decoration: none; display: inline-flex; align-items: center; padding: 0.5rem 1rem; border-radius: 0.75rem;">
+                Export PDF
+            </a>
             <?php
+            if ($canUpload) {
+                ?>
+                <button onclick="openModal('uploadModal')" class="btn-primary">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                    </svg>
+                    Upload Document
+                </button>
+                <?php
+            }
         },
     ]);
     ?>
+
+    <form method="GET" action="<?= url('/documents') ?>" class="module-insight-panel flex flex-wrap gap-3 items-end">
+        <div class="flex-1 min-w-[220px] space-y-1">
+            <label class="block text-xs font-bold uppercase tracking-wider text-ink/50">Full-text search</label>
+            <input type="search" name="q" value="<?= htmlspecialchars($contentQuery ?? '') ?>"
+                   placeholder="Search inside document content, titles…"
+                   class="w-full rounded-xl border border-ink/15 px-4 py-2.5 text-sm bg-sand/10">
+        </div>
+        <button type="submit" class="btn-primary">Search content</button>
+        <?php if (!empty($contentQuery)): ?>
+            <a href="<?= url('/documents') ?>" class="btn-secondary">Clear</a>
+        <?php endif; ?>
+    </form>
+
+    <?php if (!empty($contentHits)): ?>
+    <div class="module-insight-panel">
+        <h3 class="module-insight-title">Content matches for “<?= htmlspecialchars($contentQuery) ?>”</h3>
+        <p class="module-insight-sub"><?= count($contentHits) ?> result<?= count($contentHits) === 1 ? '' : 's' ?></p>
+        <?php foreach ($contentHits as $hit): ?>
+            <a href="<?= url('/documents/' . $hit['id']) ?>" data-modal-link class="module-stat-row block hover:bg-sand/40 rounded-lg px-1">
+                <span class="text-ink/80 font-medium"><?= htmlspecialchars($hit['title'] ?? '') ?></span>
+                <span class="text-xs text-ink/45"><?= htmlspecialchars(mb_strimwidth((string) ($hit['content_snippet'] ?? $hit['description'] ?? ''), 0, 80, '…')) ?></span>
+            </a>
+        <?php endforeach; ?>
+    </div>
+    <?php elseif (!empty($contentQuery)): ?>
+    <div class="module-empty">No documents matched that content search.</div>
+    <?php endif; ?>
 
     @include('partials.stat_kpi_grid', ['cards' => [
         ['label' => 'Total archive', 'value' => $totalDocs, 'hint' => 'Active records in library', 'tone' => 'navy', 'icon' => 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z'],

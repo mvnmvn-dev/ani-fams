@@ -17,7 +17,7 @@ $navItems = [
 ?>
 <aside id="app-sidebar" class="app-sidebar h-full shrink-0 text-sand/90 flex flex-col relative z-30 overflow-hidden">
     <div class="sidebar-brand px-3.5 py-5 border-b border-white/10 flex items-center gap-3.5">
-        <img src="<?= asset('images/system-logo.png') ?>"
+        <img src="<?= asset('images/system-logo.svg') ?>"
              alt="<?= htmlspecialchars(config('app.name')) ?>"
              class="sidebar-mark shrink-0 w-14 h-14 rounded-2xl object-cover shadow-lg shadow-black/30"
              title="<?= htmlspecialchars(config('app.name')) ?>">
@@ -61,6 +61,19 @@ $navItems = [
                         </span>
                         <span class="sidebar-link-label">User Management</span>
                         <?php if ($currentPath === '/users'): ?><span class="sidebar-active-dot" aria-hidden="true"></span><?php endif; ?>
+                    </a>
+                    
+                    <a href="<?= url('/settings/roles') ?>"
+                       data-nav-link
+                       title="Roles & Permissions"
+                       class="sidebar-link <?= $currentPath === '/settings/roles' ? 'is-active' : '' ?>">
+                        <span class="sidebar-link-icon">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                            </svg>
+                        </span>
+                        <span class="sidebar-link-label">Roles & Permissions</span>
+                        <?php if ($currentPath === '/settings/roles'): ?><span class="sidebar-active-dot" aria-hidden="true"></span><?php endif; ?>
                     </a>
                 <?php endif; ?>
                 <?php if (can_perm('audit.view') || can_perm('users.manage')): ?>

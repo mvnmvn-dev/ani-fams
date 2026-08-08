@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" role="img" aria-label="FAMS">
+  <rect width="64" height="64" rx="16" fill="#142E4C"/>
+  <path fill="#F8F8F8" d="M18 44V24l14-8 14 8v20H38V32H26v12H18z"/>
+  <rect x="28" y="36" width="8" height="8" rx="1" fill="#142E4C"/>
+  <rect x="18" y="48" width="28" height="3" rx="1.5" fill="#CCAD9F"/>
+</svg>

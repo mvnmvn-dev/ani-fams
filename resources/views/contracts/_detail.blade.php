@@ -34,6 +34,15 @@ $daysToEnd = !empty($c['end_date']) ? (int) floor((strtotime($c['end_date']) - t
             <p class="text-xs text-ink/50 font-mono mt-1">Contract Number: <?= htmlspecialchars($c['contract_number']) ?></p>
         </div>
         <div class="flex flex-wrap items-center gap-2">
+            <?php if (($c['status'] ?? '') === 'pending_signature' && !empty($c['signature_token'])): ?>
+                <button type="button" onclick="openModal('signModal_<?= $c['id'] ?>')" class="btn-primary btn-sm">Sign Contract</button>
+            <?php endif; ?>
+            <button type="button" onclick="window.print()" class="btn-secondary btn-sm inline-flex items-center gap-1">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h8z"/>
+                </svg>
+                Print / Save PDF
+            </button>
             <?php if ($canManage && $c['status'] === 'active'): ?>
                 <button type="button" onclick="openModal('amendModal')" class="btn-primary btn-sm">
                     + File Amendment
@@ -194,6 +203,9 @@ $daysToEnd = !empty($c['end_date']) ? (int) floor((strtotime($c['end_date']) - t
                                         <a href="<?= htmlspecialchars($amd['file_path']) ?>" download class="inline-block font-bold text-brand-650 hover:text-brand-850 underline mt-2.5" target="_blank">
                                             Download Amendment
                                         </a>
+                                        <a href="<?= url('/contracts/' . $c['id'] . '/amendments/' . $amd['id'] . '/diff') ?>" class="inline-block font-bold text-ink/60 hover:text-ink underline mt-1.5 ml-0 sm:ml-3" target="_blank">
+                                            View Diff
+                                        </a>
                                     <?php endif; ?>
                                 </div>
                             </div>
@@ -279,4 +291,50 @@ $daysToEnd = !empty($c['end_date']) ? (int) floor((strtotime($c['end_date']) - t
         </form>
     </div>
 </div>
+<?php endif; ?>
+
+<?php if (($c['status'] ?? '') === 'pending_signature' && !empty($c['signature_token'])): ?>
+<div id="signModal_<?= $c['id'] ?>" class="modal-overlay hidden" hidden>
+    <div class="bg-white rounded-xl shadow-xl max-w-lg w-full border border-ink/10 overflow-hidden animate-fade-in-up" onclick="event.stopPropagation()">
+        <div class="px-6 py-4 border-b border-ink/10 flex justify-between items-center bg-gray-50/50">
+            <h3 class="font-sans text-lg font-bold text-ink">E-Signature</h3>
+            <button type="button" onclick="closeModal('signModal_<?= $c['id'] ?>')" class="text-ink/40 hover:text-ink/60 transition">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+        <form action="<?= url('/contracts/sign/' . $c['signature_token']) ?>" method="POST" class="p-6 space-y-4" onsubmit="return window.submitSignaturePad(this, 'signatureCanvas_<?= $c['id'] ?>', 'signatureData_<?= $c['id'] ?>')">
+            @csrf
+            <div>
+                <p class="font-sans text-lg font-bold text-ink"><?= htmlspecialchars($c['title'] ?? 'Contract') ?></p>
+                <p class="text-sm text-ink/55 mt-1 font-mono"><?= htmlspecialchars($c['contract_number'] ?? '') ?></p>
+            </div>
+            
+            <div class="space-y-1">
+                <label class="block text-xs font-semibold uppercase tracking-wider text-ink/60">Full Legal Name</label>
+                <input type="text" name="signer_name" required class="w-full border border-ink/15 rounded-lg p-2.5 text-sm bg-sand/10 focus:border-brand-500 outline-none" value="<?= htmlspecialchars(auth()->user()->full_name ?? '') ?>">
+            </div>
+
+            <div class="space-y-1">
+                <label class="block text-xs font-semibold uppercase tracking-wider text-ink/60 flex justify-between">
+                    <span>Signature</span>
+                    <button type="button" onclick="window.clearSignaturePad('signatureCanvas_<?= $c['id'] ?>')" class="text-brand-600 hover:text-brand-800 text-xs normal-case font-medium">Clear</button>
+                </label>
+                <div class="border border-ink/15 rounded-lg bg-sand/5 overflow-hidden">
+                    <canvas id="signatureCanvas_<?= $c['id'] ?>" data-signature-pad width="450" height="150" class="w-full cursor-crosshair touch-none"></canvas>
+                </div>
+                <input type="hidden" name="signature_data" id="signatureData_<?= $c['id'] ?>">
+            </div>
+
+            <p class="text-xs text-ink/50">By submitting, you confirm you are authorized to sign this agreement electronically.</p>
+            
+            <div class="pt-4 border-t border-ink/10 flex justify-end gap-3">
+                <button type="button" onclick="closeModal('signModal_<?= $c['id'] ?>')" class="px-4 py-2.5 rounded-lg border border-ink/10 hover:bg-gray-50 text-ink/70 font-semibold text-sm transition">Cancel</button>
+                <button type="submit" class="px-5 py-2.5 rounded-lg bg-brand-700 hover:bg-brand-600 text-white font-semibold text-sm transition">Sign &amp; Activate</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <?php endif; ?>

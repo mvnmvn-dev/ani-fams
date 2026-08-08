@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\ExportsData;
 use App\Http\Controllers\Concerns\RespondsWithFlashOrJson;
 use App\Services\LegalCaseService;
 use Illuminate\Http\Request;
@@ -11,6 +12,10 @@ use Illuminate\Support\Facades\DB;
 class LegalCaseController extends Controller
 {
     use RespondsWithFlashOrJson;
+    use ExportsData {
+        exportCsv as streamExportCsv;
+        exportPdf as streamExportPdf;
+    }
 
     public function index(LegalCaseService $service)
     {
@@ -20,6 +25,8 @@ class LegalCaseController extends Controller
             'pageTitle' => 'Legal Management',
             'cases' => $service->listCases(),
             'counsels' => $counsels,
+            'vendors' => $service->allVendors(),
+            'budgetRollup' => $service->budgetRollup(),
             'canManage' => Auth::user()->canPermission('legal.manage'),
             'openRecordId' => request()->query('open'),
         ]);
@@ -47,6 +54,7 @@ class LegalCaseController extends Controller
             'pageTitle' => $case['title'] ?? 'Legal Case',
             'case' => $case,
             'allDocs' => $allDocs,
+            'vendors' => $service->allVendors(),
             'canManage' => Auth::user()->canPermission('legal.manage'),
             'asModal' => true,
         ];
@@ -113,5 +121,95 @@ class LegalCaseController extends Controller
             $result['success'] ? 'flash_success' : 'flash_error',
             $result['success'] ? 'Expense logged successfully.' : $result['error']
         );
+    }
+
+    public function destroy(string $id, LegalCaseService $service)
+    {
+        $result = $service->softDelete((int) $id);
+
+        return redirect()->route('legal.index')->with(
+            $result['success'] ? 'flash_success' : 'flash_error',
+            $result['success'] ? 'Legal case moved to trash.' : ($result['error'] ?? 'Unable to delete.')
+        );
+    }
+
+    public function storeVendor(Request $request, LegalCaseService $service)
+    {
+        $result = $service->addVendor($request->all());
+
+        return redirect()->route('legal.index')->with(
+            $result['success'] ? 'flash_success' : 'flash_error',
+            $result['success'] ? 'Vendor / counsel contact saved.' : $result['error']
+        );
+    }
+
+    public function linkVendor(Request $request, string $id, LegalCaseService $service)
+    {
+        $result = $service->linkVendorToCase(
+            (int) $id,
+            (int) $request->input('vendor_id'),
+            $request->input('role_note')
+        );
+
+        return redirect()->route('legal.index', ['open' => $id])->with(
+            $result['success'] ? 'flash_success' : 'flash_error',
+            $result['success'] ? 'Vendor linked to case.' : $result['error']
+        );
+    }
+
+    public function updateBudget(Request $request, string $id, LegalCaseService $service)
+    {
+        $result = $service->updateBudget((int) $id, $request->input('budget_amount'));
+
+        return redirect()->route('legal.index', ['open' => $id])->with(
+            $result['success'] ? 'flash_success' : 'flash_error',
+            $result['success'] ? 'Budget updated.' : $result['error']
+        );
+    }
+
+    public function exportCsv(LegalCaseService $service)
+    {
+        $cases = $service->listCases();
+        $headers = ['ID', 'Case Number', 'Title', 'Type', 'Status', 'Filed Date', 'Court/Agency', 'Opposing Party', 'Assigned Counsel', 'External Counsel', 'Risk Level', 'Description', 'Created At'];
+        $rows = [];
+        foreach ($cases as $row) {
+            $rows[] = [
+                $row['id'] ?? '',
+                $row['case_number'] ?? '',
+                $row['title'] ?? '',
+                $row['case_type'] ?? '',
+                $row['status'] ?? '',
+                $row['filed_date'] ?? '',
+                $row['court_or_agency'] ?? '',
+                $row['opposing_party'] ?? '',
+                $row['counsel_name'] ?? '',
+                $row['external_counsel_name'] ?? '',
+                $row['risk_level'] ?? '',
+                $row['description'] ?? '',
+                $row['created_at'] ?? '',
+            ];
+        }
+
+        return $this->streamExportCsv('legal_cases', $headers, $rows);
+    }
+
+    public function exportPdf(LegalCaseService $service)
+    {
+        $cases = $service->listCases();
+        $headers = ['ID', 'Case Number', 'Title', 'Type', 'Status', 'Counsel', 'Risk'];
+        $rows = [];
+        foreach ($cases as $row) {
+            $rows[] = [
+                $row['id'] ?? '',
+                $row['case_number'] ?? '',
+                $row['title'] ?? '',
+                $row['case_type'] ?? '',
+                $row['status'] ?? '',
+                $row['counsel_name'] ?? '',
+                $row['risk_level'] ?? '',
+            ];
+        }
+
+        return $this->streamExportPdf('legal_cases', 'Legal Cases Export', $headers, $rows);
     }
 }

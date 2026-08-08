@@ -18,6 +18,7 @@ $allSearchTargets = [
     ['label' => 'Contract Management', 'path' => '/contracts', 'keywords' => 'agreements renewals', 'permission' => 'contract.view'],
     ['label' => 'User Management', 'path' => '/users', 'keywords' => 'accounts roles admin', 'permission' => 'users.manage'],
     ['label' => 'Audit Log', 'path' => '/audit-logs', 'keywords' => 'history actions trail', 'permission' => 'audit.view'],
+    ['label' => 'Active Sessions', 'path' => '#sessions', 'keywords' => 'devices sessions security logout', 'permission' => null],
 ];
 
 $searchTargets = array_values(array_filter($allSearchTargets, static function ($item) {
@@ -26,11 +27,8 @@ $searchTargets = array_values(array_filter($allSearchTargets, static function ($
         || ($item['permission'] === 'audit.view' && can_perm('users.manage'));
 }));
 
-$topbarAlerts = TopbarData::alerts();
-$topbarAlertTotal = count(array_filter($topbarAlerts, static fn($n) => !empty($n['unread'])));
-if ($topbarAlertTotal === 0) {
-    $topbarAlertTotal = count($topbarAlerts);
-}
+$topbarAlerts = $user->notifications()->orderBy('created_at', 'desc')->take(5)->get();
+$topbarAlertTotal = $user->notifications()->where('is_read', false)->count();
 
 $notifIcons = [
     'amber'  => 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z',
@@ -89,40 +87,45 @@ $notifIcons = [
                         </div>
                     </div>
                     <div class="app-notif-list">
-                        <?php if (empty($topbarAlerts)): ?>
+                        <?php if ($topbarAlerts->isEmpty()): ?>
                             <div class="app-notif-empty">
                                 <p class="app-notif-empty-title">You're all caught up</p>
                                 <p class="app-notif-empty-text">New system messages will appear here.</p>
                             </div>
                         <?php else: ?>
                             <?php foreach ($topbarAlerts as $note): ?>
-                                <a href="<?= url($note['path']) ?>" class="app-notif-item <?= !empty($note['unread']) ? 'is-unread' : '' ?>" data-nav-link>
-                                    <span class="app-notif-icon tone-<?= htmlspecialchars($note['tone']) ?>">
+                                <a href="<?= url($note->link ?? '#') ?>" class="app-notif-item <?= !$note->is_read ? 'is-unread' : '' ?>" data-nav-link>
+                                    <span class="app-notif-icon tone-<?= $note->module === 'reservations' ? 'sky' : ($note->module === 'contracts' ? 'amber' : 'purple') ?>">
                                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="<?= $notifIcons[$note['tone']] ?? $notifIcons['amber'] ?>"/>
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="<?= $notifIcons['amber'] ?>"/>
                                         </svg>
                                     </span>
                                     <span class="app-notif-body">
                                         <span class="app-notif-item-top">
-                                            <span class="app-notif-item-title"><?= htmlspecialchars($note['title']) ?></span>
-                                            <?php if (!empty($note['unread'])): ?>
+                                            <span class="app-notif-item-title"><?= htmlspecialchars($note->title) ?></span>
+                                            <?php if (!$note->is_read): ?>
                                                 <span class="app-notif-dot" aria-hidden="true"></span>
                                             <?php endif; ?>
                                         </span>
-                                        <span class="app-notif-message"><?= htmlspecialchars($note['message']) ?></span>
+                                        <span class="app-notif-message"><?= htmlspecialchars($note->body) ?></span>
                                         <span class="app-notif-meta">
-                                            <span><?= htmlspecialchars($note['module']) ?></span>
+                                            <span><?= htmlspecialchars(ucfirst($note->module)) ?></span>
                                             <span aria-hidden="true">·</span>
-                                            <span><?= htmlspecialchars($note['time']) ?></span>
+                                            <span><?= htmlspecialchars($note->created_at->diffForHumans()) ?></span>
                                         </span>
                                     </span>
                                 </a>
                             <?php endforeach; ?>
                         <?php endif; ?>
                     </div>
-                    <a href="<?= url('/dashboard') ?>" class="app-notif-footer" data-nav-link>
-                        View all activity
-                    </a>
+                    <div style="display:flex; border-top:1px solid #eee;">
+                        <a href="#" onclick="event.preventDefault(); fetch('<?= url('/notifications/read-all') ?>', {method:'POST',headers:{'X-CSRF-TOKEN':'<?= csrf_token() ?>'}}).then(() => location.reload());" class="app-notif-footer" style="flex:1; border-right:1px solid #eee;">
+                            Mark all as read
+                        </a>
+                        <a href="<?= url('/notifications') ?>" class="app-notif-footer" data-nav-link style="flex:1;">
+                            View all
+                        </a>
+                    </div>
                 </div>
             </div>
 
@@ -146,6 +149,12 @@ $notifIcons = [
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
                     </svg>
                     Customize account
+                </button>
+                <button type="button" class="app-profile-menu-item" onclick="closeProfileMenu(); openModal('sessionsModal')">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                    </svg>
+                    Active sessions
                 </button>
                 <a href="<?= url('/logout') ?>" class="app-profile-menu-item"
                    onclick="event.preventDefault(); var href = this.href; closeProfileMenu(); confirmAction('Are you sure you want to log out? You will need to sign in again to continue.', { title: 'Log out', confirmLabel: 'Log out', danger: true }).then(function (ok) { if (ok) window.location.href = href; });">
@@ -230,19 +239,46 @@ $notifIcons = [
         </form>
     </div>
 </div>
+
+@include('partials.sessions_modal')
+
 <script>
 (function () {
     var input = document.getElementById('profile-photo-input');
     var preview = document.getElementById('profile-photo-preview');
-    if (!input || !preview) return;
-    input.addEventListener('change', function () {
-        var file = input.files && input.files[0];
-        if (!file || !file.type.startsWith('image/')) return;
-        var reader = new FileReader();
-        reader.onload = function (e) {
-            preview.innerHTML = '<img src="' + e.target.result + '" alt="" class="app-profile-avatar-img">';
-        };
-        reader.readAsDataURL(file);
+    if (input && preview) {
+        input.addEventListener('change', function () {
+            var file = input.files && input.files[0];
+            if (!file || !file.type.startsWith('image/')) return;
+            var reader = new FileReader();
+            reader.onload = function (e) {
+                preview.innerHTML = '<img src="' + e.target.result + '" alt="" class="app-profile-avatar-img">';
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+
+    function openSessionsIfNeeded() {
+        if (typeof openModal !== 'function') {
+            window.setTimeout(openSessionsIfNeeded, 40);
+            return;
+        }
+        @if (session('open_sessions_modal'))
+            openModal('sessionsModal');
+        @endif
+        if (window.location.hash === '#sessions') {
+            openModal('sessionsModal');
+        }
+    }
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', openSessionsIfNeeded);
+    } else {
+        openSessionsIfNeeded();
+    }
+    window.addEventListener('hashchange', function () {
+        if (window.location.hash === '#sessions' && typeof openModal === 'function') {
+            openModal('sessionsModal');
+        }
     });
 })();
 </script>
@@ -250,7 +286,7 @@ $notifIcons = [
 <script type="application/json" id="global-search-data"><?= json_encode(array_map(static function ($item) {
     return [
         'label' => $item['label'],
-        'path' => url($item['path']),
+        'path' => str_starts_with($item['path'], '#') ? $item['path'] : url($item['path']),
         'keywords' => $item['keywords'],
     ];
 }, $searchTargets), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?></script>

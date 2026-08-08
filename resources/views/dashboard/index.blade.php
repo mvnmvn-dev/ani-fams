@@ -77,7 +77,7 @@ $contractsInPipeline = count(array_filter($recentContracts, static fn($c) => in_
         @include('partials.dashboard_quick_access', ['quickActions' => $quickActions ?? []])
     </div>
 
-    <div class="module-info-grid">
+    <div class="module-info-grid lg:!grid-cols-3">
         <div class="module-insight-panel">
             <h3 class="module-insight-title">Operational snapshot</h3>
             <p class="module-insight-sub">Live counts across your accessible modules</p>
@@ -118,6 +118,36 @@ $contractsInPipeline = count(array_filter($recentContracts, static fn($c) => in_
                 </div>
             <?php endif; ?>
         </div>
+
+        <div class="module-insight-panel">
+            <h3 class="module-insight-title">Executive Trends</h3>
+            <p class="module-insight-sub">Completion & success rates</p>
+            <?php if (can_perm('reservation.view')): ?>
+                <div class="module-stat-row">
+                    <span class="text-ink/70">Reservation Approval Rate</span>
+                    <strong class="tabular-nums text-ink"><?= $trends['reservation_rate'] ?? 0 ?>%</strong>
+                </div>
+            <?php endif; ?>
+            <?php if (can_perm('visitor.view')): ?>
+                <div class="module-stat-row">
+                    <span class="text-ink/70">Visitor Check-in Rate</span>
+                    <strong class="tabular-nums text-ink"><?= $trends['visitor_rate'] ?? 0 ?>%</strong>
+                </div>
+            <?php endif; ?>
+            <?php if (can_perm('contract.view')): ?>
+                <div class="module-stat-row">
+                    <span class="text-ink/70">Contract Execution Rate</span>
+                    <strong class="tabular-nums text-ink"><?= $trends['contract_rate'] ?? 0 ?>%</strong>
+                </div>
+            <?php endif; ?>
+            <?php if (can_perm('legal.view')): ?>
+                <div class="module-stat-row">
+                    <span class="text-ink/70">Legal Case Resolution Rate</span>
+                    <strong class="tabular-nums text-ink"><?= $trends['legal_rate'] ?? 0 ?>%</strong>
+                </div>
+            <?php endif; ?>
+        </div>
+
         <div class="module-insight-panel">
             <h3 class="module-insight-title">Needs attention</h3>
             <p class="module-insight-sub"><?= $attentionCount ?> item<?= $attentionCount === 1 ? '' : 's' ?> waiting on action</p>

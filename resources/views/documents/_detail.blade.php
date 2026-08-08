@@ -31,6 +31,12 @@ $isSensitive = in_array($doc['confidentiality'] ?? '', ['confidential', 'restric
             <p class="text-xs text-ink/50 font-mono mt-1"><?= htmlspecialchars($doc['document_number']) ?></p>
         </div>
         <div class="flex flex-wrap items-center gap-2">
+            <button type="button" onclick="window.print()" class="btn-secondary btn-sm inline-flex items-center gap-1">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h8z"/>
+                </svg>
+                Print / Save PDF
+            </button>
             <?php if ($canManage): ?>
                 <button type="button" onclick="openModal('accessModal')" class="btn-secondary btn-sm">
                     Permissions
@@ -117,17 +123,41 @@ $isSensitive = in_array($doc['confidentiality'] ?? '', ['confidential', 'restric
         </div>
 
         <?php if (!empty($doc['file_path'])): ?>
-            <div class="pt-2">
-                <a href="<?= htmlspecialchars($doc['file_path']) ?>" target="_blank" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-brand-600 text-white font-semibold text-sm hover:bg-brand-700 transition">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
-                    </svg>
+            <div class="pt-2 flex flex-wrap gap-2">
+                <a href="<?= route('documents.preview', $doc['id']) ?>" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-brand-600 text-white font-semibold text-sm hover:bg-brand-700 transition">
+                    Preview
+                </a>
+                <a href="<?= htmlspecialchars($doc['file_path']) ?>" target="_blank" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg border border-ink/15 text-ink font-semibold text-sm hover:bg-gray-50 transition">
                     Open Current File
                 </a>
             </div>
         <?php endif; ?>
     </div>
+
+    <?php if (count($doc['versions'] ?? []) >= 2): ?>
+    <div class="bg-white border border-ink/10 rounded-xl p-5 shadow-sm">
+        <h3 class="font-sans text-lg font-bold text-ink mb-3">Compare versions</h3>
+        <form action="<?= route('documents.compare', $doc['id']) ?>" method="GET" class="flex flex-wrap items-end gap-3">
+            <div>
+                <label class="block text-xs font-semibold text-ink/60 mb-1">Version A</label>
+                <select name="v1" required class="border border-ink/15 rounded-lg p-2 text-sm bg-sand/10">
+                    <?php foreach ($doc['versions'] as $ver): ?>
+                        <option value="<?= (int) $ver['version_no'] ?>">v<?= (int) $ver['version_no'] ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-ink/60 mb-1">Version B</label>
+                <select name="v2" required class="border border-ink/15 rounded-lg p-2 text-sm bg-sand/10">
+                    <?php foreach ($doc['versions'] as $i => $ver): ?>
+                        <option value="<?= (int) $ver['version_no'] ?>" <?= $i === 1 ? 'selected' : '' ?>>v<?= (int) $ver['version_no'] ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <button type="submit" class="btn-secondary btn-sm">Compare</button>
+        </form>
+    </div>
+    <?php endif; ?>
 
     <div id="versions" class="bg-white border border-ink/10 rounded-xl overflow-hidden shadow-sm">
         <div class="px-5 py-4 border-b border-ink/10 bg-gray-50/50">

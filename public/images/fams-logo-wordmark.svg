@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 96" role="img" aria-labelledby="title desc">
+  <title id="title">FAMS Wordmark</title>
+  <desc id="desc">Facilities and Administrative Management System horizontal logo</desc>
+
+  <!-- Icon -->
+  <g transform="translate(0,8) scale(0.625)">
+    <rect x="8" y="8" width="112" height="112" rx="28" fill="#142E4C"/>
+    <rect x="20" y="20" width="88" height="88" rx="20" fill="#020F1C" opacity="0.35"/>
+    <path
+      d="M64 28 C78 32 90 34 96 36 V62 C96 78 82 90 64 98 C46 90 32 78 32 62 V36 C38 34 50 32 64 28Z"
+      fill="#F8F8F8" opacity="0.96"/>
+    <rect x="46" y="46" width="36" height="38" rx="3" fill="#142E4C"/>
+    <rect x="51" y="51" width="6" height="10" rx="1.2" fill="#BBC3C8"/>
+    <rect x="61" y="51" width="6" height="10" rx="1.2" fill="#BBC3C8"/>
+    <rect x="71" y="51" width="6" height="10" rx="1.2" fill="#BBC3C8"/>
+    <rect x="51" y="65" width="6" height="10" rx="1.2" fill="#5E7288"/>
+    <rect x="61" y="65" width="6" height="10" rx="1.2" fill="#5E7288"/>
+    <rect x="71" y="65" width="6" height="10" rx="1.2" fill="#5E7288"/>
+    <rect x="58" y="78" width="12" height="6" rx="1.5" fill="#CCAD9F"/>
+    <rect x="42" y="90" width="44" height="4" rx="2" fill="#A06A56"/>
+  </g>
+
+  <!-- Wordmark -->
+  <text x="96" y="42" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="28" font-weight="800" fill="#142E4C" letter-spacing="-0.5">FAMS</text>
+  <text x="96" y="68" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#5E7288" letter-spacing="0.6">Facilities &amp; Admin Management</text>
+</svg>

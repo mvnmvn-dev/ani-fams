@@ -31,9 +31,34 @@ class DashboardService
             'active_contracts'     => Auth::user()?->canPermission('contract.view') ? $conService->activeCount() : 0,
         ];
 
+        // Completion/Success rates for Executive Trends
+        $totalRes = count($reservations);
+        $approvedRes = count(array_filter($reservations, fn($r) => ($r['status'] ?? '') === 'approved'));
+        $resRate = $totalRes > 0 ? round(($approvedRes / $totalRes) * 100) : 0;
+
+        $totalVis = count($visits);
+        $checkedInVis = count(array_filter($visits, fn($v) => in_array(($v['status'] ?? ''), ['checked_in', 'checked_out'])));
+        $visRate = $totalVis > 0 ? round(($checkedInVis / $totalVis) * 100) : 0;
+
+        $totalContracts = count($contracts);
+        $activeCon = count(array_filter($contracts, fn($c) => in_array(($c['status'] ?? ''), ['active', 'renewed'])));
+        $conRate = $totalContracts > 0 ? round(($activeCon / $totalContracts) * 100) : 0;
+
+        $totalCases = count($cases);
+        $resolvedCases = count(array_filter($cases, fn($c) => in_array(($c['status'] ?? ''), ['won', 'lost', 'settled', 'closed'])));
+        $legalRate = $totalCases > 0 ? round(($resolvedCases / $totalCases) * 100) : 0;
+
+        $trends = [
+            'reservation_rate' => $resRate,
+            'visitor_rate' => $visRate,
+            'contract_rate' => $conRate,
+            'legal_rate' => $legalRate,
+        ];
+
         return [
             'pageTitle' => 'Dashboard',
             'stats'     => $stats,
+            'trends'    => $trends,
             'charts'    => [
                 'reservations' => $this->countBy($reservations, 'status', ['pending', 'approved', 'rejected', 'cancelled']),
                 'visits'       => $this->countBy($visits, 'status', ['scheduled', 'checked_in', 'checked_out', 'no_show']),

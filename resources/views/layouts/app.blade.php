@@ -4,6 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
+    <meta name="app-base" content="{{ request()->getBasePath() }}">
+    <script>
+      window.appUrl = function (path) {
+        var base = (document.querySelector('meta[name="app-base"]') || {}).content || '';
+        return String(base).replace(/\/+$/, '') + '/' + String(path || '').replace(/^\/+/, '');
+      };
+    </script>
     <script>
       (function () {
         try {
@@ -16,8 +23,8 @@
       })();
     </script>
     <title>{{ $pageTitle ?? config('app.name') }}</title>
-    <link rel="icon" type="image/png" href="{{ asset('images/system-logo.png') }}">
-    <link rel="apple-touch-icon" href="{{ asset('images/system-logo.png') }}">
+    <link rel="icon" type="image/svg+xml" href="{{ asset('images/system-logo.svg') }}">
+    <link rel="apple-touch-icon" href="{{ asset('images/system-logo.svg') }}">
 <!-- CDN Tailwind for this phase. Swap for a compiled build (see /tailwind.config.js) before production. -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -3037,6 +3044,26 @@
         html.dark .toast-error .toast-icon {
             background: rgba(160,106,86,0.25);
             color: #CCAD9F;
+        }
+
+        @media print {
+            body, html, #app-shell, #app-main, #app-content {
+                height: auto !important;
+                overflow: visible !important;
+                background: #fff !important;
+                color: #000 !important;
+            }
+            .app-sidebar, .app-topbar, .btn-primary, .btn-secondary, .btn-sm, .modal-overlay, form, button, .app-topbar-actions, #sidebar-toggle-btn, [data-row-actions] {
+                display: none !important;
+            }
+            #app-main {
+                padding-left: 0 !important;
+                padding-top: 0 !important;
+            }
+            .bg-white, .border {
+                border: none !important;
+                box-shadow: none !important;
+            }
         }
     </style>
 </head>
