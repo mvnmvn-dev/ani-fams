@@ -18,7 +18,7 @@ $allSearchTargets = [
     ['label' => 'Contract Management', 'path' => '/contracts', 'keywords' => 'agreements renewals', 'permission' => 'contract.view'],
     ['label' => 'User Management', 'path' => '/users', 'keywords' => 'accounts roles admin', 'permission' => 'users.manage'],
     ['label' => 'Audit Log', 'path' => '/audit-logs', 'keywords' => 'history actions trail', 'permission' => 'audit.view'],
-    ['label' => 'Active Sessions', 'path' => '#sessions', 'keywords' => 'devices sessions security logout', 'permission' => null],
+    ['label' => 'Active Sessions', 'path' => '#sessions', 'keywords' => 'devices sessions security logout', 'permission' => 'users.manage'],
 ];
 
 $searchTargets = array_values(array_filter($allSearchTargets, static function ($item) {
@@ -150,12 +150,14 @@ $notifIcons = [
                     </svg>
                     Customize account
                 </button>
+                <?php if (can_perm('users.manage')): ?>
                 <button type="button" class="app-profile-menu-item" onclick="closeProfileMenu(); openModal('sessionsModal')">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
                     </svg>
                     Active sessions
                 </button>
+                <?php endif; ?>
                 <a href="<?= url('/logout') ?>" class="app-profile-menu-item"
                    onclick="event.preventDefault(); var href = this.href; closeProfileMenu(); confirmAction('Are you sure you want to log out? You will need to sign in again to continue.', { title: 'Log out', confirmLabel: 'Log out', danger: true }).then(function (ok) { if (ok) window.location.href = href; });">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -124,11 +124,10 @@ Route::middleware('auth')->group(function () {
         Route::post('/settings/roles', [\App\Http\Controllers\RoleController::class, 'store'])->name('roles.store');
         Route::put('/settings/roles/{role}', [\App\Http\Controllers\RoleController::class, 'update'])->name('roles.update');
         Route::delete('/settings/roles/{role}', [\App\Http\Controllers\RoleController::class, 'destroy'])->name('roles.destroy');
+        Route::get('/settings/sessions', [SessionController::class, 'index'])->name('sessions.index');
+        Route::post('/settings/sessions/{id}/revoke', [SessionController::class, 'revoke'])->name('sessions.revoke');
+        Route::post('/settings/sessions/revoke-others', [SessionController::class, 'revokeOthers'])->name('sessions.revokeOthers');
     });
-
-    Route::get('/settings/sessions', [SessionController::class, 'index'])->name('sessions.index');
-    Route::post('/settings/sessions/{id}/revoke', [SessionController::class, 'revoke'])->name('sessions.revoke');
-    Route::post('/settings/sessions/revoke-others', [SessionController::class, 'revokeOthers'])->name('sessions.revokeOthers');
 
     Route::get('/audit-logs', [AuditLogController::class, 'index'])->name('audit.index');
     Route::get('/audit-logs/export', [AuditLogController::class, 'exportCsv'])->name('audit.export');
