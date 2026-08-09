@@ -34,6 +34,7 @@ class ContractController extends Controller
             'canCreate' => Auth::user()->canPermission('contract.create'),
             'canManage' => Auth::user()->canPermission('contract.manage'),
             'openRecordId' => request()->query('open'),
+            'openEsign' => request()->boolean('esign'),
         ]);
     }
 
@@ -64,14 +65,24 @@ class ContractController extends Controller
             return redirect()->route('contracts.index')->with('flash_error', $result['error']);
         }
 
-        return redirect()->route('contracts.index', ['open' => $result['contract']['id']]);
+        return redirect()->route('contracts.index', [
+            'open' => $result['contract']['id'],
+            'esign' => 1,
+        ]);
     }
 
     public function submitSign(Request $request, string $token, ContractService $service)
     {
-        $result = $service->signByToken($token, (string) $request->input('signer_name', ''), $request->ip(), $request->input('signature_data'));
+        $result = $service->signByToken(
+            $token,
+            (string) $request->input('signer_name', ''),
+            $request->ip(),
+            $request->input('signature_data')
+        );
 
-        return redirect()->route('contracts.index')->with(
+        $contractId = $result['id'] ?? null;
+
+        return redirect()->route('contracts.index', $contractId ? ['open' => $contractId] : [])->with(
             $result['success'] ? 'flash_success' : 'flash_error',
             $result['success'] ? 'Contract signed and activated.' : $result['error']
         );

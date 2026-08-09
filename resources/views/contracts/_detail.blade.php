@@ -59,6 +59,43 @@ $daysToEnd = !empty($c['end_date']) ? (int) floor((strtotime($c['end_date']) - t
                 <span class="text-ink/70">Approval progress</span>
                 <strong class="tabular-nums text-ink"><?= $approvedCount ?>/<?= count($c['approvals'] ?? []) ?> signed off</strong>
             </div>
+            <?php if (!empty($c['signed_by_name'])): ?>
+            <div class="module-stat-row">
+                <span class="text-ink/70">Signed by</span>
+                <strong class="text-ink"><?= htmlspecialchars($c['signed_by_name']) ?></strong>
+            </div>
+            <?php endif; ?>
+            <?php if (!empty($c['signed_at'])): ?>
+            <div class="module-stat-row">
+                <span class="text-ink/70">Signed at</span>
+                <strong class="tabular-nums text-ink"><?= date('M j, Y g:ia', strtotime($c['signed_at'])) ?></strong>
+            </div>
+            <?php endif; ?>
+            <?php if (!empty($c['signature_path'])): ?>
+            <?php
+                $sigUrl = asset(ltrim((string) $c['signature_path'], '/'));
+                $canSeeClearSignature = auth()->user()?->hasRole('admin', 'staff') ?? false;
+            ?>
+            <div class="mt-3 pt-3 border-t border-ink/10">
+                <div class="flex items-center justify-between gap-2 mb-2">
+                    <p class="text-[10px] font-bold uppercase tracking-wider text-ink/40">Captured signature</p>
+                    <?php if (! $canSeeClearSignature): ?>
+                        <span class="text-[10px] font-semibold uppercase tracking-wider text-ink/35">Restricted view</span>
+                    <?php endif; ?>
+                </div>
+                <div class="relative inline-block max-w-full">
+                    <img src="<?= htmlspecialchars($sigUrl) ?>"
+                         alt="Signature"
+                         class="max-h-24 max-w-full bg-white border border-ink/10 rounded-lg p-2 block<?= $canSeeClearSignature ? '' : ' select-none pointer-events-none' ?>"
+                         <?php if (! $canSeeClearSignature): ?>style="filter: blur(7px);"<?php endif; ?>>
+                    <?php if (! $canSeeClearSignature): ?>
+                        <div class="absolute inset-0 flex items-center justify-center rounded-lg bg-white/35">
+                            <span class="text-[11px] font-semibold text-ink/55 px-2 text-center">Admin / Staff only</span>
+                        </div>
+                    <?php endif; ?>
+                </div>
+            </div>
+            <?php endif; ?>
             <?php if ($pendingApprovals > 0): ?>
                 <div class="module-stat-row">
                     <span class="text-ink/70">Awaiting decision</span>
@@ -294,47 +331,62 @@ $daysToEnd = !empty($c['end_date']) ? (int) floor((strtotime($c['end_date']) - t
 <?php endif; ?>
 
 <?php if (($c['status'] ?? '') === 'pending_signature' && !empty($c['signature_token'])): ?>
-<div id="signModal_<?= $c['id'] ?>" class="modal-overlay hidden" hidden>
-    <div class="bg-white rounded-xl shadow-xl max-w-lg w-full border border-ink/10 overflow-hidden animate-fade-in-up" onclick="event.stopPropagation()">
+<div id="signModal_<?= $c['id'] ?>" class="modal-overlay hidden" hidden data-esign-modal="1">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-xl w-full border border-ink/10 overflow-hidden animate-fade-in-up" onclick="event.stopPropagation()">
         <div class="px-6 py-4 border-b border-ink/10 flex justify-between items-center bg-gray-50/50">
-            <h3 class="font-sans text-lg font-bold text-ink">E-Signature</h3>
-            <button type="button" onclick="closeModal('signModal_<?= $c['id'] ?>')" class="text-ink/40 hover:text-ink/60 transition">
+            <div>
+                <p class="text-[10px] font-bold uppercase tracking-wider text-ink/40">E-signature</p>
+                <h3 class="font-sans text-lg font-bold text-ink">Draw your signature</h3>
+            </div>
+            <button type="button" onclick="closeModal('signModal_<?= $c['id'] ?>')" class="text-ink/40 hover:text-ink/60 transition" aria-label="Close">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
                 </svg>
             </button>
         </div>
-        <form action="<?= url('/contracts/sign/' . $c['signature_token']) ?>" method="POST" class="p-6 space-y-4" onsubmit="return window.submitSignaturePad(this, 'signatureCanvas_<?= $c['id'] ?>', 'signatureData_<?= $c['id'] ?>')">
+        <form action="<?= url('/contracts/sign/' . $c['signature_token']) ?>" method="POST" class="p-6 space-y-4"
+              onsubmit="return window.submitSignaturePad(this, 'signatureCanvas_<?= $c['id'] ?>', 'signatureData_<?= $c['id'] ?>')">
             @csrf
             <div>
-                <p class="font-sans text-lg font-bold text-ink"><?= htmlspecialchars($c['title'] ?? 'Contract') ?></p>
-                <p class="text-sm text-ink/55 mt-1 font-mono"><?= htmlspecialchars($c['contract_number'] ?? '') ?></p>
-            </div>
-            
-            <div class="space-y-1">
-                <label class="block text-xs font-semibold uppercase tracking-wider text-ink/60">Full Legal Name</label>
-                <input type="text" name="signer_name" required class="w-full border border-ink/15 rounded-lg p-2.5 text-sm bg-sand/10 focus:border-brand-500 outline-none" value="<?= htmlspecialchars(auth()->user()->full_name ?? '') ?>">
+                <p class="font-sans text-base font-bold text-ink"><?= htmlspecialchars($c['title'] ?? 'Contract') ?></p>
+                <p class="text-sm text-ink/55 mt-0.5 font-mono"><?= htmlspecialchars($c['contract_number'] ?? '') ?></p>
+                <p class="text-sm text-ink/65 mt-2">Counterparty: <?= htmlspecialchars($c['counterparty_name'] ?? '') ?></p>
             </div>
 
             <div class="space-y-1">
-                <label class="block text-xs font-semibold uppercase tracking-wider text-ink/60 flex justify-between">
-                    <span>Signature</span>
-                    <button type="button" onclick="window.clearSignaturePad('signatureCanvas_<?= $c['id'] ?>')" class="text-brand-600 hover:text-brand-800 text-xs normal-case font-medium">Clear</button>
-                </label>
-                <div class="border border-ink/15 rounded-lg bg-sand/5 overflow-hidden">
-                    <canvas id="signatureCanvas_<?= $c['id'] ?>" data-signature-pad width="450" height="150" class="w-full cursor-crosshair touch-none"></canvas>
+                <label class="block text-xs font-semibold uppercase tracking-wider text-ink/60">Full legal name</label>
+                <input type="text" name="signer_name" required
+                       class="w-full border border-ink/15 rounded-xl p-2.5 text-sm bg-sand/10 focus:border-brand-500 outline-none"
+                       value="<?= htmlspecialchars(auth()->user()->full_name ?? '') ?>">
+            </div>
+
+            <div class="space-y-1.5">
+                <div class="flex items-center justify-between gap-2">
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-ink/60">Signature pad</label>
+                    <button type="button" onclick="window.clearSignaturePad('signatureCanvas_<?= $c['id'] ?>')"
+                            class="text-xs font-semibold text-brand-700 hover:text-brand-900">Clear</button>
+                </div>
+                <div class="rounded-xl border border-dashed border-ink/20 bg-[#fcfcfb] overflow-hidden relative">
+                    <p class="pointer-events-none absolute inset-x-0 top-2 text-center text-[11px] text-ink/30 select-none">Sign here with mouse or finger</p>
+                    <canvas id="signatureCanvas_<?= $c['id'] ?>"
+                            data-signature-pad
+                            width="520"
+                            height="180"
+                            class="block w-full h-[180px] cursor-crosshair touch-none bg-transparent"></canvas>
                 </div>
                 <input type="hidden" name="signature_data" id="signatureData_<?= $c['id'] ?>">
             </div>
 
-            <p class="text-xs text-ink/50">By submitting, you confirm you are authorized to sign this agreement electronically.</p>
-            
+            <p class="text-xs text-ink/50">By signing, you confirm you are authorized to execute this agreement electronically.</p>
+
             <div class="pt-4 border-t border-ink/10 flex justify-end gap-3">
-                <button type="button" onclick="closeModal('signModal_<?= $c['id'] ?>')" class="px-4 py-2.5 rounded-lg border border-ink/10 hover:bg-gray-50 text-ink/70 font-semibold text-sm transition">Cancel</button>
-                <button type="submit" class="px-5 py-2.5 rounded-lg bg-brand-700 hover:bg-brand-600 text-white font-semibold text-sm transition">Sign &amp; Activate</button>
+                <button type="button" onclick="closeModal('signModal_<?= $c['id'] ?>')"
+                        class="px-4 py-2.5 rounded-xl border border-ink/10 hover:bg-gray-50 text-ink/70 font-semibold text-sm">Cancel</button>
+                <button type="submit" class="px-5 py-2.5 rounded-xl bg-brand-700 hover:bg-brand-600 text-white font-semibold text-sm shadow-sm">
+                    Sign &amp; Activate
+                </button>
             </div>
         </form>
     </div>
 </div>
-
 <?php endif; ?>

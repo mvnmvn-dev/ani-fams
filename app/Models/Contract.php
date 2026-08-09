@@ -36,6 +36,7 @@ class Contract extends Model
         'signed_at',
         'signed_by_name',
         'signed_ip',
+        'signature_path',
     ];
 
     protected $casts = [

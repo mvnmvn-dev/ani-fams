@@ -198,6 +198,11 @@
             }
         }
         document.body.classList.add('modal-open');
+        requestAnimationFrame(function () {
+            modal.querySelectorAll('canvas[data-signature-pad]').forEach(function (canvas) {
+                prepareSignatureCanvas(canvas);
+            });
+        });
     };
 
     window.closeModal = function (id) {
@@ -277,12 +282,15 @@
     if (confirmOk) confirmOk.addEventListener('click', function () { settleConfirm(true); });
 
     /* ---------- Record detail modal (contracts / documents) ---------- */
-    var nestedRecordModalIds = ['accessModal', 'versionModal', 'amendModal', 'partyModal', 'documentModal', 'milestoneModal', 'costModal'];
+    var nestedRecordModalIds = ['accessModal', 'versionModal', 'amendModal', 'partyModal', 'documentModal', 'milestoneModal', 'costModal', 'linkVendorModal'];
 
     function cleanupNestedRecordModals() {
         nestedRecordModalIds.forEach(function (id) {
             var el = document.getElementById(id);
             if (el) el.remove();
+        });
+        document.querySelectorAll('[id^="signModal_"]').forEach(function (el) {
+            el.remove();
         });
     }
 
@@ -295,7 +303,8 @@
         closeModal('recordModal');
     };
 
-    window.openRecordModal = function (url) {
+    window.openRecordModal = function (url, options) {
+        options = options || {};
         var body = document.getElementById('recordModalBody');
         var title = document.getElementById('recordModalTitle');
         if (!body) return;
@@ -319,6 +328,14 @@
             var named = body.querySelector('[data-record-title]');
             if (title && named) title.textContent = named.getAttribute('data-record-title') || 'Details';
             portalModals();
+            if (options.esign) {
+                var signModal = document.querySelector('[id^="signModal_"][data-esign-modal]');
+                if (signModal) {
+                    setTimeout(function () {
+                        openModal(signModal.id);
+                    }, 50);
+                }
+            }
         }).catch(function () {
             body.innerHTML = '<div class="p-10 text-center text-accent-700 text-sm">Could not load this record. Please try again.</div>';
             if (title) title.textContent = 'Unavailable';
@@ -342,10 +359,13 @@
         portalModals();
         var boot = document.getElementById('open-record-bootstrap');
         if (boot && boot.getAttribute('data-url')) {
-            openRecordModal(boot.getAttribute('data-url'));
+            openRecordModal(boot.getAttribute('data-url'), {
+                esign: boot.getAttribute('data-esign') === '1'
+            });
             try {
                 var clean = new URL(window.location.href);
                 clean.searchParams.delete('open');
+                clean.searchParams.delete('esign');
                 window.history.replaceState({}, '', clean.pathname + (clean.searchParams.toString() ? '?' + clean.searchParams.toString() : '') + clean.hash);
             } catch (err) {}
         }
@@ -833,10 +853,32 @@
     /* ---------- Global Signature Pad Handler ---------- */
     var activeSignature = null;
 
+    function prepareSignatureCanvas(canvas) {
+        if (!canvas) return;
+        var parent = canvas.parentElement;
+        var cssW = Math.max(parent ? parent.clientWidth : 0, 280);
+        var cssH = 180;
+        var ratio = window.devicePixelRatio || 1;
+        canvas.width = Math.floor(cssW * ratio);
+        canvas.height = Math.floor(cssH * ratio);
+        canvas.style.width = cssW + 'px';
+        canvas.style.height = cssH + 'px';
+        var ctx = canvas.getContext('2d');
+        ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+        ctx.lineWidth = 2.25;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.strokeStyle = '#0f172a';
+        ctx.clearRect(0, 0, cssW, cssH);
+        canvas._initialized = true;
+        canvas._hasDrawn = false;
+        canvas._isDrawing = false;
+    }
+
     function getCanvasCoordinates(canvas, e) {
         var rect = canvas.getBoundingClientRect();
-        var scaleX = canvas.width / rect.width;
-        var scaleY = canvas.height / rect.height;
+        var scaleX = (canvas.width / (window.devicePixelRatio || 1)) / rect.width;
+        var scaleY = (canvas.height / (window.devicePixelRatio || 1)) / rect.height;
         var clientX = e.clientX;
         var clientY = e.clientY;
         if (e.touches && e.touches.length > 0) {
@@ -853,15 +895,10 @@
     }
 
     function initCanvasCtx(canvas) {
-        if (canvas._initialized) return canvas.getContext('2d');
-        var ctx = canvas.getContext('2d');
-        ctx.lineWidth = 2;
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
-        ctx.strokeStyle = '#0f172a';
-        canvas._initialized = true;
-        canvas._hasDrawn = false;
-        return ctx;
+        if (!canvas._initialized) {
+            prepareSignatureCanvas(canvas);
+        }
+        return canvas.getContext('2d');
     }
 
     document.addEventListener('mousedown', function(e) {
@@ -874,6 +911,10 @@
         var coords = getCanvasCoordinates(canvas, e);
         canvas._lastX = coords[0];
         canvas._lastY = coords[1];
+        ctx.beginPath();
+        ctx.arc(coords[0], coords[1], 0.6, 0, Math.PI * 2);
+        ctx.fillStyle = '#0f172a';
+        ctx.fill();
     });
 
     document.addEventListener('mousemove', function(e) {
@@ -897,7 +938,7 @@
     document.addEventListener('touchstart', function(e) {
         var canvas = e.target.closest('canvas[data-signature-pad]');
         if (!canvas) return;
-        e.preventDefault(); 
+        e.preventDefault();
         activeSignature = canvas;
         var ctx = initCanvasCtx(canvas);
         canvas._isDrawing = true;
@@ -905,6 +946,10 @@
         var coords = getCanvasCoordinates(canvas, e);
         canvas._lastX = coords[0];
         canvas._lastY = coords[1];
+        ctx.beginPath();
+        ctx.arc(coords[0], coords[1], 0.6, 0, Math.PI * 2);
+        ctx.fillStyle = '#0f172a';
+        ctx.fill();
     }, { passive: false });
 
     document.addEventListener('touchmove', function(e) {
@@ -929,19 +974,17 @@
     window.clearSignaturePad = function(id) {
         var canvas = document.getElementById(id);
         if (!canvas) return;
-        var ctx = canvas.getContext('2d');
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        canvas._hasDrawn = false;
+        prepareSignatureCanvas(canvas);
     };
 
     window.submitSignaturePad = function(form, canvasId, inputId) {
         var canvas = document.getElementById(canvasId);
         var input = document.getElementById(inputId);
         if (!canvas || !canvas._hasDrawn) {
-            alert('Please provide your signature before submitting.');
+            alert('Please draw your signature before submitting.');
             return false;
         }
-        input.value = canvas.toDataURL('image/png');
+        if (input) input.value = canvas.toDataURL('image/png');
         return true;
     };
 

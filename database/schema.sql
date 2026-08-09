@@ -1,7 +1,23 @@
 -- =========================================================
--- Facilities & Administrative Management Segment
--- Core schema + RBAC seed (Admin / Staff / Employee)
+-- FAMS — Facilities & Administrative Management System
+-- Full schema + RBAC seed (Admin / Staff / Employee)
 -- Engine: MySQL / MariaDB
+--
+-- CLEAN REIMPORT (phpMyAdmin or CLI):
+--   1. Drop the old database (optional but recommended):
+--        DROP DATABASE IF EXISTS facilities_admin_db;
+--   2. Import THIS file only (do not run patches afterward):
+--        database/schema.sql
+--   3. Default logins (password for all: password)
+--        admin@facilitiesadmin.local
+--        staff@facilitiesadmin.local
+--        employee@facilitiesadmin.local
+--
+-- Includes: reservations (recurring/maintenance/equipment),
+-- visitors, documents (content_text search), retention, legal
+-- (budget/vendors/milestones), contracts (templates/chains/
+-- e-sign signature_path), notifications, attachments, sessions,
+-- password reset, queue tables.
 -- =========================================================
 
 CREATE DATABASE IF NOT EXISTS facilities_admin_db;
@@ -209,9 +225,6 @@ FROM departments d, roles r WHERE d.name = 'General Administration' AND r.code =
 ON DUPLICATE KEY UPDATE full_name = VALUES(full_name);
 
 -- ===================== MODULE TABLES =====================
--- (Facilities Reservation shown fully implemented for this phase;
---  the other 5 modules are scaffolded in the codebase and will reuse
---  this same pattern — see database/schema_modules_todo.sql notes.)
 
 CREATE TABLE IF NOT EXISTS facilities (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -671,6 +684,17 @@ CREATE TABLE IF NOT EXISTS contract_amendments (
     FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
 );
 
+-- Seed a starter contract template (optional demo content)
+INSERT INTO contract_templates (name, contract_type_id, body_text, default_value, is_active, created_by)
+SELECT 'Standard NDA Template', ct.id,
+       'This Non-Disclosure Agreement ("Agreement") is entered into between the Company and the Counterparty.\n\n1. Confidential Information\n2. Obligations of Receiving Party\n3. Term and Termination\n4. Governing Law',
+       NULL, 1, u.id
+FROM contract_types ct
+CROSS JOIN users u
+JOIN roles r ON r.id = u.role_id AND r.code = 'admin'
+WHERE ct.name = 'NDA'
+LIMIT 1;
+
 -- ===================== QUEUE JOBS =====================
 CREATE TABLE IF NOT EXISTS jobs (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -681,6 +705,19 @@ CREATE TABLE IF NOT EXISTS jobs (
     available_at INT UNSIGNED NOT NULL,
     created_at INT UNSIGNED NOT NULL,
     INDEX jobs_queue_index (queue)
+);
+
+CREATE TABLE IF NOT EXISTS job_batches (
+    id VARCHAR(255) NOT NULL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    total_jobs INT NOT NULL,
+    pending_jobs INT NOT NULL,
+    failed_jobs INT NOT NULL,
+    failed_job_ids LONGTEXT NOT NULL,
+    options MEDIUMTEXT NULL,
+    cancelled_at INT NULL,
+    created_at INT NOT NULL,
+    finished_at INT NULL
 );
 
 CREATE TABLE IF NOT EXISTS failed_jobs (

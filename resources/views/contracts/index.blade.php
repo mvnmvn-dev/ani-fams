@@ -444,7 +444,10 @@ render_page_header([
 <?php endif; ?>
 
 @if(!empty($openRecordId))
-<div id="open-record-bootstrap" hidden data-url="<?= url('/contracts/' . $openRecordId) ?>?modal=1"></div>
+<div id="open-record-bootstrap"
+     hidden
+     data-url="<?= url('/contracts/' . $openRecordId) ?>?modal=1"
+     <?php if (!empty($openEsign)): ?>data-esign="1"<?php endif; ?>></div>
 @endif
 
 @endsection

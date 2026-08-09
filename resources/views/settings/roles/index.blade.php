@@ -60,16 +60,19 @@
                             </div>
                         </td>
                         <td class="px-6 py-4 text-right whitespace-nowrap">
+                            @php
+                                $roleEditPayload = [
+                                    'id' => $role->id,
+                                    'name' => $role->name,
+                                    'code' => $role->code,
+                                    'description' => $role->description,
+                                    'permissions' => $role->permissions->pluck('id')->map(fn ($id) => (int) $id)->values()->all(),
+                                ];
+                            @endphp
                             <button type="button"
                                     class="text-brand-600 hover:text-brand-800 font-semibold text-xs mr-3"
                                     data-role-edit
-                                    data-role='@json([
-                                        "id" => $role->id,
-                                        "name" => $role->name,
-                                        "code" => $role->code,
-                                        "description" => $role->description,
-                                        "permissions" => $role->permissions->pluck("id")->map(fn ($id) => (int) $id)->values(),
-                                    ], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT)'>
+                                    data-role='@json($roleEditPayload, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT)'>
                                 Edit
                             </button>
                             @if (! in_array($role->code, ['admin', 'staff', 'employee'], true))
