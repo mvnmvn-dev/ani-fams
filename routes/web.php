@@ -44,6 +44,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
     Route::post('/notifications/read-all', [NotificationController::class, 'markAllAsRead'])->name('notifications.readAll');
     Route::post('/notifications/{id}/read', [NotificationController::class, 'markAsRead'])->name('notifications.read');
+    Route::get('/notifications/{id}/click', [NotificationController::class, 'click'])->name('notifications.click');
+    Route::get('/notifications/poll', [NotificationController::class, 'poll'])->name('notifications.poll');
 
     Route::middleware('permission:reservation.view')->get('/reservations/export', [ReservationController::class, 'exportCsv'])->name('reservations.export');
     Route::middleware('permission:reservation.view')->get('/reservations/export/pdf', [ReservationController::class, 'exportPdf'])->name('reservations.export.pdf');

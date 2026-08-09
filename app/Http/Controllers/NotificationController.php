@@ -42,4 +42,35 @@ class NotificationController extends Controller
         }
         return back();
     }
+
+    public function click(Request $request, int $id)
+    {
+        $notification = Notification::where('user_id', Auth::id())->findOrFail($id);
+        $notification->update(['is_read' => true]);
+        
+        return redirect($notification->link ?? '/dashboard');
+    }
+
+    public function poll()
+    {
+        $topbarAlerts = Notification::where('user_id', Auth::id())
+            ->orderBy('created_at', 'desc')->take(5)->get();
+        $topbarAlertTotal = Notification::where('user_id', Auth::id())
+            ->where('is_read', false)->count();
+
+        return response()->json([
+            'total' => $topbarAlertTotal,
+            'alerts' => $topbarAlerts->map(function($note) {
+                return [
+                    'id' => $note->id,
+                    'title' => $note->title,
+                    'body' => $note->body,
+                    'link' => url('/notifications/' . $note->id . '/click'),
+                    'module' => $note->module,
+                    'is_read' => $note->is_read,
+                    'time' => $note->created_at->diffForHumans(),
+                ];
+            })
+        ]);
+    }
 }

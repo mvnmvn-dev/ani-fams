@@ -94,7 +94,7 @@ $notifIcons = [
                             </div>
                         <?php else: ?>
                             <?php foreach ($topbarAlerts as $note): ?>
-                                <a href="<?= url($note->link ?? '#') ?>" class="app-notif-item <?= !$note->is_read ? 'is-unread' : '' ?>" data-nav-link>
+                                <a href="<?= url('/notifications/' . $note->id . '/click') ?>" class="app-notif-item <?= !$note->is_read ? 'is-unread' : '' ?>" data-nav-link>
                                     <span class="app-notif-icon tone-<?= $note->module === 'reservations' ? 'sky' : ($note->module === 'contracts' ? 'amber' : 'purple') ?>">
                                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="<?= $notifIcons['amber'] ?>"/>

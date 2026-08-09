@@ -1277,6 +1277,69 @@
             io.observe(el);
         });
     })();
+
+    /* ---------- Real-time notifications polling ---------- */
+    function pollNotifications() {
+        fetch('<?= url("/notifications/poll") ?>', {
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': 'application/json'
+            }
+        })
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+            var badgeBtn = document.getElementById('alerts-btn');
+            if (badgeBtn) {
+                var badge = badgeBtn.querySelector('.app-topbar-badge');
+                if (data.total > 0) {
+                    if (!badge) {
+                        badge = document.createElement('span');
+                        badge.className = 'app-topbar-badge';
+                        badgeBtn.appendChild(badge);
+                    }
+                    badge.textContent = data.total > 9 ? '9+' : data.total;
+                } else if (badge) {
+                    badge.remove();
+                }
+            }
+            var subtitle = document.querySelector('#alerts-menu .app-notif-subtitle');
+            if (subtitle) {
+                subtitle.textContent = data.total > 0 
+                    ? (data.total === 1 ? '1 unread message' : data.total + ' unread messages')
+                    : 'No new messages';
+            }
+            var list = document.querySelector('#alerts-menu .app-notif-list');
+            if (list) {
+                if (data.alerts.length === 0) {
+                    list.innerHTML = '<div class="app-notif-empty"><p class="app-notif-empty-title">You\'re all caught up</p><p class="app-notif-empty-text">New system messages will appear here.</p></div>';
+                } else {
+                    var html = '';
+                    var notifIcons = {
+                        'amber': 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z',
+                        'sky': 'M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-4.13a4 4 0 11-8 0 4 4 0 018 0zm6 4a4 4 0 10-8 0',
+                        'purple': 'M9 17v-2a4 4 0 014-4h4m0 0l-3-3m3 3l-3 3M7 7h.01M7 3h5a2 2 0 012 2v14a2 2 0 01-2 2H7a2 2 0 01-2-2V5a2 2 0 012-2z'
+                    };
+                    data.alerts.forEach(function(note) {
+                        var tone = note.module === 'reservations' ? 'sky' : (note.module === 'contracts' ? 'amber' : 'purple');
+                        var iconPath = notifIcons['amber'];
+                        html += '<a href="' + escapeHtml(note.link) + '" class="app-notif-item ' + (!note.is_read ? 'is-unread' : '') + '" data-nav-link>';
+                        html += '<span class="app-notif-icon tone-' + tone + '"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="' + iconPath + '"/></svg></span>';
+                        html += '<span class="app-notif-body"><span class="app-notif-item-top"><span class="app-notif-item-title">' + escapeHtml(note.title) + '</span>';
+                        if (!note.is_read) {
+                            html += '<span class="app-notif-dot" aria-hidden="true"></span>';
+                        }
+                        html += '</span><span class="app-notif-message">' + escapeHtml(note.body) + '</span>';
+                        html += '<span class="app-notif-meta"><span>' + escapeHtml(note.module.charAt(0).toUpperCase() + note.module.slice(1)) + '</span><span aria-hidden="true">·</span><span>' + escapeHtml(note.time) + '</span></span></span></a>';
+                    });
+                    list.innerHTML = html;
+                }
+            }
+        })
+        .catch(function(err) { /* ignore */ });
+    }
+    if (document.getElementById('alerts-btn')) {
+        setInterval(pollNotifications, 15000);
+    }
 })();
 </script>
 </body>
