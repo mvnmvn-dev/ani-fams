@@ -62,6 +62,7 @@ CREATE TABLE IF NOT EXISTS users (
     role_id INT UNSIGNED NOT NULL,            -- one primary role per user (admin/staff/employee)
     status ENUM('active','inactive','suspended') DEFAULT 'active',
     photo_path VARCHAR(500) NULL,
+    remember_token VARCHAR(100) NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     deleted_at DATETIME NULL,

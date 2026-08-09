@@ -33,11 +33,11 @@
         theme: {
           extend: {
                         colors: {
-              ink:   '#4E545C',
+              ink:   '#0F172A',
               brand: { 50:'#F8F8F8',100:'#BBC3C8',200:'#9E9EA0',300:'#5E7288',500:'#334963',600:'#142E4C',700:'#020F1C',800:'#020F1C' },
               accent:{ 50:'#F8F8F8',100:'#CCAD9F',200:'#CCAD9F',500:'#CCAD9F',600:'#A06A56',700:'#A06A56' },
               sand:  '#F8F8F8',
-              mute:  '#9E9EA0',
+              mute:  '#475569',
               line:  '#BBC3C8'
             },
             fontFamily: {
@@ -59,11 +59,11 @@
             --fams-navy-mid: #334963;
             --fams-slate: #5E7288;
             --fams-gray: #BBC3C8;
-            --fams-muted: #9E9EA0;
+            --fams-muted: #64748B;
             --fams-peach: #CCAD9F;
             --fams-brown: #A06A56;
             --fams-bg: #F8F8F8;
-            --fams-ink: #4E545C;
+            --fams-ink: #0F172A;
             --chart-navy: #142E4C;
             --chart-navy-mid: #334963;
             --chart-slate: #5E7288;
@@ -79,14 +79,14 @@
             --type-small: 0.8125rem;
             --type-meta: 0.75rem;
             --type-label: 0.8125rem;
-            --text-primary: #1E293B;
-            --text-secondary: #64748B;
-            --text-muted: #94A3B8;
+            --text-primary: #0F172A;
+            --text-secondary: #1E293B;
+            --text-muted: #334155;
         }
 
         html {
-            -webkit-font-smoothing: antialiased;
-            -moz-osx-font-smoothing: grayscale;
+            -webkit-font-smoothing: auto;
+            -moz-osx-font-smoothing: auto;
             text-rendering: optimizeLegibility;
         }
         body {
@@ -94,7 +94,7 @@
             font-size: var(--type-body);
             font-weight: 400;
             line-height: 1.5;
-            color: var(--text-secondary);
+            color: var(--text-primary);
         }
 
         /* Typography roles */
@@ -127,6 +127,36 @@
         .type-label { font-size: var(--type-label); font-weight: 500; line-height: 1.4; color: var(--text-secondary); }
         .type-meta { font-size: var(--type-meta); font-weight: 400; line-height: 1.4; color: var(--text-muted); }
         .type-small { font-size: var(--type-small); font-weight: 400; line-height: 1.45; color: var(--text-secondary); }
+
+        /* Raise muted ink opacities so module text stays readable */
+        html:not(.dark) [class*="text-ink/30"],
+        html:not(.dark) [class*="text-ink/35"],
+        html:not(.dark) [class*="text-ink\/30"],
+        html:not(.dark) [class*="text-ink\/35"] { color: rgba(15, 23, 42, 0.72) !important; }
+        html:not(.dark) [class*="text-ink/40"],
+        html:not(.dark) [class*="text-ink/45"],
+        html:not(.dark) [class*="text-ink\/40"],
+        html:not(.dark) [class*="text-ink\/45"] { color: rgba(15, 23, 42, 0.78) !important; }
+        html:not(.dark) [class*="text-ink/50"],
+        html:not(.dark) [class*="text-ink/55"],
+        html:not(.dark) [class*="text-ink\/50"],
+        html:not(.dark) [class*="text-ink\/55"] { color: rgba(15, 23, 42, 0.84) !important; }
+        html:not(.dark) [class*="text-ink/60"],
+        html:not(.dark) [class*="text-ink/65"],
+        html:not(.dark) [class*="text-ink\/60"],
+        html:not(.dark) [class*="text-ink\/65"] { color: rgba(15, 23, 42, 0.9) !important; }
+        html:not(.dark) [class*="text-ink/70"],
+        html:not(.dark) [class*="text-ink/75"],
+        html:not(.dark) [class*="text-ink\/70"],
+        html:not(.dark) [class*="text-ink\/75"] { color: rgba(15, 23, 42, 0.94) !important; }
+        html:not(.dark) [class*="text-mute"],
+        html:not(.dark) .text-mute { color: #334155 !important; }
+        html:not(.dark) .text-gray-400 { color: #475569 !important; }
+        html:not(.dark) .text-gray-500 { color: #334155 !important; }
+        html:not(.dark) .text-gray-600 { color: #1E293B !important; }
+        html:not(.dark) .placeholder\:text-ink\/40::placeholder,
+        html:not(.dark) .placeholder\:text-ink\/45::placeholder,
+        html:not(.dark) .placeholder\:text-ink\/50::placeholder { color: rgba(15, 23, 42, 0.55) !important; }
 
         /* Outline icons (Lucide / Heroicons style) */
         #app-shell svg[fill="none"],
@@ -527,7 +557,7 @@
             align-items: flex-start;
             gap: 0.65rem;
             font-size: 0.8125rem;
-            color: rgba(78, 84, 92, 0.72);
+            color: rgba(15, 23, 42, 0.92);
             line-height: 1.4;
         }
         .module-insight-dot {
@@ -567,11 +597,11 @@
             border-bottom: 1px solid rgba(78, 84, 92, 0.06);
         }
         .module-feed-item:last-child { border-bottom: 0; padding-bottom: 0; }
-        .module-feed-item a { color: #4E545C; font-weight: 600; font-size: 0.8125rem; line-height: 1.35; }
+        .module-feed-item a { color: #0F172A; font-weight: 600; font-size: 0.8125rem; line-height: 1.35; }
         .module-feed-item a:hover { color: #142E4C; }
         .module-feed-meta {
             font-size: 0.6875rem;
-            color: rgba(78, 84, 92, 0.5);
+            color: rgba(15, 23, 42, 0.8);
             margin-top: 0.2rem;
             line-height: 1.35;
         }
@@ -579,7 +609,7 @@
             flex-shrink: 0;
             font-size: 0.6875rem;
             font-weight: 600;
-            color: rgba(78, 84, 92, 0.45);
+            color: rgba(15, 23, 42, 0.75);
             white-space: nowrap;
         }
         .module-stat-row {
@@ -644,7 +674,7 @@
         .app-search-icon {
             width: 1rem;
             height: 1rem;
-            color: rgba(78, 84, 92, 0.45);
+            color: rgba(15, 23, 42, 0.75);
             flex-shrink: 0;
         }
         .app-search-input {
@@ -668,7 +698,7 @@
             font-size: 0.625rem;
             font-weight: 700;
             letter-spacing: 0.02em;
-            color: rgba(78, 84, 92, 0.45);
+            color: rgba(15, 23, 42, 0.75);
             font-family: ui-sans-serif, system-ui, sans-serif;
         }
         @media (min-width: 1100px) {
@@ -694,7 +724,7 @@
             text-align: left;
             padding: 0.7rem 0.9rem;
             font-size: 0.875rem;
-            color: #4E545C;
+            color: #0F172A;
             border-bottom: 1px solid rgba(78, 84, 92, 0.06);
             transition: background 0.15s ease;
         }
@@ -703,7 +733,7 @@
         .app-search-empty {
             padding: 0.85rem 0.9rem;
             font-size: 0.8125rem;
-            color: rgba(78, 84, 92, 0.45);
+            color: rgba(15, 23, 42, 0.75);
         }
         .app-clock {
             display: none;
@@ -721,13 +751,13 @@
             font-size: 0.95rem;
             font-weight: 600;
             letter-spacing: -0.01em;
-            color: #4E545C;
+            color: #0F172A;
             font-variant-numeric: tabular-nums;
         }
         .app-clock-date {
             font-size: 0.6875rem;
             font-weight: 500;
-            color: rgba(78, 84, 92, 0.45);
+            color: rgba(15, 23, 42, 0.75);
             margin-top: 0.15rem;
         }
         .app-topbar-btn {
@@ -737,13 +767,13 @@
             width: 2.4rem;
             height: 2.4rem;
             border-radius: 0.75rem;
-            color: rgba(78, 84, 92, 0.65);
+            color: rgba(15, 23, 42, 0.88);
             background: rgba(78, 84, 92, 0.04);
             border: 1px solid rgba(78, 84, 92, 0.08);
             transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease;
         }
         .app-topbar-btn:hover {
-            color: #4E545C;
+            color: #0F172A;
             background: rgba(78, 84, 92, 0.08);
             transform: translateY(-1px);
         }
@@ -772,7 +802,7 @@
             border: none;
             background: transparent;
             border-radius: 0;
-            color: #64748B;
+            color: #1E293B;
             cursor: pointer;
             transition: color 0.15s ease;
         }
@@ -828,13 +858,13 @@
             font-weight: 800;
             letter-spacing: 0.1em;
             text-transform: uppercase;
-            color: rgba(78, 84, 92, 0.4);
+            color: rgba(15, 23, 42, 0.7);
         }
         .app-topbar-dropdown-empty {
             margin: 0;
             padding: 0.75rem;
             font-size: 0.8125rem;
-            color: rgba(78, 84, 92, 0.5);
+            color: rgba(15, 23, 42, 0.8);
         }
         .app-topbar-dropdown-footer {
             margin-top: 0.25rem;
@@ -923,7 +953,7 @@
         .app-notif-item-title {
             font-size: 0.8125rem;
             font-weight: 700;
-            color: #4E545C;
+            color: #0F172A;
             line-height: 1.3;
         }
         .app-notif-dot {
@@ -937,7 +967,7 @@
         .app-notif-message {
             font-size: 0.75rem;
             line-height: 1.4;
-            color: rgba(78, 84, 92, 0.62);
+            color: rgba(15, 23, 42, 0.88);
             display: -webkit-box;
             -webkit-line-clamp: 2;
             -webkit-box-orient: vertical;
@@ -950,7 +980,7 @@
             margin-top: 0.15rem;
             font-size: 0.6875rem;
             font-weight: 500;
-            color: rgba(78, 84, 92, 0.4);
+            color: rgba(15, 23, 42, 0.7);
         }
         .app-notif-empty {
             padding: 2rem 1.25rem;
@@ -960,12 +990,12 @@
             margin: 0;
             font-size: 0.875rem;
             font-weight: 700;
-            color: #4E545C;
+            color: #0F172A;
         }
         .app-notif-empty-text {
             margin: 0.35rem 0 0;
             font-size: 0.75rem;
-            color: rgba(78, 84, 92, 0.45);
+            color: rgba(15, 23, 42, 0.75);
         }
         .app-notif-footer {
             display: block;
@@ -991,7 +1021,7 @@
             border-radius: 999px;
             border: 1px solid rgba(78, 84, 92, 0.1);
             background: rgba(255,255,255,0.85);
-            color: #4E545C;
+            color: #0F172A;
             transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
         }
         .app-profile-btn:hover {
@@ -1362,7 +1392,7 @@
         html.dark select:focus,
         html.dark select:active {
             background-color: #ffffff !important;
-            color: #4E545C !important;
+            color: #0F172A !important;
             border-color: #5E7288 !important;
         }
         html.dark input::placeholder,
@@ -1373,8 +1403,8 @@
         html.dark select option,
         html.dark select optgroup {
             background-color: #ffffff !important;
-            color: #4E545C !important;
-            -webkit-text-fill-color: #4E545C;
+            color: #0F172A !important;
+            -webkit-text-fill-color: #0F172A;
         }
         html.dark select option:checked {
             background-color: #334963 !important;
@@ -1611,7 +1641,7 @@
             font-weight: 700;
             letter-spacing: 0.12em;
             text-transform: uppercase;
-            color: rgba(78, 84, 92, 0.4);
+            color: rgba(15, 23, 42, 0.7);
         }
         .page-header-title-row {
             display: flex;
@@ -1644,7 +1674,7 @@
         .page-header-meta {
             font-size: 0.75rem;
             font-weight: 500;
-            color: rgba(78, 84, 92, 0.4);
+            color: rgba(15, 23, 42, 0.7);
         }
         .page-header-actions {
             display: flex;
@@ -1714,7 +1744,7 @@
             padding: 0.6rem 0.85rem;
             font-size: 0.875rem;
             background: rgba(248,248,248,0.55);
-            color: #4E545C;
+            color: #0F172A;
             outline: none;
         }
         .module-filters-field input:focus,
@@ -1739,7 +1769,7 @@
             font-weight: 700;
             transition: background 0.15s ease, color 0.15s ease;
         }
-        .module-filters-clear:hover { background: rgba(78,84,92,0.04); color: #4E545C; }
+        .module-filters-clear:hover { background: rgba(78,84,92,0.04); color: #0F172A; }
         .module-filters-count {
             font-size: 0.75rem;
             font-weight: 600;
@@ -1775,7 +1805,7 @@
             margin: 0;
             font-size: 1.05rem;
             font-weight: 800;
-            color: #4E545C;
+            color: #0F172A;
             letter-spacing: -0.02em;
         }
         .cal-nav { display: flex; align-items: center; gap: 0.4rem; }
@@ -1783,7 +1813,7 @@
             display: inline-flex; align-items: center; justify-content: center;
             min-width: 2.25rem; height: 2.25rem; padding: 0 0.75rem;
             border-radius: 0.65rem; border: 1px solid rgba(78,84,92,0.12);
-            background: #fff; color: #4E545C; font-size: 0.8125rem; font-weight: 700;
+            background: #fff; color: #0F172A; font-size: 0.8125rem; font-weight: 700;
             text-decoration: none; transition: background 0.15s ease;
         }
         .cal-nav a:hover, .cal-nav button:hover { background: rgba(78,84,92,0.05); }
@@ -1831,7 +1861,7 @@
             padding: 0.3rem 0.4rem; border-radius: 0.4rem;
             border-left: 3px solid #142E4C;
             background: rgba(20,46,76,0.08);
-            font-size: 0.65rem; line-height: 1.25; color: #4E545C;
+            font-size: 0.65rem; line-height: 1.25; color: #0F172A;
             cursor: default;
         }
         .cal-event.is-pending { border-left-color: #CCAD9F; background: rgba(204,173,159,0.14); }
@@ -1892,14 +1922,14 @@
         .module-pagination-meta {
             font-size: 0.75rem;
             font-weight: 600;
-            color: rgba(78, 84, 92, 0.55);
+            color: rgba(15, 23, 42, 0.82);
             letter-spacing: 0.01em;
         }
         .module-pagination-btn {
             appearance: none;
             border: 1px solid rgba(78, 84, 92, 0.14);
             background: #fff;
-            color: #4E545C;
+            color: #0F172A;
             font-size: 0.75rem;
             font-weight: 700;
             padding: 0.4rem 0.85rem;
@@ -2065,7 +2095,7 @@
             font-family: Inter, ui-sans-serif, system-ui, sans-serif;
             font-size: 1.05rem;
             font-weight: 800;
-            color: #4E545C;
+            color: #0F172A;
             line-height: 1.35;
             letter-spacing: -0.015em;
             text-decoration: none;
@@ -2093,7 +2123,7 @@
             margin: 0;
             font-size: 0.875rem;
             font-weight: 600;
-            color: #4E545C;
+            color: #0F172A;
             line-height: 1.35;
             word-break: break-word;
         }
@@ -2980,13 +3010,13 @@
             font-size: 0.8125rem;
             font-weight: 800;
             letter-spacing: -0.01em;
-            color: #4E545C;
+            color: #0F172A;
         }
         .toast-message {
             margin: 0.2rem 0 0;
             font-size: 0.8125rem;
             line-height: 1.4;
-            color: rgba(78, 84, 92, 0.65);
+            color: rgba(15, 23, 42, 0.88);
         }
         .toast-close {
             flex-shrink: 0;
@@ -2995,12 +3025,12 @@
             border-radius: 0.45rem;
             display: grid;
             place-items: center;
-            color: rgba(78, 84, 92, 0.4);
+            color: rgba(15, 23, 42, 0.7);
             transition: background 0.15s ease, color 0.15s ease;
         }
         .toast-close:hover {
             background: rgba(78, 84, 92, 0.06);
-            color: #4E545C;
+            color: #0F172A;
         }
         .toast-success {
             border-color: rgba(26, 90, 138, 0.25);
@@ -3067,7 +3097,7 @@
         }
     </style>
 </head>
-<body class="bg-sand text-ink antialiased">
+<body class="bg-sand text-ink">
 @php
     $pendingFlashes = [];
     if (session('flash_success')) { $pendingFlashes[] = ['type'=>'success','message'=>session('flash_success')]; }

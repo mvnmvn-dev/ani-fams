@@ -4,68 +4,33 @@
 <style>
     html:has(.login-page),
     body:has(.login-page) {
-        overflow: auto !important;
-        height: auto !important;
-        min-height: 100%;
+        overflow: hidden !important;
+        height: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
     }
     .login-page {
         position: relative;
-        min-height: 100vh;
-        min-height: 100dvh;
+        width: 100%;
+        height: 100vh;
+        height: 100dvh;
         display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: 2.5rem 1.25rem;
         overflow: hidden;
-        background:
-            radial-gradient(ellipse 80% 60% at 15% 10%, rgba(26, 90, 138, 0.22), transparent 55%),
-            radial-gradient(ellipse 70% 55% at 90% 85%, rgba(11, 28, 48, 0.14), transparent 50%),
-            radial-gradient(ellipse 50% 40% at 70% 20%, rgba(123, 168, 204, 0.12), transparent 60%),
-            linear-gradient(145deg, #eef2f6 0%, #F8F8F8 38%, #e8edf2 72%, #F7F8FA 100%);
-    }
-    .login-page::before {
-        content: '';
-        position: absolute;
-        inset: 0;
-        background-image:
-            linear-gradient(rgba(11, 28, 48, 0.035) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(11, 28, 48, 0.035) 1px, transparent 1px);
-        background-size: 64px 64px;
-        mask-image: radial-gradient(ellipse at center, #000 25%, transparent 78%);
-        pointer-events: none;
-    }
-    .login-page::after {
-        content: '';
-        position: absolute;
-        width: 28rem;
-        height: 28rem;
-        border-radius: 999px;
-        background: radial-gradient(circle, rgba(26, 90, 138, 0.18), transparent 68%);
-        filter: blur(20px);
-        top: -8rem;
-        right: -6rem;
-        pointer-events: none;
+        background: #fff;
     }
     .login-box {
         position: relative;
         z-index: 1;
         width: 100%;
-        max-width: 64rem;
-        min-height: 28rem;
+        height: 100%;
         display: grid;
         grid-template-columns: 1fr 1fr;
-        border-radius: 1.35rem;
         overflow: hidden;
         background: #fff;
-        border: 1px solid rgba(11, 28, 48, 0.08);
-        box-shadow:
-            0 40px 80px -36px rgba(11, 28, 48, 0.45),
-            0 12px 28px -20px rgba(11, 28, 48, 0.2),
-            0 0 0 1px rgba(255, 255, 255, 0.6) inset;
     }
     .login-box-brand {
         position: relative;
-        padding: 2.75rem 2.25rem;
+        padding: clamp(2rem, 4vw, 3.5rem) clamp(1.75rem, 4vw, 3.25rem);
         color: #F8F8F8;
         background:
             radial-gradient(120% 90% at 0% 0%, rgba(26, 90, 138, 0.4), transparent 55%),
@@ -74,6 +39,7 @@
         flex-direction: column;
         justify-content: center;
         gap: 1.15rem;
+        min-height: 0;
     }
     .login-box-brand::before {
         content: '';
@@ -113,30 +79,37 @@
         letter-spacing: -0.03em;
         line-height: 1.15;
         color: #ffffff;
-        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
     }
     .login-brand-sub {
         margin: 0;
         font-size: 0.72rem;
-        font-weight: 600;
+        font-weight: 700;
         letter-spacing: 0.06em;
         text-transform: uppercase;
         line-height: 1.35;
-        color: rgba(255, 255, 255, 0.88);
+        color: #ffffff;
     }
     .login-box-copy {
         margin: 0;
         font-size: 0.875rem;
         line-height: 1.5;
-        color: rgba(246, 244, 239, 0.62);
+        font-weight: 500;
+        color: rgba(255, 255, 255, 0.92);
         max-width: 18.5rem;
     }
     .login-box-form {
-        padding: 2.75rem 2.5rem;
+        padding: clamp(2rem, 4vw, 3.5rem) clamp(1.75rem, 4vw, 3.25rem);
         display: flex;
         flex-direction: column;
         justify-content: center;
         background: linear-gradient(180deg, #fff, #fbfaf7);
+        min-height: 0;
+        overflow-y: auto;
+    }
+    .login-form-inner {
+        width: 100%;
+        max-width: 24rem;
+        margin: 0 auto;
     }
     .login-panel-eyebrow {
         font-size: 0.6875rem;
@@ -151,13 +124,14 @@
         font-size: 1.65rem;
         font-weight: 800;
         letter-spacing: -0.03em;
-        color: #4E545C;
+        color: #0B1C30;
     }
     .login-panel-subtitle {
         margin: 0.4rem 0 0;
         font-size: 0.875rem;
-        color: rgba(11, 28, 48, 0.5);
+        color: #1A2E44;
         line-height: 1.45;
+        font-weight: 500;
     }
     .login-form {
         margin-top: 1.5rem;
@@ -168,19 +142,23 @@
         display: block;
         font-size: 0.72rem;
         font-weight: 700;
-        color: rgba(11, 28, 48, 0.65);
+        color: #0B1C30;
         margin-bottom: 0.35rem;
     }
     .login-input {
         width: 100%;
-        border: 1px solid rgba(11, 28, 48, 0.14);
+        border: 1px solid rgba(11, 28, 48, 0.22);
         border-radius: 0.7rem;
         padding: 0.65rem 0.8rem;
         font-size: 0.875rem;
-        color: #4E545C;
+        color: #0B1C30;
         background: rgba(246, 244, 239, 0.45);
         outline: none;
         transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+    }
+    .login-input::placeholder {
+        color: #334963;
+        opacity: 0.75;
     }
     .login-input:focus {
         border-color: #334963;
@@ -203,19 +181,40 @@
         border: 0;
         border-radius: 0.45rem;
         background: transparent;
-        color: rgba(11, 28, 48, 0.45);
+        color: #142E4C;
         display: grid;
         place-items: center;
         cursor: pointer;
         transition: color 0.15s ease, background 0.15s ease;
     }
     .login-password-toggle:hover {
-        color: #142E4C;
+        color: #020F1C;
         background: rgba(26, 90, 138, 0.08);
     }
     .login-password-toggle .icon-eye-off { display: none; }
     .login-password-toggle.is-visible .icon-eye { display: none; }
     .login-password-toggle.is-visible .icon-eye-off { display: block; }
+    .login-remember {
+        display: flex;
+        align-items: center;
+        gap: 0.55rem;
+        margin: 0;
+        cursor: pointer;
+        user-select: none;
+    }
+    .login-remember input {
+        width: 1rem;
+        height: 1rem;
+        margin: 0;
+        accent-color: #142E4C;
+        cursor: pointer;
+        flex-shrink: 0;
+    }
+    .login-remember span {
+        font-size: 0.8125rem;
+        font-weight: 600;
+        color: #0B1C30;
+    }
     .login-submit {
         width: 100%;
         border: 0;
@@ -232,11 +231,33 @@
         background: #142E4C;
         transform: translateY(-1px);
     }
+    .login-forgot {
+        margin: 0.85rem 0 0;
+        text-align: center;
+    }
+    .login-forgot a {
+        font-size: 0.85rem;
+        font-weight: 700;
+        color: #020F1C;
+        text-decoration: none;
+    }
+    .login-forgot a:hover {
+        text-decoration: underline;
+    }
     @media (max-width: 760px) {
+        .login-page,
+        .login-box {
+            height: auto;
+            min-height: 100vh;
+            min-height: 100dvh;
+        }
+        html:has(.login-page),
+        body:has(.login-page) {
+            overflow: auto !important;
+            height: auto !important;
+        }
         .login-box {
             grid-template-columns: 1fr;
-            max-width: 26rem;
-            min-height: 0;
         }
         .login-box-brand {
             padding: 1.75rem 1.4rem 1.4rem;
@@ -251,12 +272,13 @@
         }
         .login-box-form {
             padding: 1.5rem 1.35rem 1.65rem;
+            flex: 1;
         }
     }
 </style>
 
 <div class="login-page">
-    <div class="login-box" role="dialog" aria-labelledby="login-heading">
+    <div class="login-box" role="main" aria-labelledby="login-heading">
         <aside class="login-box-brand">
             <div class="login-brand-lockup">
                 <img src="{{ asset('images/system-logo.svg') }}"
@@ -271,44 +293,51 @@
         </aside>
 
         <section class="login-box-form">
-            <p class="login-panel-eyebrow">Secure access</p>
-            <h2 id="login-heading" class="login-panel-title">Sign in</h2>
-            <p class="login-panel-subtitle">Enter your account credentials to continue.</p>
+            <div class="login-form-inner">
+                <p class="login-panel-eyebrow">Secure access</p>
+                <h2 id="login-heading" class="login-panel-title">Sign in</h2>
+                <p class="login-panel-subtitle">Enter your account credentials to continue.</p>
 
-            <form action="{{ route('login') }}" method="POST" class="login-form">
-                @csrf
-                <div>
-                    <label class="login-label" for="email">Email</label>
-                    <input type="email" id="email" name="email" required autofocus
-                           class="login-input"
-                           placeholder="you@company.local"
-                           autocomplete="username"
-                           value="{{ old('email') }}">
-                </div>
-                <div>
-                    <label class="login-label" for="password">Password</label>
-                    <div class="login-password-wrap">
-                        <input type="password" id="password" name="password" required
+                <form action="{{ route('login') }}" method="POST" class="login-form">
+                    @csrf
+                    <div>
+                        <label class="login-label" for="email">Email</label>
+                        <input type="email" id="email" name="email" required autofocus
                                class="login-input"
-                               placeholder="••••••••"
-                               autocomplete="current-password">
-                        <button type="button" class="login-password-toggle" id="password-toggle"
-                                aria-label="Show password" title="Show password">
-                            <svg class="w-4 h-4 icon-eye" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
-                            </svg>
-                            <svg class="w-4 h-4 icon-eye-off" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/>
-                            </svg>
-                        </button>
+                               placeholder="you@company.local"
+                               autocomplete="username"
+                               value="{{ old('email') }}">
                     </div>
-                </div>
-                <button type="submit" class="login-submit">Log in</button>
-                <p style="margin:0.85rem 0 0; text-align:center;">
-                    <a href="{{ route('password.request') }}" style="font-size:0.85rem; font-weight:600; color:#142E4C; text-decoration:none;">Forgot password?</a>
-                </p>
-            </form>
+                    <div>
+                        <label class="login-label" for="password">Password</label>
+                        <div class="login-password-wrap">
+                            <input type="password" id="password" name="password" required
+                                   class="login-input"
+                                   placeholder="••••••••"
+                                   autocomplete="current-password">
+                            <button type="button" class="login-password-toggle" id="password-toggle"
+                                    aria-label="Show password" title="Show password">
+                                <svg class="w-4 h-4 icon-eye" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                                </svg>
+                                <svg class="w-4 h-4 icon-eye-off" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                    <label class="login-remember" for="remember">
+                        <input type="checkbox" id="remember" name="remember" value="1"
+                               {{ old('remember') ? 'checked' : '' }}>
+                        <span>Remember me</span>
+                    </label>
+                    <button type="submit" class="login-submit">Log in</button>
+                    <p class="login-forgot">
+                        <a href="{{ route('password.request') }}">Forgot password?</a>
+                    </p>
+                </form>
+            </div>
         </section>
     </div>
 </div>

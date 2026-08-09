@@ -24,13 +24,16 @@ class LoginController extends Controller
         $credentials = $request->validate([
             'email' => ['required', 'email'],
             'password' => ['required'],
+            'remember' => ['sometimes', 'boolean'],
         ]);
+
+        $remember = $request->boolean('remember');
 
         /** @var User|null $user */
         $user = User::with('role.permissions')->where('email', $credentials['email'])->first();
 
-        if (! $user || ! $user->isActive() || ! Auth::attempt(['email' => $credentials['email'], 'password' => $credentials['password']])) {
-            return back()->with('flash_error', 'Invalid email or password.')->onlyInput('email');
+        if (! $user || ! $user->isActive() || ! Auth::attempt(['email' => $credentials['email'], 'password' => $credentials['password']], $remember)) {
+            return back()->with('flash_error', 'Invalid email or password.')->onlyInput('email', 'remember');
         }
 
         $request->session()->regenerate();
@@ -48,8 +51,7 @@ class LoginController extends Controller
         }
 
         try {
-            // Avoid remember_token cycling on schemas without that column.
-            Auth::logoutCurrentDevice();
+            Auth::logout();
         } catch (\Throwable $e) {
             Auth::forgetUser();
             report($e);

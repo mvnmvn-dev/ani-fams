@@ -15,11 +15,11 @@
         theme: {
           extend: {
                         colors: {
-              ink:   '#4E545C',
+              ink:   '#0F172A',
               brand: { 50:'#F8F8F8',100:'#BBC3C8',200:'#9E9EA0',300:'#5E7288',500:'#334963',600:'#142E4C',700:'#020F1C',800:'#020F1C' },
               accent:{ 50:'#F8F8F8',100:'#CCAD9F',200:'#CCAD9F',500:'#CCAD9F',600:'#A06A56',700:'#A06A56' },
               sand:  '#F8F8F8',
-              mute:  '#9E9EA0',
+              mute:  '#475569',
               line:  '#BBC3C8'
             },
             fontFamily: {
@@ -40,8 +40,9 @@
             font-size: 0.875rem;
             font-weight: 400;
             line-height: 1.5;
-            color: #64748B;
-            -webkit-font-smoothing: antialiased;
+            color: #0F172A;
+            -webkit-font-smoothing: auto;
+            -moz-osx-font-smoothing: auto;
         }
 
         @keyframes fadeInUp {
@@ -124,7 +125,7 @@
             font-weight: 800;
             letter-spacing: -0.025em;
             line-height: 1.2;
-            color: #4E545C;
+            color: #0F172A;
             white-space: normal;
         }
         .app-topbar-search {
@@ -160,7 +161,7 @@
         .app-search-icon {
             width: 1rem;
             height: 1rem;
-            color: rgba(78, 84, 92, 0.45);
+            color: rgba(15, 23, 42, 0.72);
             flex-shrink: 0;
         }
         .app-search-input {
@@ -169,10 +170,10 @@
             outline: none;
             background: transparent;
             font-size: 0.875rem;
-            color: #4E545C;
+            color: #0F172A;
             min-width: 0;
         }
-        .app-search-input::placeholder { color: rgba(78, 84, 92, 0.4); }
+        .app-search-input::placeholder { color: rgba(15, 23, 42, 0.72); }
         .app-search-kbd {
             flex-shrink: 0;
             display: none;
@@ -183,7 +184,7 @@
             font-size: 0.625rem;
             font-weight: 700;
             letter-spacing: 0.02em;
-            color: rgba(78, 84, 92, 0.45);
+            color: rgba(15, 23, 42, 0.72);
             font-family: ui-sans-serif, system-ui, sans-serif;
         }
         @media (min-width: 1100px) {
@@ -198,7 +199,7 @@
             border-radius: 0.9rem;
             border: 1px solid rgba(78, 84, 92, 0.1);
             background: #fff;
-            box-shadow: 0 18px 40px -20px rgba(78, 84, 92, 0.45);
+            box-shadow: 0 18px 40px -20px rgba(15, 23, 42, 0.72);
             overflow: hidden;
             max-height: 16rem;
             overflow-y: auto;
@@ -209,7 +210,7 @@
             text-align: left;
             padding: 0.7rem 0.9rem;
             font-size: 0.875rem;
-            color: #4E545C;
+            color: #0F172A;
             border-bottom: 1px solid rgba(78, 84, 92, 0.06);
             transition: background 0.15s ease;
         }
@@ -218,7 +219,7 @@
         .app-search-empty {
             padding: 0.85rem 0.9rem;
             font-size: 0.8125rem;
-            color: rgba(78, 84, 92, 0.45);
+            color: rgba(15, 23, 42, 0.72);
         }
         .app-clock {
             display: none;
@@ -236,13 +237,13 @@
             font-size: 0.95rem;
             font-weight: 700;
             letter-spacing: 0.04em;
-            color: #4E545C;
+            color: #0F172A;
             font-variant-numeric: tabular-nums;
         }
         .app-clock-date {
             font-size: 0.6875rem;
             font-weight: 500;
-            color: rgba(78, 84, 92, 0.45);
+            color: rgba(15, 23, 42, 0.72);
             margin-top: 0.15rem;
         }
         .app-topbar-btn {
@@ -252,13 +253,13 @@
             width: 2.4rem;
             height: 2.4rem;
             border-radius: 0.75rem;
-            color: rgba(78, 84, 92, 0.65);
+            color: rgba(15, 23, 42, 0.85);
             background: rgba(78, 84, 92, 0.04);
             border: 1px solid rgba(78, 84, 92, 0.08);
             transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease;
         }
         .app-topbar-btn:hover {
-            color: #4E545C;
+            color: #0F172A;
             background: rgba(78, 84, 92, 0.08);
             transform: translateY(-1px);
         }
@@ -300,7 +301,7 @@
             border-radius: 0.9rem;
             border: 1px solid rgba(78, 84, 92, 0.1);
             background: #fff;
-            box-shadow: 0 18px 40px -20px rgba(78, 84, 92, 0.45);
+            box-shadow: 0 18px 40px -20px rgba(15, 23, 42, 0.72);
             padding: 0.4rem;
             overflow: hidden;
         }
@@ -312,13 +313,13 @@
             font-weight: 800;
             letter-spacing: 0.1em;
             text-transform: uppercase;
-            color: rgba(78, 84, 92, 0.4);
+            color: rgba(15, 23, 42, 0.72);
         }
         .app-topbar-dropdown-empty {
             margin: 0;
             padding: 0.75rem;
             font-size: 0.8125rem;
-            color: rgba(78, 84, 92, 0.5);
+            color: rgba(15, 23, 42, 0.78);
         }
         .app-topbar-dropdown-footer {
             margin-top: 0.25rem;
@@ -338,7 +339,7 @@
             border-radius: 0.95rem;
             border: 1px solid rgba(78, 84, 92, 0.1);
             background: #fff;
-            box-shadow: 0 22px 50px -24px rgba(78, 84, 92, 0.5);
+            box-shadow: 0 22px 50px -24px rgba(15, 23, 42, 0.78);
             overflow: hidden;
         }
         .app-notif-header {
@@ -354,14 +355,14 @@
             margin: 0;
             font-size: 0.9rem;
             font-weight: 800;
-            color: #4E545C;
+            color: #0F172A;
             letter-spacing: -0.02em;
         }
         .app-notif-subtitle {
             margin: 0.15rem 0 0;
             font-size: 0.7rem;
             font-weight: 500;
-            color: rgba(78, 84, 92, 0.45);
+            color: rgba(15, 23, 42, 0.72);
         }
         .app-notif-list {
             max-height: 22rem;
@@ -407,7 +408,7 @@
         .app-notif-item-title {
             font-size: 0.8125rem;
             font-weight: 700;
-            color: #4E545C;
+            color: #0F172A;
             line-height: 1.3;
         }
         .app-notif-dot {
@@ -421,7 +422,7 @@
         .app-notif-message {
             font-size: 0.75rem;
             line-height: 1.4;
-            color: rgba(78, 84, 92, 0.62);
+            color: rgba(15, 23, 42, 0.85);
             display: -webkit-box;
             -webkit-line-clamp: 2;
             -webkit-box-orient: vertical;
@@ -434,7 +435,7 @@
             margin-top: 0.15rem;
             font-size: 0.6875rem;
             font-weight: 500;
-            color: rgba(78, 84, 92, 0.4);
+            color: rgba(15, 23, 42, 0.72);
         }
         .app-notif-empty {
             padding: 2rem 1.25rem;
@@ -444,12 +445,12 @@
             margin: 0;
             font-size: 0.875rem;
             font-weight: 700;
-            color: #4E545C;
+            color: #0F172A;
         }
         .app-notif-empty-text {
             margin: 0.35rem 0 0;
             font-size: 0.75rem;
-            color: rgba(78, 84, 92, 0.45);
+            color: rgba(15, 23, 42, 0.72);
         }
         .app-notif-footer {
             display: block;
@@ -475,7 +476,7 @@
             border-radius: 999px;
             border: 1px solid rgba(78, 84, 92, 0.1);
             background: rgba(255,255,255,0.85);
-            color: #4E545C;
+            color: #0F172A;
             transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
         }
         .app-profile-btn:hover {
@@ -503,7 +504,7 @@
             border-radius: 0.9rem;
             border: 1px solid rgba(78, 84, 92, 0.1);
             background: #fff;
-            box-shadow: 0 18px 40px -20px rgba(78, 84, 92, 0.45);
+            box-shadow: 0 18px 40px -20px rgba(15, 23, 42, 0.72);
             padding: 0.35rem;
             overflow: hidden;
         }
@@ -516,7 +517,7 @@
             border-radius: 0.65rem;
             font-size: 0.8125rem;
             font-weight: 600;
-            color: #4E545C;
+            color: #0F172A;
             text-align: left;
             transition: background 0.15s ease;
         }
@@ -535,7 +536,7 @@
             font-size: 0.6875rem;
             font-weight: 500;
             letter-spacing: 0.02em;
-            color: rgba(78, 84, 92, 0.42);
+            color: rgba(15, 23, 42, 0.72);
         }
 
         .sr-only {
@@ -793,7 +794,7 @@
             font-weight: 700;
             letter-spacing: 0.12em;
             text-transform: uppercase;
-            color: rgba(78, 84, 92, 0.4);
+            color: rgba(15, 23, 42, 0.72);
         }
         .page-header-title-row {
             display: flex;
@@ -807,7 +808,7 @@
             font-weight: 800;
             letter-spacing: -0.025em;
             line-height: 1.2;
-            color: #4E545C;
+            color: #0F172A;
             margin: 0;
         }
         .page-header-badge {
@@ -819,7 +820,7 @@
             margin-top: 0.4rem;
             font-size: 0.875rem;
             line-height: 1.45;
-            color: rgba(78, 84, 92, 0.5);
+            color: rgba(15, 23, 42, 0.78);
             max-width: 42rem;
         }
         .page-header-aside {
@@ -831,7 +832,7 @@
         .page-header-meta {
             font-size: 0.75rem;
             font-weight: 500;
-            color: rgba(78, 84, 92, 0.4);
+            color: rgba(15, 23, 42, 0.72);
         }
         .page-header-actions {
             display: flex;
@@ -1101,7 +1102,7 @@
             width: 2.75rem;
             height: 2.75rem;
             border-radius: 0.9rem;
-            color: #4E545C;
+            color: #0F172A;
             background: rgba(255,255,255,0.92);
             border: 1px solid rgba(78,84,92,0.1);
             box-shadow: 0 10px 30px -12px rgba(78,84,92,0.35);
@@ -1131,7 +1132,7 @@
             align-items: center;
             justify-content: center;
             padding: 1.5rem;
-            background: rgba(78, 84, 92, 0.45);
+            background: rgba(15, 23, 42, 0.72);
             backdrop-filter: blur(6px);
             -webkit-backdrop-filter: blur(6px);
         }
@@ -1140,7 +1141,7 @@
             background: #fff;
             border-radius: 1rem;
             border: 1px solid rgba(78, 84, 92, 0.1);
-            box-shadow: 0 24px 60px -24px rgba(78, 84, 92, 0.45);
+            box-shadow: 0 24px 60px -24px rgba(15, 23, 42, 0.72);
             padding: 1.5rem;
             max-height: min(90vh, 44rem);
             overflow-y: auto;
@@ -1187,7 +1188,7 @@
             border-radius: 0.95rem;
             border: 1px solid transparent;
             background: #fff;
-            box-shadow: 0 18px 40px -16px rgba(78, 84, 92, 0.45);
+            box-shadow: 0 18px 40px -16px rgba(15, 23, 42, 0.72);
             transform: translateX(120%);
             opacity: 0;
             transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.25s ease;
@@ -1214,13 +1215,13 @@
             font-size: 0.8125rem;
             font-weight: 800;
             letter-spacing: -0.01em;
-            color: #4E545C;
+            color: #0F172A;
         }
         .toast-message {
             margin: 0.2rem 0 0;
             font-size: 0.8125rem;
             line-height: 1.4;
-            color: rgba(78, 84, 92, 0.65);
+            color: rgba(15, 23, 42, 0.85);
         }
         .toast-close {
             flex-shrink: 0;
@@ -1229,12 +1230,12 @@
             border-radius: 0.45rem;
             display: grid;
             place-items: center;
-            color: rgba(78, 84, 92, 0.4);
+            color: rgba(15, 23, 42, 0.72);
             transition: background 0.15s ease, color 0.15s ease;
         }
         .toast-close:hover {
             background: rgba(78, 84, 92, 0.06);
-            color: #4E545C;
+            color: #0F172A;
         }
         .toast-success {
             border-color: rgba(26, 90, 138, 0.25);
@@ -1281,7 +1282,7 @@
         }
     </style>
 </head>
-<body class="bg-sand text-ink antialiased">
+<body class="bg-sand text-ink">
 @php
     $pendingFlashes = [];
     if (session('flash_success')) { $pendingFlashes[] = ['type'=>'success','message'=>session('flash_success')]; }

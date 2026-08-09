@@ -24,17 +24,11 @@ class User extends Authenticatable
 
     protected $hidden = [
         'password_hash',
+        'remember_token',
     ];
 
     /** @var string Column Laravel Auth uses for password rehash/update */
     protected $authPasswordName = 'password_hash';
-
-    /**
-     * FAMS users table has no remember_token column — disable remember-me updates on logout.
-     *
-     * @var string
-     */
-    protected $rememberTokenName = '';
 
     public $timestamps = true;
 
