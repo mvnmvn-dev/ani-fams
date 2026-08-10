@@ -227,6 +227,51 @@ class LegalCaseRepository
         $stmt->execute(['status' => $isCompleted, 'id' => $milestoneId]);
     }
 
+    public function getDeadlines(int $caseId): array
+    {
+        $stmt = $this->pdo()->prepare('SELECT * FROM legal_case_deadlines WHERE case_id = :caseId ORDER BY due_date ASC');
+        $stmt->execute(['caseId' => $caseId]);
+
+        return $stmt->fetchAll();
+    }
+
+    public function addDeadline(array $data): int
+    {
+        $stmt = $this->pdo()->prepare(
+            'INSERT INTO legal_case_deadlines (case_id, title, due_date, description, is_completed, created_at, updated_at)
+             VALUES (:case_id, :title, :due_date, :description, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)'
+        );
+        $stmt->execute([
+            'case_id' => $data['case_id'],
+            'title' => $data['title'],
+            'due_date' => $data['due_date'],
+            'description' => $data['description'] ?? null,
+        ]);
+
+        return (int) $this->pdo()->lastInsertId();
+    }
+
+    public function toggleDeadline(int $deadlineId, int $isCompleted): void
+    {
+        $stmt = $this->pdo()->prepare('UPDATE legal_case_deadlines SET is_completed = :status, updated_at = CURRENT_TIMESTAMP WHERE id = :id');
+        $stmt->execute(['status' => $isCompleted, 'id' => $deadlineId]);
+    }
+
+    public function getUpcomingDeadlines(int $daysAhead = 30): array
+    {
+        $stmt = $this->pdo()->prepare(
+            "SELECT d.*, lc.title AS case_title, lc.case_number, e.user_id AS counsel_user_id
+             FROM legal_case_deadlines d
+             JOIN legal_cases lc ON lc.id = d.case_id AND lc.deleted_at IS NULL
+             LEFT JOIN employees e ON e.id = lc.assigned_counsel_id
+             WHERE d.is_completed = 0
+               AND d.due_date BETWEEN CURRENT_DATE AND DATE_ADD(CURRENT_DATE, INTERVAL :days DAY)
+             ORDER BY d.due_date ASC"
+        );
+        $stmt->execute(['days' => $daysAhead]);
+        return $stmt->fetchAll();
+    }
+
     public function getDocuments(int $caseId): array
     {
         $stmt = $this->pdo()->prepare(
@@ -320,5 +365,248 @@ class LegalCaseRepository
         );
 
         return array_map('intval', array_column($stmt->fetchAll(), 'id'));
+    }
+
+    // ==================== OUTCOME/SETTLEMENT TRACKING ====================
+
+    public function createOutcome(array $data): int
+    {
+        $stmt = $this->pdo()->prepare(
+            'INSERT INTO legal_case_outcomes 
+             (case_id, outcome_type, outcome_date, description, settlement_amount, settlement_terms, 
+              settlement_date, judgment_summary, awarded_amount, is_appealed, appeal_reason, 
+              appeal_deadline, recorded_by, created_at, updated_at)
+             VALUES (:case_id, :outcome_type, :outcome_date, :description, :settlement_amount, 
+                     :settlement_terms, :settlement_date, :judgment_summary, :awarded_amount, 
+                     :is_appealed, :appeal_reason, :appeal_deadline, :recorded_by, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)'
+        );
+        $stmt->execute([
+            'case_id' => $data['case_id'],
+            'outcome_type' => $data['outcome_type'],
+            'outcome_date' => $data['outcome_date'],
+            'description' => $data['description'] ?? null,
+            'settlement_amount' => $data['settlement_amount'] ?? null,
+            'settlement_terms' => $data['settlement_terms'] ?? null,
+            'settlement_date' => $data['settlement_date'] ?? null,
+            'judgment_summary' => $data['judgment_summary'] ?? null,
+            'awarded_amount' => $data['awarded_amount'] ?? null,
+            'is_appealed' => (int) ($data['is_appealed'] ?? false),
+            'appeal_reason' => $data['appeal_reason'] ?? null,
+            'appeal_deadline' => $data['appeal_deadline'] ?? null,
+            'recorded_by' => $data['recorded_by'] ?? null,
+        ]);
+
+        return (int) $this->pdo()->lastInsertId();
+    }
+
+    public function getOutcome(int $caseId): ?array
+    {
+        $stmt = $this->pdo()->prepare(
+            'SELECT * FROM legal_case_outcomes 
+             WHERE case_id = :caseId AND deleted_at IS NULL
+             ORDER BY created_at DESC LIMIT 1'
+        );
+        $stmt->execute(['caseId' => $caseId]);
+        return $stmt->fetch() ?: null;
+    }
+
+    public function update(int $caseId, array $data): void
+    {
+        $updates = [];
+        $bindings = ['id' => $caseId];
+        
+        foreach ($data as $key => $value) {
+            $updates[] = "{$key} = :{$key}";
+            $bindings[$key] = $value;
+        }
+        
+        if (empty($updates)) return;
+        
+        $sql = "UPDATE legal_cases SET " . implode(', ', $updates) . " WHERE id = :id";
+        $stmt = $this->pdo()->prepare($sql);
+        $stmt->execute($bindings);
+    }
+
+    // ==================== CONFLICT-OF-INTEREST TRACKING ====================
+
+    public function createPartyConflict(array $data): int
+    {
+        $stmt = $this->pdo()->prepare(
+            'INSERT INTO legal_case_party_conflicts 
+             (case_id, party_a_id, party_b_id, conflict_type, description, severity, 
+              conflict_flagged, flagged_by, flagged_at, resolution_status, created_at, updated_at)
+             VALUES (:case_id, :party_a_id, :party_b_id, :conflict_type, :description, :severity, 
+                     :conflict_flagged, :flagged_by, :flagged_at, :resolution_status, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)'
+        );
+        $stmt->execute([
+            'case_id' => $data['case_id'],
+            'party_a_id' => $data['party_a_id'],
+            'party_b_id' => $data['party_b_id'],
+            'conflict_type' => $data['conflict_type'],
+            'description' => $data['description'] ?? null,
+            'severity' => $data['severity'] ?? 'medium',
+            'conflict_flagged' => (int) ($data['conflict_flagged'] ?? true),
+            'flagged_by' => $data['flagged_by'] ?? null,
+            'flagged_at' => $data['flagged_at'] ?? null,
+            'resolution_status' => $data['resolution_status'] ?? 'pending',
+        ]);
+
+        return (int) $this->pdo()->lastInsertId();
+    }
+
+    public function updatePartyConflict(int $conflictId, array $data): void
+    {
+        $updates = [];
+        $bindings = ['id' => $conflictId];
+        
+        foreach ($data as $key => $value) {
+            $updates[] = "{$key} = :{$key}";
+            $bindings[$key] = $value;
+        }
+        
+        $bindings['updated_at'] = date('Y-m-d H:i:s');
+        $updates[] = "updated_at = :updated_at";
+        
+        if (empty($updates)) return;
+        
+        $sql = "UPDATE legal_case_party_conflicts SET " . implode(', ', $updates) . " WHERE id = :id";
+        $stmt = $this->pdo()->prepare($sql);
+        $stmt->execute($bindings);
+    }
+
+    public function getPartyConflicts(int $caseId): array
+    {
+        $stmt = $this->pdo()->prepare(
+            'SELECT pc.*,
+                    pa.party_name AS party_a_name,
+                    pb.party_name AS party_b_name,
+                    u.full_name AS flagged_by_name
+             FROM legal_case_party_conflicts pc
+             LEFT JOIN legal_case_parties pa ON pa.id = pc.party_a_id
+             LEFT JOIN legal_case_parties pb ON pb.id = pc.party_b_id
+             LEFT JOIN users u ON u.id = pc.flagged_by
+             WHERE pc.case_id = :caseId
+             ORDER BY pc.severity DESC, pc.created_at DESC'
+        );
+        $stmt->execute(['caseId' => $caseId]);
+        return $stmt->fetchAll();
+    }
+
+    public function createCounselConflict(array $data): int
+    {
+        $stmt = $this->pdo()->prepare(
+            'INSERT INTO legal_case_counsel_conflicts 
+             (case_id, counsel_id, external_party, conflict_type, description, severity, 
+              conflict_verified, status, created_at, updated_at)
+             VALUES (:case_id, :counsel_id, :external_party, :conflict_type, :description, :severity, 
+                     :conflict_verified, :status, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)'
+        );
+        $stmt->execute([
+            'case_id' => $data['case_id'],
+            'counsel_id' => $data['counsel_id'] ?? null,
+            'external_party' => $data['external_party'] ?? null,
+            'conflict_type' => $data['conflict_type'],
+            'description' => $data['description'] ?? null,
+            'severity' => $data['severity'] ?? 'medium',
+            'conflict_verified' => (int) ($data['conflict_verified'] ?? false),
+            'status' => $data['status'] ?? 'under_review',
+        ]);
+
+        return (int) $this->pdo()->lastInsertId();
+    }
+
+    public function updateCounselConflict(int $conflictId, array $data): void
+    {
+        $updates = [];
+        $bindings = ['id' => $conflictId];
+        
+        foreach ($data as $key => $value) {
+            $updates[] = "{$key} = :{$key}";
+            $bindings[$key] = $value;
+        }
+        
+        $bindings['updated_at'] = date('Y-m-d H:i:s');
+        $updates[] = "updated_at = :updated_at";
+        
+        if (empty($updates)) return;
+        
+        $sql = "UPDATE legal_case_counsel_conflicts SET " . implode(', ', $updates) . " WHERE id = :id";
+        $stmt = $this->pdo()->prepare($sql);
+        $stmt->execute($bindings);
+    }
+
+    public function getCounselConflicts(int $caseId): array
+    {
+        $stmt = $this->pdo()->prepare(
+            'SELECT cc.*,
+                    e.full_name AS counsel_name,
+                    u.full_name AS verified_by_name
+             FROM legal_case_counsel_conflicts cc
+             LEFT JOIN employees e ON e.id = cc.counsel_id
+             LEFT JOIN users u ON u.id = cc.verified_by
+             WHERE cc.case_id = :caseId
+             ORDER BY cc.severity DESC, cc.created_at DESC'
+        );
+        $stmt->execute(['caseId' => $caseId]);
+        return $stmt->fetchAll();
+    }
+
+    /**
+     * Find parties on other open cases whose names match parties on this case.
+     *
+     * @return list<array{party_name: string, party_id: int, other_case_id: int, other_case_number: string, other_case_title: string, other_party_id: int}>
+     */
+    public function findCrossCasePartyNameMatches(int $caseId): array
+    {
+        $stmt = $this->pdo()->prepare(
+            "SELECT p.party_name, p.id AS party_id,
+                    op.id AS other_party_id,
+                    oc.id AS other_case_id,
+                    oc.case_number AS other_case_number,
+                    oc.title AS other_case_title
+             FROM legal_case_parties p
+             JOIN legal_case_parties op
+               ON LOWER(TRIM(op.party_name)) = LOWER(TRIM(p.party_name))
+              AND op.case_id != p.case_id
+             JOIN legal_cases oc ON oc.id = op.case_id AND oc.deleted_at IS NULL
+             WHERE p.case_id = :caseId
+               AND oc.status NOT IN ('won', 'lost', 'settled', 'dismissed', 'closed')
+             ORDER BY p.party_name"
+        );
+        $stmt->execute(['caseId' => $caseId]);
+
+        return $stmt->fetchAll();
+    }
+
+    /**
+     * Find other open cases sharing the same assigned counsel.
+     *
+     * @return list<array{other_case_id: int, other_case_number: string, other_case_title: string, counsel_id: int, counsel_name: string}>
+     */
+    public function findSharedCounselCases(int $caseId): array
+    {
+        $case = $this->find($caseId);
+        if (! $case || empty($case['assigned_counsel_id'])) {
+            return [];
+        }
+
+        $stmt = $this->pdo()->prepare(
+            "SELECT lc.id AS other_case_id, lc.case_number AS other_case_number,
+                    lc.title AS other_case_title,
+                    lc.assigned_counsel_id AS counsel_id,
+                    e.full_name AS counsel_name
+             FROM legal_cases lc
+             LEFT JOIN employees e ON e.id = lc.assigned_counsel_id
+             WHERE lc.assigned_counsel_id = :counselId
+               AND lc.id != :caseId
+               AND lc.deleted_at IS NULL
+               AND lc.status NOT IN ('won', 'lost', 'settled', 'dismissed', 'closed')"
+        );
+        $stmt->execute([
+            'counselId' => (int) $case['assigned_counsel_id'],
+            'caseId' => $caseId,
+        ]);
+
+        return $stmt->fetchAll();
     }
 }

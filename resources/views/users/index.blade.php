@@ -40,6 +40,9 @@ arsort($deptCounts);
             <button type="button" onclick="openModal('importUsersModal')" class="btn-secondary mr-2">
                 Import CSV
             </button>
+            <button type="button" onclick="openModal('bulkRoleModal')" class="btn-secondary mr-2" id="bulkRoleBtn" disabled title="Select users first">
+                Bulk Role Reassign
+            </button>
             <button type="button" onclick="openModal('createUserModal')" class="btn-primary">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
@@ -117,8 +120,13 @@ arsort($deptCounts);
                         <div class="directory-avatar" aria-hidden="true"><?= htmlspecialchars($initial) ?></div>
                         <div>
                             <h3 class="font-bold text-ink">
-                                <?= htmlspecialchars($u['full_name']) ?>
-                                <?php if ($isSelf): ?>
+                                <?php if (!$isSelf): ?>
+                                    <label class="inline-flex items-center gap-2 cursor-pointer">
+                                        <input type="checkbox" class="user-bulk-check rounded border-ink/20" value="<?= (int) $u['id'] ?>" onchange="syncBulkRoleBtn()">
+                                        <?= htmlspecialchars($u['full_name']) ?>
+                                    </label>
+                                <?php else: ?>
+                                    <?= htmlspecialchars($u['full_name']) ?>
                                     <span class="ml-1 text-[10px] uppercase tracking-wider text-ink/40 font-bold">You</span>
                                 <?php endif; ?>
                             </h3>
@@ -215,9 +223,12 @@ arsort($deptCounts);
             </div>
             <div class="space-y-1.5">
                 <label class="block text-xs font-bold uppercase tracking-wider text-ink/60">Temporary password</label>
-                <input type="password" name="password" required minlength="8"
+                <input type="password" name="password" required minlength="10"
                        class="w-full rounded-xl border border-ink/15 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-sand/10"
-                       placeholder="Min. 8 characters">
+                       placeholder="Min. 10 chars, mixed case, number, symbol"
+                       pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{10,}"
+                       title="At least 10 characters with uppercase, lowercase, a number, and a special character">
+                <p class="text-[11px] text-ink/45">Must include uppercase, lowercase, a number, and a special character.</p>
             </div>
             <div class="space-y-1.5">
                 <label class="block text-xs font-bold uppercase tracking-wider text-ink/60">Role</label>
@@ -295,7 +306,63 @@ arsort($deptCounts);
     </div>
 </div>
 
+<!-- Modal: Bulk role reassignment -->
+<div id="bulkRoleModal" class="modal-overlay hidden">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full border border-ink/10 overflow-hidden animate-fade-in-up" onclick="event.stopPropagation()">
+        <div class="px-8 py-5 border-b border-ink/10 flex justify-between items-center bg-gray-50/50">
+            <h3 class="font-sans text-xl font-bold text-ink">Bulk role reassignment</h3>
+            <button type="button" onclick="closeModal('bulkRoleModal')" class="text-ink/40 hover:text-ink/60 transition">✕</button>
+        </div>
+        <form action="<?= route('users.bulk-role') ?>" method="POST" class="p-8 space-y-4" id="bulkRoleForm" onsubmit="return prepareBulkRoleForm()">
+            @csrf
+            <div id="bulkRoleSelectedIds"></div>
+            <p class="text-sm text-ink/65"><span id="bulkRoleCount">0</span> user(s) selected. Your own account cannot be reassigned here.</p>
+            <div class="space-y-1.5">
+                <label class="block text-xs font-bold uppercase tracking-wider text-ink/60">New role</label>
+                <select name="role_id" required class="w-full rounded-xl border border-ink/15 px-4 py-3 text-sm bg-sand/10">
+                    <option value="">Select a role…</option>
+                    <?php foreach ($roles as $role): ?>
+                        <option value="<?= $role['id'] ?>"><?= htmlspecialchars($role['name']) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="pt-4 border-t border-ink/10 flex justify-end gap-3">
+                <button type="button" onclick="closeModal('bulkRoleModal')" class="px-5 py-3 rounded-xl border border-ink/10 text-sm font-semibold">Cancel</button>
+                <button type="submit" class="px-6 py-3 rounded-xl bg-brand-700 text-white text-sm font-semibold">Reassign</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <script>
+function syncBulkRoleBtn() {
+    var checks = document.querySelectorAll('.user-bulk-check:checked');
+    var btn = document.getElementById('bulkRoleBtn');
+    var count = document.getElementById('bulkRoleCount');
+    if (btn) {
+        btn.disabled = checks.length === 0;
+        btn.title = checks.length === 0 ? 'Select users first' : 'Reassign role for ' + checks.length + ' user(s)';
+    }
+    if (count) count.textContent = String(checks.length);
+}
+function prepareBulkRoleForm() {
+    var wrap = document.getElementById('bulkRoleSelectedIds');
+    if (!wrap) return false;
+    wrap.innerHTML = '';
+    var checks = document.querySelectorAll('.user-bulk-check:checked');
+    if (checks.length === 0) {
+        alert('Select at least one user.');
+        return false;
+    }
+    checks.forEach(function (el) {
+        var input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'user_ids[]';
+        input.value = el.value;
+        wrap.appendChild(input);
+    });
+    return true;
+}
 function openStatusModal(id, name, status) {
     var next = status === 'active' ? 'Suspend' : 'Reactivate';
     var form = document.getElementById('statusUserForm');

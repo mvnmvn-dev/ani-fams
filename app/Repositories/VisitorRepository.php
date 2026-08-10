@@ -207,4 +207,143 @@ class VisitorRepository
             ->query("SELECT COUNT(*) FROM visits WHERE status = 'checked_in' AND deleted_at IS NULL")
             ->fetchColumn();
     }
+
+    // ===================== WATCHLIST ENHANCEMENTS =====================
+
+    public function updateWatchlistWithDetails(int $visitorId, bool $watchlist, ?string $reason, ?string $expiryDate, int $addedBy): void
+    {
+        $stmt = $this->pdo()->prepare(
+            'UPDATE visitors 
+             SET is_watchlisted = :wl, 
+                 watchlist_reason = :reason, 
+                 watchlist_expiry_date = :expiry_date,
+                 watchlist_added_by = :added_by,
+                 watchlist_added_at = CURRENT_TIMESTAMP
+             WHERE id = :id'
+        );
+        $stmt->execute([
+            'wl' => $watchlist ? 1 : 0,
+            'reason' => $reason,
+            'expiry_date' => $expiryDate,
+            'added_by' => $addedBy,
+            'id' => $visitorId,
+        ]);
+    }
+
+    public function getExpiredWatchlistEntries(): array
+    {
+        return $this->pdo()->query(
+            "SELECT * FROM visitors 
+             WHERE is_watchlisted = 1 
+               AND watchlist_expiry_date IS NOT NULL 
+               AND watchlist_expiry_date < CURRENT_DATE"
+        )->fetchAll();
+    }
+
+    public function autoRemoveExpiredWatchlist(): int
+    {
+        $stmt = $this->pdo()->prepare(
+            "UPDATE visitors 
+             SET is_watchlisted = 0, 
+                 watchlist_reason = NULL, 
+                 watchlist_expiry_date = NULL
+             WHERE is_watchlisted = 1 
+               AND watchlist_expiry_date IS NOT NULL 
+               AND watchlist_expiry_date < CURRENT_DATE"
+        );
+        $stmt->execute();
+
+        return $stmt->rowCount();
+    }
+
+    // ===================== VEHICLE LOGGING =====================
+
+    public function createVehicle(array $data): int
+    {
+        $stmt = $this->pdo()->prepare(
+            'INSERT INTO visitor_vehicles (visitor_id, visit_id, plate_number, vehicle_make, vehicle_model, vehicle_color, notes)
+             VALUES (:visitor_id, :visit_id, :plate_number, :vehicle_make, :vehicle_model, :vehicle_color, :notes)'
+        );
+        $stmt->execute([
+            'visitor_id' => $data['visitor_id'],
+            'visit_id' => $data['visit_id'] ?? null,
+            'plate_number' => $data['plate_number'],
+            'vehicle_make' => $data['vehicle_make'] ?? null,
+            'vehicle_model' => $data['vehicle_model'] ?? null,
+            'vehicle_color' => $data['vehicle_color'] ?? null,
+            'notes' => $data['notes'] ?? null,
+        ]);
+
+        return (int) $this->pdo()->lastInsertId();
+    }
+
+    public function getVehiclesForVisitor(int $visitorId): array
+    {
+        $stmt = $this->pdo()->prepare(
+            'SELECT * FROM visitor_vehicles WHERE visitor_id = :visitor_id ORDER BY created_at DESC'
+        );
+        $stmt->execute(['visitor_id' => $visitorId]);
+
+        return $stmt->fetchAll();
+    }
+
+    public function getVehiclesForVisit(int $visitId): array
+    {
+        $stmt = $this->pdo()->prepare(
+            'SELECT * FROM visitor_vehicles WHERE visit_id = :visit_id ORDER BY created_at DESC'
+        );
+        $stmt->execute(['visit_id' => $visitId]);
+
+        return $stmt->fetchAll();
+    }
+
+    // ===================== NDA SIGNATURE =====================
+
+    public function updateNdaSignature(int $visitId, string $signaturePath, string $ipAddress): void
+    {
+        $stmt = $this->pdo()->prepare(
+            'UPDATE visits 
+             SET nda_signed = 1, 
+                 nda_signature_path = :signature_path, 
+                 nda_signed_at = CURRENT_TIMESTAMP,
+                 nda_ip_address = :ip_address
+             WHERE id = :id'
+        );
+        $stmt->execute([
+            'signature_path' => $signaturePath,
+            'ip_address' => $ipAddress,
+            'id' => $visitId,
+        ]);
+    }
+
+    public function setNdaRequired(int $visitId, bool $required): void
+    {
+        $stmt = $this->pdo()->prepare(
+            'UPDATE visits SET nda_required = :required WHERE id = :id'
+        );
+        $stmt->execute(['required' => $required ? 1 : 0, 'id' => $visitId]);
+    }
+
+    // ===================== EMERGENCY ROSTER =====================
+
+    public function getEmergencyRoster(): array
+    {
+        $areasExpr = $this->areasConcatSql();
+        $sql = "SELECT v.id, v.badge_code, vt.full_name AS visitor_name, vt.company AS visitor_company,
+                       vt.photo_path AS visitor_photo, e.full_name AS host_name, e.phone AS host_phone,
+                       v.check_in_time, v.purpose,
+                       (SELECT {$areasExpr}
+                        FROM visit_area_access vaa
+                        JOIN visit_areas va ON va.id = vaa.visit_area_id
+                        WHERE vaa.visit_id = v.id) AS allowed_areas
+                FROM visits v
+                JOIN visitors vt ON vt.id = v.visitor_id
+                JOIN employees e ON e.id = v.host_employee_id
+                WHERE v.status = 'checked_in'
+                  AND v.deleted_at IS NULL
+                  AND vt.deleted_at IS NULL
+                ORDER BY v.check_in_time ASC";
+        
+        return $this->pdo()->query($sql)->fetchAll();
+    }
 }

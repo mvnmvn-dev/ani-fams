@@ -24,9 +24,12 @@
             <label class="auth-label" for="email">Email</label>
             <input class="auth-input" type="email" id="email" name="email" required value="{{ old('email', $email) }}" autocomplete="username">
             <label class="auth-label" for="password">New password</label>
-            <input class="auth-input" type="password" id="password" name="password" required minlength="8" autocomplete="new-password">
+            <input class="auth-input" type="password" id="password" name="password" required minlength="10" autocomplete="new-password"
+                   pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{10,}"
+                   title="At least 10 characters with uppercase, lowercase, a number, and a special character">
+            <p class="text-xs text-ink/50 mt-1 mb-2">At least 10 characters with uppercase, lowercase, a number, and a special character.</p>
             <label class="auth-label" for="password_confirmation">Confirm password</label>
-            <input class="auth-input" type="password" id="password_confirmation" name="password_confirmation" required minlength="8" autocomplete="new-password">
+            <input class="auth-input" type="password" id="password_confirmation" name="password_confirmation" required minlength="10" autocomplete="new-password">
             <button type="submit" class="auth-btn">Update password</button>
         </form>
         <a class="auth-link" href="{{ route('login') }}">← Back to sign in</a>

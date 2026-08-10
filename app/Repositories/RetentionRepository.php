@@ -246,4 +246,248 @@ class RetentionRepository
             ->query("SELECT COUNT(*) FROM retention_assignments WHERE calculated_disposal_date <= CURRENT_DATE AND status = 'active'")
             ->fetchColumn();
     }
+
+    // ===================== DISPOSAL CERTIFICATE GENERATION =====================
+
+    public function markCertificateGenerated(int $disposalLogId, int $generatedBy): void
+    {
+        $stmt = $this->pdo()->prepare(
+            'UPDATE disposal_logs 
+             SET certificate_generated = 1, 
+                 certificate_generated_at = CURRENT_TIMESTAMP,
+                 certificate_generated_by = :generated_by
+             WHERE id = :id'
+        );
+        $stmt->execute(['generated_by' => $generatedBy, 'id' => $disposalLogId]);
+    }
+
+    public function getDisposalsWithoutCertificates(): array
+    {
+        try {
+            $stmt = $this->pdo()->prepare(
+                "SELECT dl.*, ra.document_id, d.title AS document_title, d.document_number
+                 FROM disposal_logs dl
+                 JOIN retention_assignments ra ON ra.id = dl.retention_assignment_id
+                 JOIN documents d ON d.id = ra.document_id
+                 WHERE dl.certificate_generated = 0
+                 ORDER BY dl.performed_at DESC"
+            );
+            $stmt->execute();
+
+            return $stmt->fetchAll();
+        } catch (\Throwable $e) {
+            return [];
+        }
+    }
+
+    // ===================== CUSTODIAN NOTIFICATIONS =====================
+
+    public function notifyDocumentOwnersForHold(int $holdId, array $documentIds): void
+    {
+        foreach ($documentIds as $documentId) {
+            $stmt = $this->pdo()->prepare(
+                'SELECT owner_id FROM documents WHERE id = :doc_id'
+            );
+            $stmt->execute(['doc_id' => $documentId]);
+            $ownerId = $stmt->fetchColumn();
+
+            if ($ownerId) {
+                $stmt = $this->pdo()->prepare(
+                    'INSERT INTO legal_hold_notifications (legal_hold_id, user_id, notification_type)
+                     VALUES (:hold_id, :user_id, :type)'
+                );
+                $stmt->execute([
+                    'hold_id' => $holdId,
+                    'user_id' => $ownerId,
+                    'type' => 'placed',
+                ]);
+
+                // Also insert into the global notifications table
+                $stmtGlobal = $this->pdo()->prepare(
+                    'INSERT INTO notifications (user_id, module, title, body, link)
+                     VALUES (:user_id, :module, :title, :body, :link)'
+                );
+                $stmtGlobal->execute([
+                    'user_id' => $ownerId,
+                    'module' => 'retention',
+                    'title' => 'Legal Hold Placed',
+                    'body' => 'A legal hold has been placed on one of your documents. Please review the retention schedule.',
+                    'link' => '/retention'
+                ]);
+            }
+        }
+    }
+
+    public function notifyDocumentOwnersForHoldRelease(int $holdId): void
+    {
+        $stmt = $this->pdo()->prepare(
+            'SELECT DISTINCT d.owner_id 
+             FROM legal_hold_documents lhd
+             JOIN documents d ON d.id = lhd.document_id
+             WHERE lhd.legal_hold_id = :hold_id'
+        );
+        $stmt->execute(['hold_id' => $holdId]);
+        $ownerIds = $stmt->fetchAll(PDO::FETCH_COLUMN);
+
+        foreach ($ownerIds as $ownerId) {
+            $stmt = $this->pdo()->prepare(
+                'INSERT INTO legal_hold_notifications (legal_hold_id, user_id, notification_type)
+                 VALUES (:hold_id, :user_id, :type)'
+            );
+            $stmt->execute([
+                'hold_id' => $holdId,
+                'user_id' => $ownerId,
+                'type' => 'released',
+            ]);
+
+            // Also insert into the global notifications table
+            $stmtGlobal = $this->pdo()->prepare(
+                'INSERT INTO notifications (user_id, module, title, body, link)
+                 VALUES (:user_id, :module, :title, :body, :link)'
+            );
+            $stmtGlobal->execute([
+                'user_id' => $ownerId,
+                'module' => 'retention',
+                'title' => 'Legal Hold Released',
+                'body' => 'A legal hold has been released from your document.',
+                'link' => '/retention'
+            ]);
+        }
+    }
+
+    public function getUnreadHoldNotifications(int $userId): array
+    {
+        $stmt = $this->pdo()->prepare(
+            "SELECT lhn.*, lh.reason, lh.placed_at, lh.released_at
+             FROM legal_hold_notifications lhn
+             JOIN legal_holds lh ON lh.id = lhn.legal_hold_id
+             WHERE lhn.user_id = :user_id
+               AND lhn.read_at IS NULL
+             ORDER BY lhn.notified_at DESC"
+        );
+        $stmt->execute(['user_id' => $userId]);
+
+        return $stmt->fetchAll();
+    }
+
+    public function markHoldNotificationRead(int $notificationId): void
+    {
+        $stmt = $this->pdo()->prepare(
+            'UPDATE legal_hold_notifications SET read_at = CURRENT_TIMESTAMP WHERE id = :id'
+        );
+        $stmt->execute(['id' => $notificationId]);
+    }
+
+    // ===================== POLICY TEMPLATES =====================
+
+    public function allPolicyTemplates(): array
+    {
+        try {
+            return $this->pdo()->query('SELECT * FROM retention_policy_templates WHERE is_active = 1 ORDER BY name')->fetchAll();
+        } catch (\Throwable $e) {
+            return [];
+        }
+    }
+
+    public function createPolicyFromTemplate(int $templateId, string $customName = null): int
+    {
+        try {
+            $stmt = $this->pdo()->prepare(
+                'SELECT * FROM retention_policy_templates WHERE id = :id'
+            );
+            $stmt->execute(['id' => $templateId]);
+            $template = $stmt->fetch();
+        } catch (\Throwable $e) {
+            return 0;
+        }
+
+        if (! $template) {
+            return 0;
+        }
+
+        $policyName = $customName ?: $template['name'];
+
+        $stmt = $this->pdo()->prepare(
+            'INSERT INTO retention_policies (name, record_category, retention_period_months, trigger_event, disposal_action, legal_basis)
+             VALUES (:name, :record_category, :retention_period_months, :trigger_event, :disposal_action, :legal_basis)'
+        );
+        $stmt->execute([
+            'name' => $policyName,
+            'record_category' => $template['regulation_code'] . ' - ' . $template['name'],
+            'retention_period_months' => $template['retention_period_months'],
+            'trigger_event' => $template['trigger_event'],
+            'disposal_action' => $template['disposal_action'],
+            'legal_basis' => $template['description'],
+        ]);
+
+        return (int) $this->pdo()->lastInsertId();
+    }
+
+    // ===================== COMPLIANCE CALENDAR =====================
+
+    public function getComplianceCalendarEvents(string $startDate, string $endDate): array
+    {
+        $stmt = $this->pdo()->prepare(
+            "SELECT 'disposal' AS event_type, 
+                    ra.calculated_disposal_date AS event_date,
+                    CONCAT('Disposal: ', d.title) AS title,
+                    ra.id AS reference_id
+             FROM retention_assignments ra
+             JOIN documents d ON d.id = ra.document_id
+             WHERE ra.calculated_disposal_date BETWEEN :start_date AND :end_date
+               AND ra.status = 'active'
+             
+             UNION ALL
+             
+             SELECT 'legal_hold' AS event_type,
+                    lh.placed_at AS event_date,
+                    CONCAT('Legal Hold: ', lh.reason) AS title,
+                    lh.id AS reference_id
+             FROM legal_holds lh
+             WHERE lh.placed_at BETWEEN :start_date AND :end_date
+             
+             UNION ALL
+             
+             SELECT 'legal_hold_release' AS event_type,
+                    lh.released_at AS event_date,
+                    CONCAT('Hold Released: ', lh.reason) AS title,
+                    lh.id AS reference_id
+             FROM legal_holds lh
+             WHERE lh.released_at BETWEEN :start_date AND :end_date
+             
+             ORDER BY event_date ASC"
+        );
+        $stmt->execute(['start_date' => $startDate, 'end_date' => $endDate]);
+
+        return $stmt->fetchAll();
+    }
+
+    public function getUpcomingDisposals(int $daysAhead = 30): array
+    {
+        $stmt = $this->pdo()->prepare(
+            "SELECT ra.*, d.title AS document_title, d.document_number, u.full_name AS owner_name, rp.name AS policy_name
+             FROM retention_assignments ra
+             JOIN documents d ON d.id = ra.document_id
+             JOIN users u ON u.id = d.owner_id
+             JOIN retention_policies rp ON rp.id = ra.policy_id
+             WHERE ra.calculated_disposal_date BETWEEN CURRENT_DATE AND DATE_ADD(CURRENT_DATE, INTERVAL :days DAY)
+               AND ra.status = 'active'
+             ORDER BY ra.calculated_disposal_date ASC"
+        );
+        $stmt->execute(['days' => $daysAhead]);
+
+        return $stmt->fetchAll();
+    }
+
+    public function getActiveHolds(): array
+    {
+        return $this->pdo()->query(
+            "SELECT lh.*, COUNT(lhd.document_id) AS document_count
+             FROM legal_holds lh
+             LEFT JOIN legal_hold_documents lhd ON lhd.legal_hold_id = lh.id
+             WHERE lh.released_at IS NULL
+             GROUP BY lh.id
+             ORDER BY lh.placed_at DESC"
+        )->fetchAll();
+    }
 }

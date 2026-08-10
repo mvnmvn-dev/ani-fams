@@ -288,4 +288,293 @@ class ReservationService
             $notificationService->send($uid, 'reservations', $title, $body, $link, true);
         }
     }
+
+    // ===================== WAITLIST METHODS =====================
+
+    /**
+     * @return array{success: bool, error?: string, id?: int}
+     */
+    public function joinWaitlist(array $input): array
+    {
+        $facilityId = (int) ($input['facility_id'] ?? 0);
+        $purpose = trim($input['purpose'] ?? '');
+        $start = $input['preferred_start_datetime'] ?? '';
+        $end = $input['preferred_end_datetime'] ?? '';
+
+        if (! $facilityId || $purpose === '' || ! $start || ! $end) {
+            return ['success' => false, 'error' => 'Please fill in all required fields.'];
+        }
+
+        if (strtotime($end) <= strtotime($start)) {
+            return ['success' => false, 'error' => 'End time must be after the start time.'];
+        }
+
+        $waitlistId = $this->repo->createWaitlistEntry([
+            'facility_id' => $facilityId,
+            'requested_by' => Auth::id(),
+            'purpose' => $purpose,
+            'preferred_start_datetime' => $start,
+            'preferred_end_datetime' => $end,
+            'status' => 'pending',
+            'notes' => $input['notes'] ?? null,
+        ]);
+
+        AuditLogger::log('reservations', 'waitlist_join', 'reservation_waitlist', $waitlistId, null, [
+            'facility_id' => $facilityId,
+            'purpose' => $purpose,
+        ]);
+
+        return ['success' => true, 'id' => $waitlistId];
+    }
+
+    public function getWaitlistForFacility(int $facilityId): array
+    {
+        return $this->repo->getWaitlistForFacility($facilityId);
+    }
+
+    public function getWaitlistForCurrentUser(): array
+    {
+        return $this->repo->getWaitlistForUser(Auth::id());
+    }
+
+    /**
+     * @return array{success: bool, error?: string}
+     */
+    public function offerWaitlistSlot(int $waitlistId, int $reservationId): array
+    {
+        $waitlist = $this->repo->getWaitlistForUser(Auth::id());
+        $targetEntry = null;
+        foreach ($waitlist as $entry) {
+            if ((int) $entry['id'] === $waitlistId) {
+                $targetEntry = $entry;
+                break;
+            }
+        }
+
+        if (! $targetEntry) {
+            return ['success' => false, 'error' => 'Waitlist entry not found.'];
+        }
+
+        $this->repo->updateWaitlistStatus($waitlistId, 'offered', $reservationId);
+
+        $notificationService = app(NotificationService::class);
+        $notificationService->send(
+            $targetEntry['requested_by'],
+            'reservations',
+            'Reservation Slot Available',
+            "A slot matching your waitlist request for \"{$targetEntry['purpose']}\" is now available.",
+            '/reservations',
+            true
+        );
+
+        AuditLogger::log('reservations', 'waitlist_offer', 'reservation_waitlist', $waitlistId, ['status' => 'pending'], [
+            'status' => 'offered',
+            'offered_reservation_id' => $reservationId,
+        ]);
+
+        return ['success' => true];
+    }
+
+    /**
+     * @return array{success: bool, error?: string}
+     */
+    public function respondToWaitlistOffer(int $waitlistId, string $response): array
+    {
+        if (! in_array($response, ['accepted', 'declined'], true)) {
+            return ['success' => false, 'error' => 'Invalid response.'];
+        }
+
+        $newStatus = $response === 'accepted' ? 'pending' : 'declined';
+        $this->repo->updateWaitlistStatus($waitlistId, $newStatus);
+
+        AuditLogger::log('reservations', 'waitlist_response', 'reservation_waitlist', $waitlistId, null, [
+            'response' => $response,
+            'new_status' => $newStatus,
+        ]);
+
+        return ['success' => true];
+    }
+
+    // ===================== COST TRACKING METHODS =====================
+
+    /**
+     * @return array{success: bool, error?: string}
+     */
+    public function updateCostInfo(int $reservationId, array $costData): array
+    {
+        if (! Auth::user()?->canPermission('reservation.manage')) {
+            return ['success' => false, 'error' => 'You do not have permission to update cost information.'];
+        }
+
+        $this->repo->updateCostInfo($reservationId, $costData);
+
+        AuditLogger::log('reservations', 'cost_update', 'reservation', $reservationId, null, $costData);
+
+        return ['success' => true];
+    }
+
+    public function getCostSummary(string $startDate, string $endDate): array
+    {
+        if (! Auth::user()?->canPermission('reservation.manage')) {
+            return [];
+        }
+
+        return $this->repo->getCostSummaryByDepartment($startDate, $endDate);
+    }
+
+    // ===================== NO-SHOW TRACKING METHODS =====================
+
+    /**
+     * @return array{success: bool, error?: string}
+     */
+    public function markNoShow(int $reservationId): array
+    {
+        if (! Auth::user()?->canPermission('reservation.manage')) {
+            return ['success' => false, 'error' => 'You do not have permission to mark no-shows.'];
+        }
+
+        $reservation = $this->repo->find($reservationId);
+        if (! $reservation) {
+            return ['success' => false, 'error' => 'Reservation not found.'];
+        }
+
+        if (($reservation['status'] ?? '') !== 'approved') {
+            return ['success' => false, 'error' => 'Only approved reservations can be marked as no-show.'];
+        }
+
+        $this->repo->markNoShow($reservationId, Auth::id());
+
+        AuditLogger::log('reservations', 'no_show', 'reservation', $reservationId, ['no_show' => false], [
+            'no_show' => true,
+        ]);
+
+        return ['success' => true];
+    }
+
+    public function getNoShowStats(int $userId): array
+    {
+        return $this->repo->getNoShowStats($userId);
+    }
+
+    // ===================== CANCELLATION METHODS =====================
+
+    /**
+     * @return array{success: bool, error?: string}
+     */
+    public function cancelReservation(int $reservationId, string $reason): array
+    {
+        $reservation = $this->repo->find($reservationId);
+        if (! $reservation) {
+            return ['success' => false, 'error' => 'Reservation not found.'];
+        }
+
+        $isOwner = (int) ($reservation['requested_by'] ?? 0) === Auth::id();
+        $canManage = Auth::user()?->canPermission('reservation.manage');
+
+        if (! $isOwner && ! $canManage) {
+            return ['success' => false, 'error' => 'You do not have permission to cancel this reservation.'];
+        }
+
+        if (($reservation['status'] ?? '') === 'cancelled') {
+            return ['success' => false, 'error' => 'This reservation is already cancelled.'];
+        }
+
+        $this->repo->markCancelled($reservationId, Auth::id(), $reason);
+
+        // Notify approvers if the owner cancels
+        if ($isOwner && ! $canManage) {
+            $this->notifyApprovers(
+                'Reservation Cancelled',
+                "Reservation for \"{$reservation['purpose']}\" has been cancelled by the requester.",
+                '/reservations'
+            );
+        }
+
+        AuditLogger::log('reservations', 'cancel', 'reservation', $reservationId, ['status' => $reservation['status']], [
+            'status' => 'cancelled',
+            'cancellation_reason' => $reason,
+        ]);
+
+        return ['success' => true];
+    }
+
+    // ===================== FEEDBACK METHODS =====================
+
+    /**
+     * @return array{success: bool, error?: string}
+     */
+    public function submitFeedback(int $reservationId, int $rating, ?string $comment): array
+    {
+        $reservation = $this->repo->find($reservationId);
+        if (! $reservation) {
+            return ['success' => false, 'error' => 'Reservation not found.'];
+        }
+
+        $isOwner = (int) ($reservation['requested_by'] ?? 0) === Auth::id();
+        if (! $isOwner) {
+            return ['success' => false, 'error' => 'You can only submit feedback for your own reservations.'];
+        }
+
+        if (($reservation['status'] ?? '') !== 'approved') {
+            return ['success' => false, 'error' => 'Feedback can only be submitted for approved reservations.'];
+        }
+
+        if ($rating < 1 || $rating > 5) {
+            return ['success' => false, 'error' => 'Rating must be between 1 and 5.'];
+        }
+
+        $this->repo->submitFeedback($reservationId, $rating, $comment);
+
+        AuditLogger::log('reservations', 'feedback', 'reservation', $reservationId, null, [
+            'rating' => $rating,
+            'comment' => $comment,
+        ]);
+
+        return ['success' => true];
+    }
+
+    public function getFeedbackSummary(int $facilityId): array
+    {
+        return $this->repo->getFeedbackSummary($facilityId);
+    }
+
+    // ===================== ICAL EXPORT METHOD =====================
+
+    /**
+     * Generate iCal content for approved reservations
+     */
+    public function generateICal(int $reservationId): string
+    {
+        $reservation = $this->repo->find($reservationId);
+        if (! $reservation) {
+            return '';
+        }
+
+        $start = \DateTime::createFromFormat('Y-m-d H:i:s', $reservation['start_datetime'] ?? '');
+        $end = \DateTime::createFromFormat('Y-m-d H:i:s', $reservation['end_datetime'] ?? '');
+        
+        if (! $start || ! $end) {
+            return '';
+        }
+
+        $uid = md5($reservation['id'] . $reservation['start_datetime']);
+        $summary = $reservation['purpose'] ?? 'Reservation';
+        $facilityName = $reservation['facility_name'] ?? 'N/A';
+        $description = "Reservation: {$summary}\nFacility: {$facilityName}";
+        
+        return <<<ICAL
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//FAMS//Facility Reservation//EN
+BEGIN:VEVENT
+UID:{$uid}
+DTSTAMP:{$start->format('Ymd\THis\Z')}
+DTSTART:{$start->format('Ymd\THis\Z')}
+DTEND:{$end->format('Ymd\THis\Z')}
+SUMMARY:{$summary}
+DESCRIPTION:{$description}
+END:VEVENT
+END:VCALENDAR
+ICAL;
+    }
 }

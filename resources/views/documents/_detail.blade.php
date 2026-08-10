@@ -41,6 +41,9 @@ $isSensitive = in_array($doc['confidentiality'] ?? '', ['confidential', 'restric
                 <button type="button" onclick="openModal('accessModal')" class="btn-secondary btn-sm">
                     Permissions
                 </button>
+                <button type="button" onclick="openModal('signatureModal')" class="btn-secondary btn-sm">
+                    Request Signature
+                </button>
             <?php endif; ?>
             <?php if ($canUpload): ?>
                 <button type="button" onclick="openModal('versionModal')" class="btn-primary btn-sm">
@@ -256,6 +259,40 @@ $isSensitive = in_array($doc['confidentiality'] ?? '', ['confidential', 'restric
             <div class="pt-4 border-t border-ink/10 flex justify-end gap-3">
                 <button type="button" onclick="closeModal('versionModal')" class="px-4 py-2.5 rounded-lg border border-ink/10 hover:bg-gray-50 text-ink/70 font-semibold text-sm transition">Cancel</button>
                 <button type="submit" class="px-5 py-2.5 rounded-lg bg-brand-700 hover:bg-brand-600 text-white font-semibold text-sm transition">Upload Version</button>
+            </div>
+        </form>
+    </div>
+</div>
+<?php endif; ?>
+
+<?php if ($canManage): ?>
+<div id="signatureModal" class="modal-overlay hidden" hidden>
+    <div class="bg-white rounded-xl shadow-xl max-w-lg w-full border border-ink/10 overflow-hidden animate-fade-in-up" onclick="event.stopPropagation()">
+        <div class="px-6 py-4 border-b border-ink/10 flex justify-between items-center bg-gray-50/50">
+            <h3 class="font-sans text-lg font-bold text-ink">Request E-Signature</h3>
+            <button type="button" onclick="closeModal('signatureModal')" class="text-ink/40 hover:text-ink/60 transition">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+        <form action="<?= url('/documents/' . $doc['id'] . '/request-signature') ?>" method="POST" class="p-6 space-y-4">
+            @csrf
+            <div class="space-y-1">
+                <label class="block text-xs font-semibold uppercase tracking-wider text-ink/60">Signer Name</label>
+                <input type="text" name="signer_name" required class="w-full border border-ink/15 rounded-lg p-2.5 text-sm bg-sand/10 focus:border-brand-500 outline-none">
+            </div>
+            <div class="space-y-1">
+                <label class="block text-xs font-semibold uppercase tracking-wider text-ink/60">Signer Email</label>
+                <input type="email" name="signer_email" required class="w-full border border-ink/15 rounded-lg p-2.5 text-sm bg-sand/10 focus:border-brand-500 outline-none">
+            </div>
+            <div class="space-y-1">
+                <label class="block text-xs font-semibold uppercase tracking-wider text-ink/60">Message (Optional)</label>
+                <textarea name="message" rows="3" placeholder="Please sign this document..." class="w-full border border-ink/15 rounded-lg p-2.5 text-sm bg-sand/10 focus:border-brand-500 outline-none"></textarea>
+            </div>
+            <div class="pt-4 border-t border-ink/10 flex justify-end gap-3">
+                <button type="button" onclick="closeModal('signatureModal')" class="px-4 py-2.5 rounded-lg border border-ink/10 hover:bg-gray-50 text-ink/70 font-semibold text-sm transition">Cancel</button>
+                <button type="submit" class="px-5 py-2.5 rounded-lg bg-brand-600 hover:bg-brand-700 text-white font-semibold text-sm transition">Send Request</button>
             </div>
         </form>
     </div>

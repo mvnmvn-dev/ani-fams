@@ -23,12 +23,20 @@ class Visit extends Model
         'badge_code',
         'status',
         'notes',
+        'nda_required',
+        'nda_signed',
+        'nda_signature_path',
+        'nda_signed_at',
+        'nda_ip_address',
     ];
 
     protected $casts = [
         'scheduled_at' => 'datetime',
         'check_in_time' => 'datetime',
         'check_out_time' => 'datetime',
+        'nda_required' => 'boolean',
+        'nda_signed' => 'boolean',
+        'nda_signed_at' => 'datetime',
     ];
 
     public function visitor(): BelongsTo

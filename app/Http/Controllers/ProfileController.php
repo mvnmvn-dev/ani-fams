@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Repositories\UserRepository;
+use App\Support\PasswordPolicy;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -37,8 +38,9 @@ class ProfileController extends Controller
             if ($current === '' || $new === '') {
                 return back()->with('flash_error', 'Current and new password are required to change password.');
             }
-            if (strlen($new) < 8) {
-                return back()->with('flash_error', 'New password must be at least 8 characters.');
+            $policy = PasswordPolicy::validate($new);
+            if (! ($policy['valid'] ?? false)) {
+                return back()->with('flash_error', $policy['error'] ?? 'New password does not meet policy requirements.');
             }
             if ($new !== $confirm) {
                 return back()->with('flash_error', 'New password confirmation does not match.');

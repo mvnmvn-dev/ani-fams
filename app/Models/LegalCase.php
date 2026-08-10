@@ -62,6 +62,21 @@ class LegalCase extends Model
         return $this->belongsToMany(Document::class, 'legal_case_documents', 'case_id', 'document_id');
     }
 
+    public function outcomes(): HasMany
+    {
+        return $this->hasMany(LegalCaseOutcome::class, 'case_id');
+    }
+
+    public function partyConflicts(): HasMany
+    {
+        return $this->hasMany(LegalCasePartyConflict::class, 'case_id');
+    }
+
+    public function counselConflicts(): HasMany
+    {
+        return $this->hasMany(LegalCaseCounselConflict::class, 'case_id');
+    }
+
     protected static function booted()
     {
         // Counsel is an Employee with department_id directly.

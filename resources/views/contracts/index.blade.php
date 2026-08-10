@@ -270,6 +270,18 @@ render_page_header([
                 <li><span class="module-insight-dot"></span><span>Flag contracts ending within 90 days for renewal.</span></li>
             </ul>
         </div>
+        <?php if (!empty($vendorScoreRollup)): ?>
+        <div class="module-insight-panel">
+            <h3 class="module-insight-title">Vendor scorecards</h3>
+            <p class="module-insight-sub">Average performance by counterparty</p>
+            <?php foreach (array_slice($vendorScoreRollup, 0, 6) as $vs): ?>
+                <div class="module-stat-row">
+                    <span class="text-ink/70 truncate" title="<?= htmlspecialchars($vs['counterparty_name']) ?>"><?= htmlspecialchars($vs['counterparty_name']) ?></span>
+                    <strong class="tabular-nums text-ink"><?= number_format((float) $vs['avg_overall'], 2) ?> <span class="text-ink/40 text-xs font-normal">(<?= (int) $vs['score_count'] ?>)</span></strong>
+                </div>
+            <?php endforeach; ?>
+        </div>
+        <?php endif; ?>
     </aside>
     </div>
 <?php endif; ?>

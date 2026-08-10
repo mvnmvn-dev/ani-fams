@@ -103,6 +103,32 @@ class LegalCaseController extends Controller
         );
     }
 
+    public function addDeadline(Request $request, string $id, LegalCaseService $service)
+    {
+        $data = $request->all();
+        $data['case_id'] = (int) $id;
+        $result = $service->addDeadline($data);
+        return redirect()->route('legal.index', ['open' => $id])->with(
+            $result['success'] ? 'flash_success' : 'flash_error',
+            $result['success'] ? 'Deadline added successfully.' : $result['error']
+        );
+    }
+
+    public function toggleDeadline(Request $request, string $caseId, string $deadlineId, LegalCaseService $service)
+    {
+        $result = $service->toggleDeadline((int) $deadlineId, $request->boolean('completed'));
+        $success = (bool) ($result['success'] ?? false);
+        $message = $success ? 'Deadline status updated.' : (string) ($result['error'] ?? 'Unable to update deadline.');
+
+        return $this->flashOrJson(
+            $request,
+            redirect()->route('legal.index', ['open' => $caseId]),
+            $success,
+            $message,
+            array_merge(['action' => 'legal.deadline.toggle', 'case_id' => (int) $caseId], $result)
+        );
+    }
+
     public function linkDocument(Request $request, string $id, LegalCaseService $service)
     {
         $result = $service->linkDocument((int) $id, (int) $request->input('document_id'));
@@ -164,6 +190,88 @@ class LegalCaseController extends Controller
         return redirect()->route('legal.index', ['open' => $id])->with(
             $result['success'] ? 'flash_success' : 'flash_error',
             $result['success'] ? 'Budget updated.' : $result['error']
+        );
+    }
+
+    public function recordOutcome(Request $request, string $id, LegalCaseService $service)
+    {
+        $data = $request->all();
+        $data['case_id'] = (int) $id;
+        $data['is_appealed'] = $request->boolean('is_appealed');
+        $result = $service->recordOutcome($data);
+
+        return redirect()->route('legal.index', ['open' => $id])->with(
+            $result['success'] ? 'flash_success' : 'flash_error',
+            $result['success'] ? 'Outcome recorded.' : ($result['error'] ?? 'Unable to record outcome.')
+        );
+    }
+
+    public function flagPartyConflict(Request $request, string $id, LegalCaseService $service)
+    {
+        $data = $request->all();
+        $data['case_id'] = (int) $id;
+        $result = $service->flagPartyConflict($data);
+
+        return redirect()->route('legal.index', ['open' => $id])->with(
+            $result['success'] ? 'flash_success' : 'flash_error',
+            $result['success'] ? 'Party conflict flagged.' : ($result['error'] ?? 'Unable to flag conflict.')
+        );
+    }
+
+    public function flagCounselConflict(Request $request, string $id, LegalCaseService $service)
+    {
+        $data = $request->all();
+        $data['case_id'] = (int) $id;
+        $result = $service->flagCounselConflict($data);
+
+        return redirect()->route('legal.index', ['open' => $id])->with(
+            $result['success'] ? 'flash_success' : 'flash_error',
+            $result['success'] ? 'Counsel conflict flagged.' : ($result['error'] ?? 'Unable to flag conflict.')
+        );
+    }
+
+    public function resolvePartyConflict(Request $request, string $caseId, string $conflictId, LegalCaseService $service)
+    {
+        $result = $service->resolveConflict((int) $conflictId, $request->all());
+
+        return redirect()->route('legal.index', ['open' => $caseId])->with(
+            $result['success'] ? 'flash_success' : 'flash_error',
+            $result['success'] ? 'Conflict resolution updated.' : ($result['error'] ?? 'Unable to update.')
+        );
+    }
+
+    public function verifyCounselConflict(Request $request, string $caseId, string $conflictId, LegalCaseService $service)
+    {
+        $result = $service->verifyCounselConflict(
+            (int) $conflictId,
+            $request->boolean('verified'),
+            $request->input('mitigation_plan')
+        );
+
+        return redirect()->route('legal.index', ['open' => $caseId])->with(
+            $result['success'] ? 'flash_success' : 'flash_error',
+            $result['success'] ? 'Counsel conflict updated.' : ($result['error'] ?? 'Unable to update.')
+        );
+    }
+
+    public function runConflictScan(Request $request, string $id, LegalCaseService $service)
+    {
+        $result = $service->runConflictScan((int) $id);
+        $success = (bool) ($result['success'] ?? false);
+        $flagged = (int) ($result['flagged'] ?? 0);
+        $matchCount = count($result['matches'] ?? []);
+        $message = $success
+            ? ($matchCount === 0
+                ? 'Conflict scan complete — no potential issues found.'
+                : "Conflict scan complete — {$matchCount} match(es), {$flagged} new flag(s).")
+            : ($result['error'] ?? 'Conflict scan failed.');
+
+        return $this->flashOrJson(
+            $request,
+            redirect()->route('legal.index', ['open' => $id]),
+            $success,
+            $message,
+            array_merge(['action' => 'legal.conflict.scan', 'case_id' => (int) $id], $result)
         );
     }
 

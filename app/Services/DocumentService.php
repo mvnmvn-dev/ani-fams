@@ -481,4 +481,355 @@ class DocumentService
     {
         return $this->repo->countActive();
     }
+
+    // ===================== DOCUMENT REVIEW/EXPIRATION REMINDERS =====================
+
+    public function getDocumentsNeedingReview(): array
+    {
+        if (! Auth::user()?->canPermission('document.manage')) {
+            return [];
+        }
+
+        return $this->repo->getDocumentsNeedingReview();
+    }
+
+    /**
+     * @return array{success: bool, sent_count: int}
+     */
+    public function sendReviewReminders(): array
+    {
+        $documents = $this->repo->getDocumentsNeedingReview();
+        $sentCount = 0;
+
+        foreach ($documents as $doc) {
+            $notificationService = app(NotificationService::class);
+            $notificationService->send(
+                (int) $doc['owner_id'],
+                'documents',
+                'Document Review Required',
+                "Document \"{$doc['title']}\" is due for review by {$doc['review_by_date']}.",
+                '/documents',
+                true
+            );
+
+            $this->repo->markReviewReminderSent((int) $doc['id']);
+            $sentCount++;
+        }
+
+        return ['success' => true, 'sent_count' => $sentCount];
+    }
+
+    /**
+     * @return array{success: bool, error?: string}
+     */
+    public function markDocumentReviewed(int $documentId): array
+    {
+        $doc = $this->repo->find($documentId);
+        if (! $doc) {
+            return ['success' => false, 'error' => 'Document not found.'];
+        }
+
+        if ((int) $doc['owner_id'] !== (int) Auth::id() && ! Auth::user()?->canPermission('document.manage')) {
+            return ['success' => false, 'error' => 'You do not have permission to review this document.'];
+        }
+
+        $this->repo->markDocumentReviewed($documentId, Auth::id());
+
+        AuditLogger::log('documents', 'review', 'document', $documentId, null, [
+            'reviewed_by' => Auth::id(),
+        ]);
+
+        return ['success' => true];
+    }
+
+    /**
+     * @return array{success: bool, error?: string}
+     */
+    public function updateReviewDate(int $documentId, string $reviewDate): array
+    {
+        if (! Auth::user()?->canPermission('document.manage')) {
+            return ['success' => false, 'error' => 'You do not have permission to update review dates.'];
+        }
+
+        $this->repo->updateReviewDate($documentId, $reviewDate);
+
+        AuditLogger::log('documents', 'review_date_update', 'document', $documentId, null, [
+            'review_by_date' => $reviewDate,
+        ]);
+
+        return ['success' => true];
+    }
+
+    // ===================== CHECK-OUT/LOCK FUNCTIONALITY =====================
+
+    /**
+     * @return array{success: bool, error?: string}
+     */
+    public function checkOutDocument(int $documentId, ?string $notes = null): array
+    {
+        $doc = $this->repo->find($documentId);
+        if (! $doc) {
+            return ['success' => false, 'error' => 'Document not found.'];
+        }
+
+        if ($doc['checked_out_by'] ?? null) {
+            return ['success' => false, 'error' => 'Document is already checked out.'];
+        }
+
+        $this->repo->checkOutDocument($documentId, Auth::id(), $notes);
+
+        AuditLogger::log('documents', 'checkout', 'document', $documentId, null, [
+            'checked_out_by' => Auth::id(),
+            'notes' => $notes,
+        ]);
+
+        return ['success' => true];
+    }
+
+    /**
+     * @return array{success: bool, error?: string}
+     */
+    public function checkInDocument(int $documentId): array
+    {
+        $doc = $this->repo->find($documentId);
+        if (! $doc) {
+            return ['success' => false, 'error' => 'Document not found.'];
+        }
+
+        if (! ($doc['checked_out_by'] ?? null)) {
+            return ['success' => false, 'error' => 'Document is not checked out.'];
+        }
+
+        if ((int) $doc['checked_out_by'] !== (int) Auth::id() && ! Auth::user()?->canPermission('document.manage')) {
+            return ['success' => false, 'error' => 'You can only check in documents you have checked out.'];
+        }
+
+        $this->repo->checkInDocument($documentId);
+
+        AuditLogger::log('documents', 'checkin', 'document', $documentId, null, [
+            'checked_in_by' => Auth::id(),
+        ]);
+
+        return ['success' => true];
+    }
+
+    public function getCheckedOutDocuments(): array
+    {
+        if (! Auth::user()?->canPermission('document.manage')) {
+            return [];
+        }
+
+        return $this->repo->getCheckedOutDocuments();
+    }
+
+    // ===================== OCR PROCESSING =====================
+
+    /**
+     * @return array{success: bool, processed_count: int}
+     */
+    public function processOcrForPendingVersions(): array
+    {
+        $versions = $this->repo->getVersionsNeedingOcr();
+        $processedCount = 0;
+
+        foreach ($versions as $version) {
+            $text = $this->extractTextContent($version['file_path'] ?? '');
+            if ($text) {
+                // Store the extracted text back to the version
+                $stmt = $this->repo->pdo()->prepare(
+                    'UPDATE document_versions SET content_text = :content_text WHERE id = :id'
+                );
+                $stmt->execute(['content_text' => $text, 'id' => $version['id']]);
+
+                // Mark as processed with a confidence score (simplified)
+                $confidence = strlen($text) > 100 ? 85.0 : 50.0;
+                $this->repo->markOcrProcessed((int) $version['id'], $confidence);
+                $processedCount++;
+            }
+        }
+
+        return ['success' => true, 'processed_count' => $processedCount];
+    }
+
+    // ===================== BULK UPLOAD TRACKING =====================
+
+    /**
+     * @return array{success: bool, error?: string, upload_id?: int}
+     */
+    public function startBulkUpload(int $fileCount): array
+    {
+        $uploadId = $this->repo->createBulkUpload([
+            'uploaded_by' => Auth::id(),
+            'module' => 'documents',
+            'file_count' => $fileCount,
+            'status' => 'processing',
+        ]);
+
+        return ['success' => true, 'upload_id' => $uploadId];
+    }
+
+    /**
+     * @return array{success: bool, error?: string}
+     */
+    public function completeBulkUpload(int $uploadId, string $status, ?string $errorMessage = null): array
+    {
+        $this->repo->updateBulkUploadStatus($uploadId, $status, $errorMessage);
+
+        return ['success' => true];
+    }
+
+    public function getBulkUploads(): array
+    {
+        return $this->repo->getBulkUploads(Auth::id());
+    }
+
+    // ===================== E-SIGNATURE REQUESTS =====================
+
+    /**
+     * @return array{success: bool, error?: string, request_id?: int, token?: string}
+     */
+    public function requestSignature(int $documentId, string $signerEmail, string $signerName, ?string $message = null): array
+    {
+        $doc = $this->repo->find($documentId);
+        if (! $doc) {
+            return ['success' => false, 'error' => 'Document not found.'];
+        }
+
+        if ((int) $doc['owner_id'] !== (int) Auth::id() && ! Auth::user()?->canPermission('document.manage')) {
+            return ['success' => false, 'error' => 'You do not have permission to request signatures for this document.'];
+        }
+
+        $token = bin2hex(random_bytes(32));
+        $expiresAt = date('Y-m-d H:i:s', strtotime('+7 days'));
+
+        $requestId = $this->repo->createSignatureRequest([
+            'document_id' => $documentId,
+            'requested_by' => Auth::id(),
+            'signer_email' => $signerEmail,
+            'signer_name' => $signerName,
+            'message' => $message,
+            'token' => $token,
+            'expires_at' => $expiresAt,
+        ]);
+
+        // Send email notification
+        $notificationService = app(NotificationService::class);
+        $notificationService->send(
+            $signerEmail, // For external signers, we'd need to handle this differently
+            'documents',
+            'Signature Request',
+            "You have been requested to sign document \"{$doc['title']}\".",
+            "/documents/sign/{$token}",
+            true
+        );
+
+        AuditLogger::log('documents', 'signature_request', 'document_signature_request', $requestId, null, [
+            'document_id' => $documentId,
+            'signer_email' => $signerEmail,
+        ]);
+
+        return ['success' => true, 'request_id' => $requestId, 'token' => $token];
+    }
+
+    /**
+     * @return array{success: bool, error?: string, request?: array}
+     */
+    public function getSignatureRequestByToken(string $token): array
+    {
+        $request = $this->repo->findSignatureRequestByToken($token);
+        if (! $request) {
+            return ['success' => false, 'error' => 'Signature request not found.'];
+        }
+
+        if (($request['status'] ?? '') !== 'pending') {
+            return ['success' => false, 'error' => 'This signature request has already been processed.'];
+        }
+
+        if (strtotime($request['expires_at'] ?? '') < time()) {
+            return ['success' => false, 'error' => 'This signature request has expired.'];
+        }
+
+        return ['success' => true, 'request' => $request];
+    }
+
+    /**
+     * @return array{success: bool, error?: string}
+     */
+    public function signDocument(int $requestId, string $signatureData, string $ipAddress): array
+    {
+        $request = $this->repo->findSignatureRequestByToken('');
+        // Get the request by ID instead
+        $stmt = $this->repo->pdo()->prepare('SELECT * FROM document_signature_requests WHERE id = :id');
+        $stmt->execute(['id' => $requestId]);
+        $request = $stmt->fetch();
+
+        if (! $request) {
+            return ['success' => false, 'error' => 'Signature request not found.'];
+        }
+
+        if (($request['status'] ?? '') !== 'pending') {
+            return ['success' => false, 'error' => 'This signature request has already been processed.'];
+        }
+
+        // Store signature
+        $signaturePath = $this->storeSignature($signatureData);
+        if (! $signaturePath) {
+            return ['success' => false, 'error' => 'Failed to store signature.'];
+        }
+
+        $this->repo->markSignatureSigned($requestId, $signaturePath, $ipAddress);
+
+        AuditLogger::log('documents', 'document_signed', 'document_signature_request', $requestId, ['status' => 'pending'], [
+            'status' => 'signed',
+            'signature_path' => $signaturePath,
+        ]);
+
+        return ['success' => true];
+    }
+
+    /**
+     * @return array{success: bool, error?: string}
+     */
+    public function declineSignature(int $requestId): array
+    {
+        $this->repo->markSignatureDeclined($requestId);
+
+        AuditLogger::log('documents', 'signature_declined', 'document_signature_request', $requestId, ['status' => 'pending'], [
+            'status' => 'declined',
+        ]);
+
+        return ['success' => true];
+    }
+
+    public function getDocumentSignatureRequests(int $documentId): array
+    {
+        return $this->repo->getDocumentSignatureRequests($documentId);
+    }
+
+    private function storeSignature(string $signatureData): ?string
+    {
+        $dir = public_path('uploads/signatures');
+        if (! is_dir($dir)) {
+            mkdir($dir, 0777, true);
+        }
+        
+        // Remove data URL prefix if present
+        if (strpos($signatureData, 'data:') === 0) {
+            $signatureData = substr($signatureData, strpos($signatureData, ',') + 1);
+        }
+        
+        $signatureData = base64_decode($signatureData);
+        if ($signatureData === false) {
+            return null;
+        }
+        
+        $name = uniqid('signature_', true) . '.png';
+        $path = $dir . '/' . $name;
+        
+        if (file_put_contents($path, $signatureData) === false) {
+            return null;
+        }
+
+        return '/uploads/signatures/' . $name;
+    }
 }

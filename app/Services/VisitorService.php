@@ -273,4 +273,178 @@ class VisitorService
     {
         return $this->repo->countOnSite();
     }
+
+    // ===================== WATCHLIST ENHANCEMENTS =====================
+
+    /**
+     * @return array{success: bool, error?: string}
+     */
+    public function updateWatchlistWithDetails(int $visitorId, bool $watchlist, ?string $reason, ?string $expiryDate): array
+    {
+        if (! Auth::user()?->canPermission('visitor.manage')) {
+            return ['success' => false, 'error' => 'You do not have permission to update watchlist details.'];
+        }
+
+        $this->repo->updateWatchlistWithDetails($visitorId, $watchlist, $reason, $expiryDate, Auth::id());
+
+        AuditLogger::log('visitors', 'watchlist_update', 'visitor', $visitorId, null, [
+            'is_watchlisted' => $watchlist,
+            'watchlist_reason' => $reason,
+            'watchlist_expiry_date' => $expiryDate,
+        ]);
+
+        return ['success' => true];
+    }
+
+    public function getExpiredWatchlistEntries(): array
+    {
+        return $this->repo->getExpiredWatchlistEntries();
+    }
+
+    public function autoRemoveExpiredWatchlist(): int
+    {
+        $count = $this->repo->autoRemoveExpiredWatchlist();
+        
+        if ($count > 0) {
+            AuditLogger::log('visitors', 'watchlist_auto_expire', 'visitor', null, null, [
+                'expired_count' => $count,
+            ]);
+        }
+
+        return $count;
+    }
+
+    // ===================== VEHICLE LOGGING =====================
+
+    /**
+     * @return array{success: bool, error?: string, id?: int}
+     */
+    public function logVehicle(array $input): array
+    {
+        $visitorId = (int) ($input['visitor_id'] ?? 0);
+        $plateNumber = trim($input['plate_number'] ?? '');
+
+        if (! $visitorId || $plateNumber === '') {
+            return ['success' => false, 'error' => 'Visitor and plate number are required.'];
+        }
+
+        $vehicleId = $this->repo->createVehicle([
+            'visitor_id' => $visitorId,
+            'visit_id' => $input['visit_id'] ?? null,
+            'plate_number' => $plateNumber,
+            'vehicle_make' => $input['vehicle_make'] ?? null,
+            'vehicle_model' => $input['vehicle_model'] ?? null,
+            'vehicle_color' => $input['vehicle_color'] ?? null,
+            'notes' => $input['notes'] ?? null,
+        ]);
+
+        AuditLogger::log('visitors', 'vehicle_log', 'visitor_vehicle', $vehicleId, null, [
+            'visitor_id' => $visitorId,
+            'plate_number' => $plateNumber,
+        ]);
+
+        return ['success' => true, 'id' => $vehicleId];
+    }
+
+    public function getVehiclesForVisitor(int $visitorId): array
+    {
+        return $this->repo->getVehiclesForVisitor($visitorId);
+    }
+
+    public function getVehiclesForVisit(int $visitId): array
+    {
+        return $this->repo->getVehiclesForVisit($visitId);
+    }
+
+    // ===================== NDA SIGNATURE =====================
+
+    /**
+     * @return array{success: bool, error?: string}
+     */
+    public function setNdaRequired(int $visitId, bool $required): array
+    {
+        if (! Auth::user()?->canPermission('visitor.manage')) {
+            return ['success' => false, 'error' => 'You do not have permission to require NDA.'];
+        }
+
+        $this->repo->setNdaRequired($visitId, $required);
+
+        AuditLogger::log('visitors', 'nda_require', 'visit', $visitId, null, [
+            'nda_required' => $required,
+        ]);
+
+        return ['success' => true];
+    }
+
+    /**
+     * @return array{success: bool, error?: string}
+     */
+    public function signNda(int $visitId, string $signatureData, string $ipAddress): array
+    {
+        $visit = $this->repo->findVisit($visitId);
+        if (! $visit) {
+            return ['success' => false, 'error' => 'Visit not found.'];
+        }
+
+        if (! ($visit['nda_required'] ?? false)) {
+            return ['success' => false, 'error' => 'NDA is not required for this visit.'];
+        }
+
+        if (($visit['nda_signed'] ?? false)) {
+            return ['success' => false, 'error' => 'NDA has already been signed.'];
+        }
+
+        // Store signature
+        $signaturePath = $this->storeSignature($signatureData);
+        if (! $signaturePath) {
+            return ['success' => false, 'error' => 'Failed to store signature.'];
+        }
+
+        $this->repo->updateNdaSignature($visitId, $signaturePath, $ipAddress);
+
+        AuditLogger::log('visitors', 'nda_sign', 'visit', $visitId, ['nda_signed' => false], [
+            'nda_signed' => true,
+            'signature_path' => $signaturePath,
+        ]);
+
+        return ['success' => true];
+    }
+
+    private function storeSignature(string $signatureData): ?string
+    {
+        $dir = public_path('uploads/signatures');
+        if (! is_dir($dir)) {
+            mkdir($dir, 0777, true);
+        }
+        
+        // Remove data URL prefix if present
+        if (strpos($signatureData, 'data:') === 0) {
+            $signatureData = substr($signatureData, strpos($signatureData, ',') + 1);
+        }
+        
+        $signatureData = base64_decode($signatureData);
+        if ($signatureData === false) {
+            return null;
+        }
+        
+        $name = uniqid('signature_', true) . '.png';
+        $path = $dir . '/' . $name;
+        
+        if (file_put_contents($path, $signatureData) === false) {
+            return null;
+        }
+
+        return '/uploads/signatures/' . $name;
+    }
+
+    // ===================== EMERGENCY ROSTER =====================
+
+    public function getEmergencyRoster(): array
+    {
+        if (! Auth::user()?->canPermission('visitor.manage')) {
+            return [];
+        }
+
+        return $this->repo->getEmergencyRoster();
+    }
 }

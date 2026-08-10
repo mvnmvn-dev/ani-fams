@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Repositories\UserRepository;
 use App\Support\AuditLogger;
+use App\Support\PasswordPolicy;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
 
@@ -38,8 +39,9 @@ class UserService
             return ['success' => false, 'error' => 'Please enter a valid email address.'];
         }
 
-        if (strlen($password) < 8) {
-            return ['success' => false, 'error' => 'Password must be at least 8 characters.'];
+        $policy = PasswordPolicy::validate($password);
+        if (! ($policy['valid'] ?? false)) {
+            return ['success' => false, 'error' => $policy['error'] ?? 'Password does not meet policy requirements.'];
         }
 
         if ($this->repo->emailExists($email)) {
@@ -172,5 +174,48 @@ class UserService
         );
 
         return ['success' => true, 'status' => $newStatus, 'id' => $id];
+    }
+
+    /**
+     * Bulk reassign role for selected users.
+     *
+     * @param  list<int|string>  $userIds
+     * @return array{success: bool, error?: string, updated?: int}
+     */
+    public function bulkReassignRole(array $userIds, int $roleId): array
+    {
+        $userIds = array_values(array_unique(array_filter(array_map('intval', $userIds))));
+        if ($userIds === [] || ! $roleId) {
+            return ['success' => false, 'error' => 'Select at least one user and a target role.'];
+        }
+
+        if (! $this->repo->roleExists($roleId)) {
+            return ['success' => false, 'error' => 'Invalid role selected.'];
+        }
+
+        $selfId = (int) Auth::id();
+        $userIds = array_values(array_filter($userIds, static fn ($id) => $id !== $selfId));
+        if ($userIds === []) {
+            return ['success' => false, 'error' => 'You cannot change your own role via bulk reassignment.'];
+        }
+
+        // Prevent demoting the last active admin
+        $adminRoleId = $this->repo->findRoleIdByCode('admin');
+        if ($adminRoleId && $roleId !== $adminRoleId) {
+            $remainingAdmins = $this->repo->countActiveUsersWithRole($adminRoleId, $userIds);
+            if ($remainingAdmins < 1) {
+                return ['success' => false, 'error' => 'Cannot reassign the last active admin. Keep at least one admin account.'];
+            }
+        }
+
+        $updated = $this->repo->bulkUpdateRole($userIds, $roleId);
+
+        AuditLogger::log('users', 'bulk_role_reassign', 'user', $selfId, null, [
+            'user_ids' => $userIds,
+            'role_id' => $roleId,
+            'updated' => $updated,
+        ]);
+
+        return ['success' => true, 'updated' => $updated];
     }
 }

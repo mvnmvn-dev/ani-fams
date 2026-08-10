@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Mail\PasswordResetMail;
 use App\Models\User;
 use App\Support\AuditLogger;
+use App\Support\PasswordPolicy;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -68,8 +69,13 @@ class PasswordResetController extends Controller
         $data = $request->validate([
             'token' => ['required', 'string'],
             'email' => ['required', 'email'],
-            'password' => ['required', 'string', 'min:8', 'confirmed'],
+            'password' => ['required', 'string', 'confirmed', 'min:' . PasswordPolicy::MIN_LENGTH],
         ]);
+
+        $policy = PasswordPolicy::validate($data['password']);
+        if (! ($policy['valid'] ?? false)) {
+            return back()->with('flash_error', $policy['error'] ?? 'Password does not meet policy requirements.')->withInput($request->only('email'));
+        }
 
         $record = DB::table('password_reset_tokens')->where('email', $data['email'])->first();
 

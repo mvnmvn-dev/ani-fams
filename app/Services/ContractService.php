@@ -96,8 +96,24 @@ class ContractService
         $contract['approvals'] = $this->repo->getApprovals($id);
         $contract['amendments'] = $this->repo->getAmendments($id);
         $contract['documents'] = $this->repo->getDocuments($id);
+        try {
+            $contract['obligations'] = $this->repo->getObligations($id);
+            $contract['vendor_scores'] = $this->repo->getVendorScores($id);
+        } catch (\Throwable $e) {
+            $contract['obligations'] = [];
+            $contract['vendor_scores'] = [];
+        }
         if (! empty($contract['signature_token'])) {
             $contract['sign_url'] = url('/contracts/sign/'.$contract['signature_token']);
+        }
+        if (! empty($contract['vendor_scores'])) {
+            $latest = $contract['vendor_scores'][0];
+            $contract['latest_vendor_score'] = $latest;
+            $sum = 0.0;
+            foreach ($contract['vendor_scores'] as $s) {
+                $sum += (float) $s['overall_score'];
+            }
+            $contract['avg_vendor_score'] = round($sum / count($contract['vendor_scores']), 2);
         }
 
         return $contract;
@@ -214,6 +230,56 @@ class ContractService
         ]);
 
         return ['success' => true, 'id' => $contractId];
+    }
+
+    /**
+     * @return array{success: bool, error?: string, id?: int}
+     */
+    public function autoDraftRenewal(int $oldContractId): array
+    {
+        $oldContract = $this->repo->find($oldContractId);
+        if (!$oldContract) {
+            return ['success' => false, 'error' => 'Original contract not found.'];
+        }
+
+        $startDate = $oldContract['end_date'] ?? date('Y-m-d');
+        $contractNumber = 'CON-' . date('Y') . '-' . strtoupper(bin2hex(random_bytes(2)));
+        $title = '[Renewal] ' . ($oldContract['title'] ?? 'Contract');
+
+        $newContractId = $this->repo->create([
+            'contract_number'     => $contractNumber,
+            'title'               => $title,
+            'contract_type_id'    => $oldContract['contract_type_id'] ?? null,
+            'template_id'         => $oldContract['template_id'] ?? null,
+            'counterparty_name'   => $oldContract['counterparty_name'],
+            'counterparty_contact'=> $oldContract['counterparty_contact'] ?? null,
+            'owner_id'            => Auth::id(), // or $oldContract['owner_id']
+            'value_amount'        => $oldContract['value_amount'] ?? null,
+            'currency'            => $oldContract['currency'] ?? 'PHP',
+            'start_date'          => $startDate,
+            'end_date'            => null,
+            'auto_renew'          => $oldContract['auto_renew'],
+            'renewal_notice_days' => $oldContract['renewal_notice_days'],
+            'related_case_id'     => $oldContract['related_case_id'] ?? null,
+        ]);
+
+        $this->repo->updateContractStatus($newContractId, 'draft');
+        
+        $oldDocuments = $this->repo->getDocuments($oldContractId);
+        foreach ($oldDocuments as $doc) {
+            $this->repo->addDocument($newContractId, (int) $doc['id']);
+        }
+
+        // Mark the old contract as renewed
+        $this->repo->updateContractStatus($oldContractId, 'renewed');
+
+        AuditLogger::log('contracts', 'auto_renew', 'contract', $newContractId, null, [
+            'original_contract_id' => $oldContractId,
+            'title'                => $title,
+            'contract_number'      => $contractNumber,
+        ]);
+
+        return ['success' => true, 'id' => $newContractId];
     }
 
     /**
@@ -573,5 +639,192 @@ class ContractService
     public function activeCount(): int
     {
         return $this->repo->countActiveContracts();
+    }
+
+    public function vendorScoreRollup(): array
+    {
+        try {
+            return $this->repo->vendorScoreRollup();
+        } catch (\Throwable $e) {
+            return [];
+        }
+    }
+
+    /**
+     * @return array{success: bool, error?: string, id?: int}
+     */
+    public function addObligation(array $input): array
+    {
+        if (! Auth::user()?->canPermission('contract.manage')) {
+            return ['success' => false, 'error' => 'You do not have permission to manage obligations.'];
+        }
+
+        $contractId = (int) ($input['contract_id'] ?? 0);
+        $title = trim($input['title'] ?? '');
+        if (! $contractId || $title === '') {
+            return ['success' => false, 'error' => 'Contract and obligation title are required.'];
+        }
+
+        if (! $this->repo->find($contractId)) {
+            return ['success' => false, 'error' => 'Contract not found.'];
+        }
+
+        $id = $this->repo->createObligation([
+            'contract_id' => $contractId,
+            'title' => $title,
+            'description' => trim($input['description'] ?? '') ?: null,
+            'responsible_party' => trim($input['responsible_party'] ?? '') ?: null,
+            'due_date' => $input['due_date'] ?? null,
+            'created_by' => Auth::id(),
+        ]);
+
+        AuditLogger::log('contracts', 'obligation_add', 'contract_obligation', $id, null, [
+            'contract_id' => $contractId,
+            'title' => $title,
+        ]);
+
+        return ['success' => true, 'id' => $id];
+    }
+
+    /**
+     * @return array{success: bool, error?: string}
+     */
+    public function toggleObligation(int $obligationId, bool $completed): array
+    {
+        if (! Auth::user()?->canPermission('contract.manage')) {
+            return ['success' => false, 'error' => 'You do not have permission to update obligations.'];
+        }
+
+        $this->repo->toggleObligation($obligationId, $completed, Auth::id());
+        AuditLogger::log('contracts', 'obligation_toggle', 'contract_obligation', $obligationId, null, [
+            'completed' => $completed,
+        ]);
+
+        return ['success' => true];
+    }
+
+    /**
+     * @return array{success: bool, error?: string, id?: int}
+     */
+    public function recordVendorScore(array $input): array
+    {
+        if (! Auth::user()?->canPermission('contract.manage')) {
+            return ['success' => false, 'error' => 'You do not have permission to score vendors.'];
+        }
+
+        $contractId = (int) ($input['contract_id'] ?? 0);
+        if (! $contractId || ! $this->repo->find($contractId)) {
+            return ['success' => false, 'error' => 'Contract not found.'];
+        }
+
+        $dims = ['quality_score', 'timeliness_score', 'communication_score', 'value_score'];
+        $scores = [];
+        foreach ($dims as $dim) {
+            $val = (int) ($input[$dim] ?? 0);
+            if ($val < 1 || $val > 5) {
+                return ['success' => false, 'error' => 'Each score dimension must be between 1 and 5.'];
+            }
+            $scores[$dim] = $val;
+        }
+
+        $overall = round(array_sum($scores) / 4, 2);
+        $id = $this->repo->createVendorScore([
+            'contract_id' => $contractId,
+            'quality_score' => $scores['quality_score'],
+            'timeliness_score' => $scores['timeliness_score'],
+            'communication_score' => $scores['communication_score'],
+            'value_score' => $scores['value_score'],
+            'overall_score' => $overall,
+            'notes' => trim($input['notes'] ?? '') ?: null,
+            'scored_at' => $input['scored_at'] ?? date('Y-m-d'),
+            'scored_by' => Auth::id(),
+        ]);
+
+        AuditLogger::log('contracts', 'vendor_score', 'contract_vendor_score', $id, null, [
+            'contract_id' => $contractId,
+            'overall_score' => $overall,
+        ]);
+
+        return ['success' => true, 'id' => $id];
+    }
+
+    /**
+     * Generate a printable signature audit certificate for a signed contract.
+     *
+     * @return array{success: bool, error?: string, path?: string, html?: string}
+     */
+    public function generateSignatureCertificate(int $contractId): array
+    {
+        $contract = $this->contractDetails($contractId);
+        if (! $contract) {
+            return ['success' => false, 'error' => 'Contract not found.'];
+        }
+        if (empty($contract['signed_at'])) {
+            return ['success' => false, 'error' => 'Contract has not been signed yet.'];
+        }
+
+        $dir = public_path('uploads/certificates');
+        if (! is_dir($dir)) {
+            mkdir($dir, 0777, true);
+        }
+
+        $filename = 'signature_audit_' . $contractId . '_' . time() . '.html';
+        $fullPath = $dir . DIRECTORY_SEPARATOR . $filename;
+        $dbPath = '/uploads/certificates/' . $filename;
+
+        $approvalsHtml = '';
+        foreach ($contract['approvals'] ?? [] as $app) {
+            $approvalsHtml .= '<tr>'
+                . '<td>' . htmlspecialchars((string) ($app['sequence_order'] ?? '')) . '</td>'
+                . '<td>' . htmlspecialchars((string) ($app['approver_name'] ?? '')) . '</td>'
+                . '<td>' . htmlspecialchars((string) ($app['status'] ?? '')) . '</td>'
+                . '<td>' . htmlspecialchars((string) ($app['decided_at'] ?? '—')) . '</td>'
+                . '</tr>';
+        }
+
+        $sigImg = '';
+        if (! empty($contract['signature_path'])) {
+            $sigImg = '<p><strong>Captured signature:</strong><br><img src="'
+                . htmlspecialchars(url(ltrim((string) $contract['signature_path'], '/')))
+                . '" alt="Signature" style="max-height:80px;border:1px solid #ccc;padding:4px;background:#fff"></p>';
+        }
+
+        $html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Signature Audit Certificate</title>'
+            . '<style>body{font-family:Georgia,serif;max-width:800px;margin:40px auto;color:#1a1a1a;line-height:1.5}'
+            . 'h1{font-size:22px;border-bottom:2px solid #1a3a5c;padding-bottom:8px}'
+            . 'table{width:100%;border-collapse:collapse;margin-top:12px}th,td{border:1px solid #ddd;padding:8px;text-align:left;font-size:13px}'
+            . 'th{background:#f5f5f5}.meta{font-size:13px;color:#555}.footer{margin-top:32px;font-size:12px;color:#666}'
+            . '@media print{body{margin:20px}}</style></head><body>'
+            . '<h1>Signature Audit Certificate</h1>'
+            . '<p class="meta">Certificate ID: SAC-' . (int) $contractId . '-' . date('Ymd') . '<br>'
+            . 'Generated: ' . date('Y-m-d H:i:s') . ' by ' . htmlspecialchars((string) (Auth::user()->full_name ?? 'System')) . '</p>'
+            . '<h2>Contract</h2>'
+            . '<p><strong>' . htmlspecialchars((string) $contract['title']) . '</strong><br>'
+            . 'Contract No: ' . htmlspecialchars((string) $contract['contract_number']) . '<br>'
+            . 'Counterparty: ' . htmlspecialchars((string) $contract['counterparty_name']) . '<br>'
+            . 'Status: ' . htmlspecialchars((string) $contract['status']) . '</p>'
+            . '<h2>Signature Evidence</h2>'
+            . '<p>Signed by: <strong>' . htmlspecialchars((string) ($contract['signed_by_name'] ?? 'N/A')) . '</strong><br>'
+            . 'Signed at: ' . htmlspecialchars((string) $contract['signed_at']) . '<br>'
+            . 'Signer IP: ' . htmlspecialchars((string) ($contract['signed_ip'] ?? 'N/A')) . '</p>'
+            . $sigImg
+            . '<h2>Approval Trail</h2>'
+            . '<table><thead><tr><th>#</th><th>Approver</th><th>Status</th><th>Decided At</th></tr></thead><tbody>'
+            . ($approvalsHtml ?: '<tr><td colspan="4">No approval steps recorded.</td></tr>')
+            . '</tbody></table>'
+            . '<p class="footer">This certificate documents the electronic signature and approval chain for audit purposes. '
+            . 'It does not constitute a wet-ink notarization.</p>'
+            . '<script>window.onload=function(){window.print&&setTimeout(function(){},100)}</script>'
+            . '</body></html>';
+
+        if (file_put_contents($fullPath, $html) === false) {
+            return ['success' => false, 'error' => 'Failed to write certificate file.'];
+        }
+
+        AuditLogger::log('contracts', 'signature_certificate', 'contract', $contractId, null, [
+            'certificate_path' => $dbPath,
+        ]);
+
+        return ['success' => true, 'path' => $dbPath, 'html' => $html];
     }
 }

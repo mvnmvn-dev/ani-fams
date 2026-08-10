@@ -49,7 +49,7 @@ $recentFeed = array_map(static fn($d) => [
     render_page_header([
         'title' => 'Documents',
         'subtitle' => 'Corporate document archive, version control, and access management.',
-        'actions' => function () use ($canUpload) {
+        'actions' => function () use ($canUpload, $canManage) {
             ?>
             <a href="<?= route('documents.export') ?>" class="btn-secondary mr-2 inline-flex items-center gap-1.5" style="text-decoration: none; display: inline-flex; align-items: center; padding: 0.5rem 1rem; border-radius: 0.75rem;">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -60,6 +60,12 @@ $recentFeed = array_map(static fn($d) => [
             <a href="<?= route('documents.export.pdf') ?>" class="btn-secondary mr-2 inline-flex items-center gap-1.5" style="text-decoration: none; display: inline-flex; align-items: center; padding: 0.5rem 1rem; border-radius: 0.75rem;">
                 Export PDF
             </a>
+            <?php if ($canManage): ?>
+                <button type="button" onclick="fetch('<?= route('documents.ocr.process') ?>', { method: 'POST', headers: { 'X-CSRF-TOKEN': '<?= csrf_token() ?>' } }).then(r => r.json()).then(d => alert(d.success ? 'Processed ' + d.processed_count + ' documents for OCR.' : 'Failed to process OCR.'));" class="btn-secondary mr-2 inline-flex items-center gap-1.5">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                    Process OCR
+                </button>
+            <?php endif; ?>
             <?php
             if ($canUpload) {
                 ?>

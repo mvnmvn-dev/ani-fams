@@ -76,4 +76,19 @@ class UserController extends Controller
             ]
         );
     }
+
+    public function bulkRole(Request $request, UserService $service)
+    {
+        $result = $service->bulkReassignRole(
+            (array) $request->input('user_ids', []),
+            (int) $request->input('role_id', 0)
+        );
+
+        return redirect()->route('users.index')->with(
+            $result['success'] ? 'flash_success' : 'flash_error',
+            $result['success']
+                ? 'Reassigned role for ' . (int) ($result['updated'] ?? 0) . ' user(s).'
+                : ($result['error'] ?? 'Unable to reassign roles.')
+        );
+    }
 }

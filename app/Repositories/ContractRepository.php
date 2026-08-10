@@ -422,4 +422,121 @@ class ContractRepository
             ->query("SELECT COUNT(*) FROM contracts WHERE status = 'active' AND deleted_at IS NULL")
             ->fetchColumn();
     }
+
+    // ==================== OBLIGATIONS ====================
+
+    public function getObligations(int $contractId): array
+    {
+        $stmt = $this->pdo()->prepare(
+            'SELECT o.*, u.full_name AS completed_by_name
+             FROM contract_obligations o
+             LEFT JOIN users u ON u.id = o.completed_by
+             WHERE o.contract_id = :contractId
+             ORDER BY o.is_completed ASC, o.due_date IS NULL, o.due_date ASC, o.id ASC'
+        );
+        $stmt->execute(['contractId' => $contractId]);
+
+        return $stmt->fetchAll();
+    }
+
+    public function createObligation(array $data): int
+    {
+        $stmt = $this->pdo()->prepare(
+            'INSERT INTO contract_obligations
+             (contract_id, title, description, responsible_party, due_date, is_completed, created_by, created_at, updated_at)
+             VALUES (:contract_id, :title, :description, :responsible_party, :due_date, 0, :created_by, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)'
+        );
+        $stmt->execute([
+            'contract_id' => $data['contract_id'],
+            'title' => $data['title'],
+            'description' => $data['description'] ?? null,
+            'responsible_party' => $data['responsible_party'] ?? null,
+            'due_date' => $data['due_date'] ?? null,
+            'created_by' => $data['created_by'] ?? null,
+        ]);
+
+        return (int) $this->pdo()->lastInsertId();
+    }
+
+    public function toggleObligation(int $obligationId, bool $completed, ?int $userId): void
+    {
+        $stmt = $this->pdo()->prepare(
+            'UPDATE contract_obligations
+             SET is_completed = :completed,
+                 completed_at = CASE WHEN :completed2 = 1 THEN CURRENT_TIMESTAMP ELSE NULL END,
+                 completed_by = CASE WHEN :completed3 = 1 THEN :userId ELSE NULL END,
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE id = :id'
+        );
+        $flag = $completed ? 1 : 0;
+        $stmt->execute([
+            'completed' => $flag,
+            'completed2' => $flag,
+            'completed3' => $flag,
+            'userId' => $userId,
+            'id' => $obligationId,
+        ]);
+    }
+
+    // ==================== VENDOR SCORECARDS ====================
+
+    public function getVendorScores(int $contractId): array
+    {
+        $stmt = $this->pdo()->prepare(
+            'SELECT s.*, u.full_name AS scored_by_name
+             FROM contract_vendor_scores s
+             LEFT JOIN users u ON u.id = s.scored_by
+             WHERE s.contract_id = :contractId
+             ORDER BY s.scored_at DESC, s.id DESC'
+        );
+        $stmt->execute(['contractId' => $contractId]);
+
+        return $stmt->fetchAll();
+    }
+
+    public function createVendorScore(array $data): int
+    {
+        $stmt = $this->pdo()->prepare(
+            'INSERT INTO contract_vendor_scores
+             (contract_id, quality_score, timeliness_score, communication_score, value_score,
+              overall_score, notes, scored_at, scored_by, created_at, updated_at)
+             VALUES (:contract_id, :quality_score, :timeliness_score, :communication_score, :value_score,
+                     :overall_score, :notes, :scored_at, :scored_by, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)'
+        );
+        $stmt->execute([
+            'contract_id' => $data['contract_id'],
+            'quality_score' => $data['quality_score'],
+            'timeliness_score' => $data['timeliness_score'],
+            'communication_score' => $data['communication_score'],
+            'value_score' => $data['value_score'],
+            'overall_score' => $data['overall_score'],
+            'notes' => $data['notes'] ?? null,
+            'scored_at' => $data['scored_at'] ?? date('Y-m-d'),
+            'scored_by' => $data['scored_by'] ?? null,
+        ]);
+
+        return (int) $this->pdo()->lastInsertId();
+    }
+
+    public function vendorScoreRollup(): array
+    {
+        $sql = "SELECT c.counterparty_name,
+                       COUNT(s.id) AS score_count,
+                       ROUND(AVG(s.overall_score), 2) AS avg_overall,
+                       ROUND(AVG(s.quality_score), 2) AS avg_quality,
+                       ROUND(AVG(s.timeliness_score), 2) AS avg_timeliness,
+                       ROUND(AVG(s.communication_score), 2) AS avg_communication,
+                       ROUND(AVG(s.value_score), 2) AS avg_value
+                FROM contract_vendor_scores s
+                JOIN contracts c ON c.id = s.contract_id AND c.deleted_at IS NULL
+                GROUP BY c.counterparty_name
+                ORDER BY avg_overall DESC, score_count DESC
+                LIMIT 20";
+
+        try {
+            return $this->pdo()->query($sql)->fetchAll();
+        } catch (\Throwable $e) {
+            return [];
+        }
+    }
 }

@@ -27,6 +27,8 @@ class RetentionController extends Controller
             'allDocs' => $service->listAllDocuments(),
             'legalCases' => $service->listLegalCases(),
             'canManage' => Auth::user()->canPermission('retention.manage'),
+            'templates' => $service->getPolicyTemplates(),
+            'unreadHoldNotifs' => $service->getUnreadHoldNotifications(),
         ]);
     }
 
@@ -129,5 +131,108 @@ class RetentionController extends Controller
         }
 
         return $this->streamExportPdf('retention_assignments', 'Retention Assignments Export', $headers, $rows);
+    }
+
+    // ===================== DISPOSAL CERTIFICATE GENERATION =====================
+
+    public function generateCertificate(Request $request, string $id, RetentionService $service)
+    {
+        $result = $service->generateDisposalCertificate((int) $id);
+
+        return redirect()->route('retention.index')->with(
+            $result['success'] ? 'flash_success' : 'flash_error',
+            $result['success'] ? 'Disposal certificate generated.' : $result['error']
+        );
+    }
+
+    public function disposalsWithoutCertificates(RetentionService $service)
+    {
+        $disposals = $service->getDisposalsWithoutCertificates();
+
+        return response()->json(['disposals' => $disposals]);
+    }
+
+    // ===================== CUSTODIAN NOTIFICATIONS =====================
+
+    public function holdNotifications(RetentionService $service)
+    {
+        $notifications = $service->getUnreadHoldNotifications();
+
+        return response()->json(['notifications' => $notifications]);
+    }
+
+    public function markNotificationRead(Request $request, string $id, RetentionService $service)
+    {
+        $result = $service->markHoldNotificationRead((int) $id);
+
+        return response()->json($result);
+    }
+
+    public function placeHoldWithNotifications(Request $request, RetentionService $service)
+    {
+        $result = $service->placeHoldWithNotifications($request->all());
+
+        return redirect()->route('retention.index')->with(
+            $result['success'] ? 'flash_success' : 'flash_error',
+            $result['success'] ? 'Legal hold placed with notifications.' : $result['error']
+        );
+    }
+
+    public function releaseHoldWithNotifications(Request $request, string $id, RetentionService $service)
+    {
+        $result = $service->releaseHoldWithNotifications((int) $id);
+
+        return redirect()->route('retention.index')->with(
+            $result['success'] ? 'flash_success' : 'flash_error',
+            $result['success'] ? 'Legal hold released with notifications.' : $result['error']
+        );
+    }
+
+    // ===================== POLICY TEMPLATES =====================
+
+    public function policyTemplates(RetentionService $service)
+    {
+        $templates = $service->getPolicyTemplates();
+
+        return response()->json(['templates' => $templates]);
+    }
+
+    public function createFromTemplate(Request $request, RetentionService $service)
+    {
+        $result = $service->createPolicyFromTemplate(
+            (int) $request->input('template_id'),
+            $request->input('custom_name')
+        );
+
+        return redirect()->route('retention.index')->with(
+            $result['success'] ? 'flash_success' : 'flash_error',
+            $result['success'] ? 'Policy created from template.' : $result['error']
+        );
+    }
+
+    // ===================== COMPLIANCE CALENDAR =====================
+
+    public function complianceCalendar(Request $request, RetentionService $service)
+    {
+        $startDate = $request->query('start_date', date('Y-m-01'));
+        $endDate = $request->query('end_date', date('Y-m-t'));
+        $events = $service->getComplianceCalendar($startDate, $endDate);
+
+        return response()->json(['events' => $events]);
+    }
+
+    public function upcomingDisposals(Request $request, RetentionService $service)
+    {
+        $daysAhead = (int) $request->query('days_ahead', 30);
+        $disposals = $service->getUpcomingDisposals($daysAhead);
+
+        return response()->json(['disposals' => $disposals]);
+    }
+
+    public function activeHolds(RetentionService $service)
+    {
+        $holds = $service->getActiveHolds();
+
+        return response()->json(['holds' => $holds]);
     }
 }

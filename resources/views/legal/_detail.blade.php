@@ -11,6 +11,18 @@ $upcomingMilestones = array_slice($upcomingMilestones, 0, 3);
 $totalCosts = (float) ($case['total_cost'] ?? array_sum(array_column($case['costs'] ?? [], 'amount')));
 $partyCount = count($case['parties'] ?? []);
 $linkedDocCount = count($case['documents'] ?? []);
+$timeline = $case['timeline'] ?? [];
+$timelineStats = $case['timeline_stats'] ?? [];
+$outcome = $case['outcome'] ?? null;
+$partyConflicts = $case['party_conflicts'] ?? [];
+$counselConflicts = $case['counsel_conflicts'] ?? [];
+$conflictSummary = $case['conflict_summary'] ?? [];
+$timelineTypeColors = [
+    'filed' => 'bg-brand-700',
+    'milestone' => 'bg-brand-500',
+    'deadline' => 'bg-accent-500',
+    'outcome' => 'bg-brand-800',
+];
 ?>
 
 <div class="space-y-6" data-record-title="<?= htmlspecialchars($case['title'], ENT_QUOTES) ?>">
@@ -21,6 +33,9 @@ $linkedDocCount = count($case['documents'] ?? []);
                 <span class="inline-block px-2.5 py-0.5 rounded-md bg-brand-100 text-brand-800 text-[11px] font-bold uppercase tracking-wider">
                     <?= htmlspecialchars($case['status']) ?>
                 </span>
+                <?php if (!empty($conflictSummary['has_critical_issues'])): ?>
+                    <span class="inline-block px-2.5 py-0.5 rounded-md bg-accent-100 text-accent-800 text-[11px] font-bold uppercase tracking-wider">Conflict alert</span>
+                <?php endif; ?>
             </div>
             <p class="text-xs text-ink/50 font-mono mt-1">Case Number: <?= htmlspecialchars($case['case_number']) ?></p>
         </div>
@@ -32,9 +47,16 @@ $linkedDocCount = count($case['documents'] ?? []);
                 Print / Save PDF
             </button>
             <?php if ($canManage): ?>
+                <button type="button" onclick="openModal('outcomeModal')" class="btn-secondary btn-sm">Record Outcome</button>
+                <button type="button" onclick="openModal('partyConflictModal')" class="btn-secondary btn-sm">Flag Conflict</button>
+                <form action="<?= url('/legal/' . $case['id'] . '/conflicts/scan') ?>" method="POST" class="inline" data-ajax-action="legal.conflict.scan" data-ajax-reload-modal="<?= url('/legal/' . $case['id'] . '?modal=1') ?>">
+                    @csrf
+                    <button type="submit" class="btn-secondary btn-sm">Run Conflict Scan</button>
+                </form>
                 <button type="button" onclick="openModal('partyModal')" class="btn-secondary btn-sm">+ Party</button>
                 <button type="button" onclick="openModal('documentModal')" class="btn-secondary btn-sm">+ Link Document</button>
                 <button type="button" onclick="openModal('milestoneModal')" class="btn-secondary btn-sm">+ Milestone</button>
+                <button type="button" onclick="openModal('deadlineModal')" class="btn-secondary btn-sm">+ Deadline</button>
                 <button type="button" onclick="openModal('costModal')" class="btn-primary btn-sm">Log Expense</button>
             <?php endif; ?>
         </div>
@@ -95,6 +117,179 @@ $linkedDocCount = count($case['documents'] ?? []);
             ], $upcomingMilestones),
             'empty' => 'No pending milestones scheduled.',
         ])
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        <div class="lg:col-span-2 bg-white border border-ink/10 rounded-xl overflow-hidden shadow-sm">
+            <div class="px-5 py-4 border-b border-ink/10 bg-gray-50/50 flex justify-between items-center">
+                <div>
+                    <h3 class="font-sans text-lg font-bold text-ink">Case Timeline</h3>
+                    <p class="text-xs text-ink/45 mt-0.5">Filed events, milestones, deadlines, and outcomes</p>
+                </div>
+                <?php if (!empty($timelineStats)): ?>
+                    <div class="text-right text-[11px] text-ink/50 space-y-0.5">
+                        <div><?= (int) ($timelineStats['milestones_completed'] ?? 0) ?>/<?= (int) ($timelineStats['milestones_total'] ?? 0) ?> milestones</div>
+                        <div class="<?= ((int) ($timelineStats['deadlines_overdue'] ?? 0)) > 0 ? 'text-accent-700 font-semibold' : '' ?>">
+                            <?= (int) ($timelineStats['deadlines_overdue'] ?? 0) ?> overdue deadline<?= ((int) ($timelineStats['deadlines_overdue'] ?? 0)) === 1 ? '' : 's' ?>
+                        </div>
+                    </div>
+                <?php endif; ?>
+            </div>
+            <div class="p-6">
+                <?php if (empty($timeline)): ?>
+                    <p class="text-sm text-ink/40 text-center py-4">No timeline events yet. Add a filed date, milestone, or deadline.</p>
+                <?php else: ?>
+                    <div class="relative border-l-2 border-brand-100 pl-6 space-y-5">
+                        <?php foreach ($timeline as $event): ?>
+                            <?php
+                                $type = $event['type'] ?? 'milestone';
+                                $dot = $timelineTypeColors[$type] ?? 'bg-ink/40';
+                                $done = !empty($event['completed']);
+                                if ($type === 'deadline' || $type === 'milestone') {
+                                    $dot = $done ? 'bg-brand-700' : $dot . ($done ? '' : ' animate-pulse');
+                                }
+                            ?>
+                            <div class="relative">
+                                <span class="absolute -left-[31px] top-1.5 flex h-4 w-4 items-center justify-center rounded-full border-2 border-white <?= $dot ?>"></span>
+                                <div class="flex justify-between items-start gap-3">
+                                    <div>
+                                        <div class="flex flex-wrap items-center gap-2">
+                                            <p class="text-sm font-semibold text-ink"><?= htmlspecialchars($event['title'] ?? 'Event') ?></p>
+                                            <span class="text-[10px] uppercase tracking-wider font-bold text-ink/40"><?= htmlspecialchars(str_replace('_', ' ', $type)) ?></span>
+                                        </div>
+                                        <p class="text-xs text-ink/50 mt-0.5">
+                                            <?= !empty($event['date']) ? date('M d, Y', strtotime($event['date'])) : '—' ?>
+                                        </p>
+                                        <?php if (!empty($event['description'])): ?>
+                                            <p class="text-sm text-ink/75 mt-1"><?= htmlspecialchars($event['description']) ?></p>
+                                        <?php endif; ?>
+                                        <?php if (!empty($event['amount'])): ?>
+                                            <p class="text-xs font-bold text-brand-750 mt-1">PHP <?= number_format((float) $event['amount'], 2) ?></p>
+                                        <?php endif; ?>
+                                    </div>
+                                    <?php if (isset($event['completed'])): ?>
+                                        <span class="text-xs font-semibold shrink-0 <?= $done ? 'text-brand-700' : 'text-accent-600' ?>">
+                                            <?= $done ? 'Done' : 'Open' ?>
+                                        </span>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                <?php endif; ?>
+            </div>
+        </div>
+
+        <div class="space-y-5">
+            <div class="bg-white border border-ink/10 rounded-xl p-5 shadow-sm space-y-3">
+                <div class="flex items-center justify-between gap-2">
+                    <h3 class="font-sans text-base font-bold text-ink">Outcome / Settlement</h3>
+                    <?php if ($canManage): ?>
+                        <button type="button" onclick="openModal('outcomeModal')" class="text-xs font-semibold text-brand-600 hover:underline"><?= $outcome ? 'Update' : 'Record' ?></button>
+                    <?php endif; ?>
+                </div>
+                <?php if (! $outcome): ?>
+                    <p class="text-xs text-ink/40">No outcome recorded yet.</p>
+                <?php else: ?>
+                    <div class="space-y-2 text-sm">
+                        <div class="flex justify-between gap-2">
+                            <span class="text-ink/50 text-xs uppercase font-semibold">Type</span>
+                            <strong class="capitalize text-ink"><?= htmlspecialchars(str_replace('_', ' ', $outcome['outcome_type'] ?? '')) ?></strong>
+                        </div>
+                        <div class="flex justify-between gap-2">
+                            <span class="text-ink/50 text-xs uppercase font-semibold">Date</span>
+                            <span class="text-ink"><?= !empty($outcome['outcome_date']) ? date('M d, Y', strtotime($outcome['outcome_date'])) : '—' ?></span>
+                        </div>
+                        <?php if (!empty($outcome['settlement_amount'])): ?>
+                            <div class="flex justify-between gap-2">
+                                <span class="text-ink/50 text-xs uppercase font-semibold">Settlement</span>
+                                <strong class="tabular-nums text-ink">PHP <?= number_format((float) $outcome['settlement_amount'], 2) ?></strong>
+                            </div>
+                        <?php endif; ?>
+                        <?php if (!empty($outcome['awarded_amount'])): ?>
+                            <div class="flex justify-between gap-2">
+                                <span class="text-ink/50 text-xs uppercase font-semibold">Awarded</span>
+                                <strong class="tabular-nums text-ink">PHP <?= number_format((float) $outcome['awarded_amount'], 2) ?></strong>
+                            </div>
+                        <?php endif; ?>
+                        <?php if (!empty($outcome['settlement_terms'])): ?>
+                            <p class="text-xs text-ink/65 pt-2 border-t border-ink/5"><?= htmlspecialchars($outcome['settlement_terms']) ?></p>
+                        <?php endif; ?>
+                        <?php if (!empty($outcome['judgment_summary'])): ?>
+                            <p class="text-xs text-ink/65 pt-2 border-t border-ink/5"><?= htmlspecialchars($outcome['judgment_summary']) ?></p>
+                        <?php endif; ?>
+                        <?php if (!empty($outcome['is_appealed'])): ?>
+                            <p class="text-xs font-semibold text-accent-700 pt-1">Appealed<?= !empty($outcome['appeal_deadline']) ? ' · deadline ' . date('M d, Y', strtotime($outcome['appeal_deadline'])) : '' ?></p>
+                        <?php endif; ?>
+                        <?php if (!empty($outcome['description'])): ?>
+                            <p class="text-xs text-ink/60"><?= htmlspecialchars($outcome['description']) ?></p>
+                        <?php endif; ?>
+                    </div>
+                <?php endif; ?>
+            </div>
+
+            <div class="bg-white border border-ink/10 rounded-xl p-5 shadow-sm space-y-3">
+                <div class="flex items-center justify-between gap-2">
+                    <h3 class="font-sans text-base font-bold text-ink">Conflicts of Interest</h3>
+                    <?php if ($canManage): ?>
+                        <button type="button" onclick="openModal('counselConflictModal')" class="text-xs font-semibold text-brand-600 hover:underline">Flag counsel</button>
+                    <?php endif; ?>
+                </div>
+                <div class="grid grid-cols-2 gap-2 text-[11px]">
+                    <div class="rounded-lg bg-gray-50 border border-ink/5 p-2">
+                        <div class="text-ink/40 uppercase font-bold">Party</div>
+                        <div class="text-sm font-bold text-ink tabular-nums"><?= (int) ($conflictSummary['total_party_conflicts'] ?? 0) ?></div>
+                    </div>
+                    <div class="rounded-lg bg-gray-50 border border-ink/5 p-2">
+                        <div class="text-ink/40 uppercase font-bold">Counsel</div>
+                        <div class="text-sm font-bold text-ink tabular-nums"><?= (int) ($conflictSummary['total_counsel_conflicts'] ?? 0) ?></div>
+                    </div>
+                </div>
+                <?php if (empty($partyConflicts) && empty($counselConflicts)): ?>
+                    <p class="text-xs text-ink/40">No conflicts flagged. Run a scan or flag manually.</p>
+                <?php else: ?>
+                    <div class="space-y-2 max-h-56 overflow-y-auto">
+                        <?php foreach ($partyConflicts as $pc): ?>
+                            <div class="text-xs p-2.5 rounded border border-ink/5 bg-gray-50/80 space-y-1">
+                                <div class="flex justify-between gap-2">
+                                    <span class="font-semibold text-ink"><?= htmlspecialchars(($pc['party_a_name'] ?? 'Party A') . ' ↔ ' . ($pc['party_b_name'] ?? 'Party B')) ?></span>
+                                    <span class="capitalize text-[10px] font-bold text-accent-700"><?= htmlspecialchars($pc['severity'] ?? '') ?></span>
+                                </div>
+                                <p class="text-ink/50 capitalize"><?= htmlspecialchars(str_replace('_', ' ', $pc['conflict_type'] ?? '')) ?> · <?= htmlspecialchars($pc['resolution_status'] ?? 'pending') ?></p>
+                                <?php if (!empty($pc['description'])): ?>
+                                    <p class="text-ink/60"><?= htmlspecialchars($pc['description']) ?></p>
+                                <?php endif; ?>
+                                <?php if ($canManage && ($pc['resolution_status'] ?? '') === 'pending'): ?>
+                                    <form action="<?= url('/legal/' . $case['id'] . '/conflicts/party/' . $pc['id'] . '/resolve') ?>" method="POST" class="flex flex-wrap gap-1 pt-1">
+                                        @csrf
+                                        <input type="hidden" name="resolution_notes" value="Reviewed in case detail">
+                                        <button name="resolution_status" value="waived" class="text-[10px] font-bold text-brand-700 underline">Waive</button>
+                                        <button name="resolution_status" value="mitigated" class="text-[10px] font-bold text-brand-700 underline">Mitigate</button>
+                                        <button name="resolution_status" value="reviewed" class="text-[10px] font-bold text-ink/50 underline">Mark reviewed</button>
+                                    </form>
+                                <?php endif; ?>
+                            </div>
+                        <?php endforeach; ?>
+                        <?php foreach ($counselConflicts as $cc): ?>
+                            <div class="text-xs p-2.5 rounded border border-ink/5 bg-gray-50/80 space-y-1">
+                                <div class="flex justify-between gap-2">
+                                    <span class="font-semibold text-ink"><?= htmlspecialchars($cc['counsel_name'] ?? $cc['external_party'] ?? 'Counsel') ?></span>
+                                    <span class="capitalize text-[10px] font-bold text-accent-700"><?= htmlspecialchars($cc['severity'] ?? '') ?></span>
+                                </div>
+                                <p class="text-ink/50 capitalize"><?= htmlspecialchars(str_replace('_', ' ', $cc['conflict_type'] ?? '')) ?> · <?= htmlspecialchars($cc['status'] ?? '') ?></p>
+                                <?php if ($canManage && empty($cc['conflict_verified'])): ?>
+                                    <form action="<?= url('/legal/' . $case['id'] . '/conflicts/counsel/' . $cc['id'] . '/verify') ?>" method="POST" class="flex flex-wrap gap-1 pt-1">
+                                        @csrf
+                                        <button name="verified" value="1" class="text-[10px] font-bold text-accent-700 underline">Confirm</button>
+                                        <button name="verified" value="0" class="text-[10px] font-bold text-ink/50 underline">Dismiss</button>
+                                    </form>
+                                <?php endif; ?>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                <?php endif; ?>
+            </div>
+        </div>
     </div>
 
     <div class="bg-white border border-ink/10 rounded-xl p-5 shadow-sm">
@@ -191,6 +386,48 @@ $linkedDocCount = count($case['documents'] ?? []);
                                             <?php else: ?>
                                                 <span class="text-xs font-semibold <?= $m['is_completed'] ? 'text-brand-700' : 'text-accent-600' ?>">
                                                     <?= $m['is_completed'] ? 'Completed' : 'Pending' ?>
+                                                </span>
+                                            <?php endif; ?>
+                                        </div>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                    <?php endif; ?>
+                </div>
+            </div>
+
+            <div id="deadlines" class="bg-white border border-ink/10 rounded-xl overflow-hidden shadow-sm">
+                <div class="px-5 py-4 border-b border-ink/10 bg-gray-50/50 flex justify-between items-center">
+                    <h3 class="font-sans text-lg font-bold text-ink">Action Deadlines</h3>
+                </div>
+                <div class="p-6">
+                    <?php if (empty($case['deadlines'])): ?>
+                        <p class="text-sm text-ink/40 text-center py-4">No deadlines recorded.</p>
+                    <?php else: ?>
+                        <div class="relative border-l-2 border-brand-100 pl-6 space-y-6">
+                            <?php foreach ($case['deadlines'] as $d): ?>
+                                <div class="relative">
+                                    <span class="absolute -left-[31px] top-1.5 flex h-4 w-4 items-center justify-center rounded-full border-2 border-white
+                                                 <?= $d['is_completed'] ? 'bg-brand-700' : 'bg-accent-500 animate-pulse' ?>"></span>
+                                    <div class="flex justify-between items-start gap-3">
+                                        <div>
+                                            <p class="text-sm font-semibold text-ink"><?= htmlspecialchars($d['title']) ?></p>
+                                            <p class="text-xs text-ink/50 mt-0.5">Due: <?= date('M d, Y', strtotime($d['due_date'])) ?></p>
+                                            <p class="text-sm text-ink/75 mt-1 font-medium"><?= htmlspecialchars($d['description']) ?></p>
+                                        </div>
+                                        <div class="text-right shrink-0">
+                                            <?php if ($canManage): ?>
+                                                <form action="<?= url('/legal/' . $case['id'] . '/deadlines/' . $d['id'] . '/toggle') ?>" method="POST" data-ajax-action="legal.deadline.toggle" data-ajax-reload-modal="<?= url('/legal/' . $case['id'] . '?modal=1') ?>">
+                                                    @csrf
+                                                    <input type="hidden" name="completed" value="<?= $d['is_completed'] ? '0' : '1' ?>">
+                                                    <button type="submit" class="text-xs font-semibold text-brand-600 hover:text-brand-800 underline">
+                                                        Mark <?= $d['is_completed'] ? 'Pending' : 'Completed' ?>
+                                                    </button>
+                                                </form>
+                                            <?php else: ?>
+                                                <span class="text-xs font-semibold <?= $d['is_completed'] ? 'text-brand-700' : 'text-accent-600' ?>">
+                                                    <?= $d['is_completed'] ? 'Completed' : 'Pending' ?>
                                                 </span>
                                             <?php endif; ?>
                                         </div>
@@ -391,6 +628,38 @@ $linkedDocCount = count($case['documents'] ?? []);
     </div>
 </div>
 
+<div id="deadlineModal" class="modal-overlay hidden" hidden>
+    <div class="bg-white rounded-xl shadow-xl max-w-lg w-full border border-ink/10 overflow-hidden animate-fade-in-up" onclick="event.stopPropagation()">
+        <div class="px-6 py-4 border-b border-ink/10 flex justify-between items-center bg-gray-50/50">
+            <h3 class="font-sans text-lg font-bold text-ink">Add Action Deadline</h3>
+            <button type="button" onclick="closeModal('deadlineModal')" class="text-ink/40 hover:text-ink/60 transition">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+        <form action="<?= url('/legal/' . $case['id'] . '/deadlines') ?>" method="POST" class="p-6 space-y-4">
+            @csrf
+            <div class="space-y-1">
+                <label class="block text-xs font-semibold uppercase tracking-wider text-ink/60">Deadline Title</label>
+                <input type="text" name="title" required placeholder="e.g. File Motion to Dismiss" class="w-full border border-ink/15 rounded-lg p-2.5 text-sm bg-sand/10 focus:border-brand-500 outline-none">
+            </div>
+            <div class="space-y-1">
+                <label class="block text-xs font-semibold uppercase tracking-wider text-ink/60">Due Date</label>
+                <input type="date" name="due_date" required class="w-full border border-ink/15 rounded-lg p-2.5 text-sm bg-sand/10 focus:border-brand-500 outline-none">
+            </div>
+            <div class="space-y-1">
+                <label class="block text-xs font-semibold uppercase tracking-wider text-ink/60">Brief Description</label>
+                <input type="text" name="description" placeholder="Optional details..." class="w-full border border-ink/15 rounded-lg p-2.5 text-sm bg-sand/10 focus:border-brand-500 outline-none">
+            </div>
+            <div class="pt-4 border-t border-ink/10 flex justify-end gap-3">
+                <button type="button" onclick="closeModal('deadlineModal')" class="px-4 py-2.5 rounded-lg border border-ink/10 hover:bg-gray-50 text-ink/70 font-semibold text-sm transition">Cancel</button>
+                <button type="submit" class="px-5 py-2.5 rounded-lg bg-brand-700 hover:bg-brand-600 text-white font-semibold text-sm transition">Save Deadline</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <div id="costModal" class="modal-overlay hidden" hidden>
     <div class="bg-white rounded-xl shadow-xl max-w-lg w-full border border-ink/10 overflow-hidden animate-fade-in-up" onclick="event.stopPropagation()">
         <div class="px-6 py-4 border-b border-ink/10 flex justify-between items-center bg-gray-50/50">
@@ -453,4 +722,212 @@ $linkedDocCount = count($case['documents'] ?? []);
         </form>
     </div>
 </div>
+
+<div id="outcomeModal" class="modal-overlay hidden" hidden>
+    <div class="bg-white rounded-xl shadow-xl max-w-lg w-full border border-ink/10 overflow-hidden animate-fade-in-up" onclick="event.stopPropagation()">
+        <div class="px-6 py-4 border-b border-ink/10 flex justify-between items-center bg-gray-50/50">
+            <h3 class="font-sans text-lg font-bold text-ink">Record Outcome / Settlement</h3>
+            <button type="button" onclick="closeModal('outcomeModal')" class="text-ink/40 hover:text-ink/60">✕</button>
+        </div>
+        <form action="<?= url('/legal/' . $case['id'] . '/outcome') ?>" method="POST" class="p-6 space-y-4">
+            @csrf
+            <div class="grid grid-cols-2 gap-3">
+                <div class="space-y-1">
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-ink/60">Outcome type</label>
+                    <select name="outcome_type" id="outcomeTypeSelect" required class="w-full border border-ink/15 rounded-lg p-2.5 text-sm bg-sand/10" onchange="toggleOutcomeFields()">
+                        <option value="won">Won</option>
+                        <option value="lost">Lost</option>
+                        <option value="settled" selected>Settled</option>
+                        <option value="dismissed">Dismissed</option>
+                        <option value="appealed">Appealed</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+                <div class="space-y-1">
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-ink/60">Outcome date</label>
+                    <input type="date" name="outcome_date" value="<?= date('Y-m-d') ?>" required class="w-full border border-ink/15 rounded-lg p-2.5 text-sm bg-sand/10">
+                </div>
+            </div>
+            <div id="settlementFields" class="grid grid-cols-2 gap-3">
+                <div class="space-y-1">
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-ink/60">Settlement amount</label>
+                    <input type="number" step="0.01" min="0" name="settlement_amount" class="w-full border border-ink/15 rounded-lg p-2.5 text-sm bg-sand/10">
+                </div>
+                <div class="space-y-1">
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-ink/60">Settlement date</label>
+                    <input type="date" name="settlement_date" value="<?= date('Y-m-d') ?>" class="w-full border border-ink/15 rounded-lg p-2.5 text-sm bg-sand/10">
+                </div>
+                <div class="col-span-2 space-y-1">
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-ink/60">Settlement terms</label>
+                    <textarea name="settlement_terms" rows="2" class="w-full border border-ink/15 rounded-lg p-2.5 text-sm bg-sand/10"></textarea>
+                </div>
+            </div>
+            <div id="judgmentFields" class="grid grid-cols-2 gap-3 hidden">
+                <div class="col-span-2 space-y-1">
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-ink/60">Judgment summary</label>
+                    <textarea name="judgment_summary" rows="2" class="w-full border border-ink/15 rounded-lg p-2.5 text-sm bg-sand/10"></textarea>
+                </div>
+                <div class="space-y-1">
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-ink/60">Awarded amount</label>
+                    <input type="number" step="0.01" min="0" name="awarded_amount" class="w-full border border-ink/15 rounded-lg p-2.5 text-sm bg-sand/10">
+                </div>
+            </div>
+            <div class="space-y-1">
+                <label class="block text-xs font-semibold uppercase tracking-wider text-ink/60">Notes</label>
+                <textarea name="description" rows="2" class="w-full border border-ink/15 rounded-lg p-2.5 text-sm bg-sand/10"></textarea>
+            </div>
+            <label class="flex items-center gap-2 text-sm text-ink/70">
+                <input type="checkbox" name="is_appealed" value="1" id="isAppealedCheck" onchange="toggleAppealFields()">
+                Mark as appealed
+            </label>
+            <div id="appealFields" class="grid grid-cols-2 gap-3 hidden">
+                <div class="col-span-2 space-y-1">
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-ink/60">Appeal reason</label>
+                    <input type="text" name="appeal_reason" class="w-full border border-ink/15 rounded-lg p-2.5 text-sm bg-sand/10">
+                </div>
+                <div class="space-y-1">
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-ink/60">Appeal deadline</label>
+                    <input type="date" name="appeal_deadline" class="w-full border border-ink/15 rounded-lg p-2.5 text-sm bg-sand/10">
+                </div>
+            </div>
+            <div class="pt-4 border-t border-ink/10 flex justify-end gap-3">
+                <button type="button" onclick="closeModal('outcomeModal')" class="px-4 py-2.5 rounded-lg border border-ink/10 text-sm">Cancel</button>
+                <button type="submit" class="px-5 py-2.5 rounded-lg bg-brand-700 text-white text-sm font-semibold">Save Outcome</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="partyConflictModal" class="modal-overlay hidden" hidden>
+    <div class="bg-white rounded-xl shadow-xl max-w-lg w-full border border-ink/10 overflow-hidden" onclick="event.stopPropagation()">
+        <div class="px-6 py-4 border-b border-ink/10 flex justify-between items-center bg-gray-50/50">
+            <h3 class="font-sans text-lg font-bold text-ink">Flag Party Conflict</h3>
+            <button type="button" onclick="closeModal('partyConflictModal')" class="text-ink/40">✕</button>
+        </div>
+        <form action="<?= url('/legal/' . $case['id'] . '/conflicts/party') ?>" method="POST" class="p-6 space-y-4">
+            @csrf
+            <?php if (count($case['parties'] ?? []) < 2): ?>
+                <p class="text-sm text-accent-700">Add at least two parties before flagging a party conflict.</p>
+            <?php else: ?>
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="space-y-1">
+                        <label class="block text-xs font-semibold uppercase tracking-wider text-ink/60">Party A</label>
+                        <select name="party_a_id" required class="w-full border border-ink/15 rounded-lg p-2.5 text-sm bg-sand/10">
+                            <?php foreach ($case['parties'] as $p): ?>
+                                <option value="<?= (int) $p['id'] ?>"><?= htmlspecialchars($p['party_name']) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="space-y-1">
+                        <label class="block text-xs font-semibold uppercase tracking-wider text-ink/60">Party B</label>
+                        <select name="party_b_id" required class="w-full border border-ink/15 rounded-lg p-2.5 text-sm bg-sand/10">
+                            <?php foreach ($case['parties'] as $p): ?>
+                                <option value="<?= (int) $p['id'] ?>"><?= htmlspecialchars($p['party_name']) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="space-y-1">
+                        <label class="block text-xs font-semibold uppercase tracking-wider text-ink/60">Conflict type</label>
+                        <select name="conflict_type" class="w-full border border-ink/15 rounded-lg p-2.5 text-sm bg-sand/10">
+                            <option value="direct_conflict">Direct conflict</option>
+                            <option value="prior_representation">Prior representation</option>
+                            <option value="family_relation">Family relation</option>
+                            <option value="financial_interest">Financial interest</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                    <div class="space-y-1">
+                        <label class="block text-xs font-semibold uppercase tracking-wider text-ink/60">Severity</label>
+                        <select name="severity" class="w-full border border-ink/15 rounded-lg p-2.5 text-sm bg-sand/10">
+                            <option value="low">Low</option>
+                            <option value="medium" selected>Medium</option>
+                            <option value="high">High</option>
+                            <option value="critical">Critical</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="space-y-1">
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-ink/60">Description</label>
+                    <textarea name="description" rows="2" class="w-full border border-ink/15 rounded-lg p-2.5 text-sm bg-sand/10"></textarea>
+                </div>
+                <div class="pt-4 flex justify-end gap-3">
+                    <button type="button" onclick="closeModal('partyConflictModal')" class="px-4 py-2.5 rounded-lg border border-ink/10 text-sm">Cancel</button>
+                    <button type="submit" class="px-5 py-2.5 rounded-lg bg-brand-700 text-white text-sm font-semibold">Flag Conflict</button>
+                </div>
+            <?php endif; ?>
+        </form>
+    </div>
+</div>
+
+<div id="counselConflictModal" class="modal-overlay hidden" hidden>
+    <div class="bg-white rounded-xl shadow-xl max-w-lg w-full border border-ink/10 overflow-hidden" onclick="event.stopPropagation()">
+        <div class="px-6 py-4 border-b border-ink/10 flex justify-between items-center bg-gray-50/50">
+            <h3 class="font-sans text-lg font-bold text-ink">Flag Counsel Conflict</h3>
+            <button type="button" onclick="closeModal('counselConflictModal')" class="text-ink/40">✕</button>
+        </div>
+        <form action="<?= url('/legal/' . $case['id'] . '/conflicts/counsel') ?>" method="POST" class="p-6 space-y-4">
+            @csrf
+            <div class="space-y-1">
+                <label class="block text-xs font-semibold uppercase tracking-wider text-ink/60">Internal counsel (optional)</label>
+                <select name="counsel_id" class="w-full border border-ink/15 rounded-lg p-2.5 text-sm bg-sand/10">
+                    <option value="">— None / use external party below —</option>
+                    <?php if (!empty($case['assigned_counsel_id'])): ?>
+                        <option value="<?= (int) $case['assigned_counsel_id'] ?>" selected><?= htmlspecialchars($case['counsel_name'] ?? 'Assigned counsel') ?></option>
+                    <?php endif; ?>
+                </select>
+            </div>
+            <div class="space-y-1">
+                <label class="block text-xs font-semibold uppercase tracking-wider text-ink/60">External party</label>
+                <input type="text" name="external_party" value="<?= htmlspecialchars($case['external_counsel_name'] ?? '') ?>" placeholder="Firm or opposing counsel" class="w-full border border-ink/15 rounded-lg p-2.5 text-sm bg-sand/10">
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div class="space-y-1">
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-ink/60">Conflict type</label>
+                    <select name="conflict_type" class="w-full border border-ink/15 rounded-lg p-2.5 text-sm bg-sand/10">
+                        <option value="prior_representation">Prior representation</option>
+                        <option value="financial_interest">Financial interest</option>
+                        <option value="family_relation">Family relation</option>
+                        <option value="business_relation">Business relation</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+                <div class="space-y-1">
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-ink/60">Severity</label>
+                    <select name="severity" class="w-full border border-ink/15 rounded-lg p-2.5 text-sm bg-sand/10">
+                        <option value="low">Low</option>
+                        <option value="medium" selected>Medium</option>
+                        <option value="high">High</option>
+                        <option value="critical">Critical</option>
+                    </select>
+                </div>
+            </div>
+            <div class="space-y-1">
+                <label class="block text-xs font-semibold uppercase tracking-wider text-ink/60">Description</label>
+                <textarea name="description" rows="2" class="w-full border border-ink/15 rounded-lg p-2.5 text-sm bg-sand/10"></textarea>
+            </div>
+            <div class="pt-4 flex justify-end gap-3">
+                <button type="button" onclick="closeModal('counselConflictModal')" class="px-4 py-2.5 rounded-lg border border-ink/10 text-sm">Cancel</button>
+                <button type="submit" class="px-5 py-2.5 rounded-lg bg-brand-700 text-white text-sm font-semibold">Flag Conflict</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function toggleOutcomeFields() {
+    var type = document.getElementById('outcomeTypeSelect')?.value;
+    var settle = document.getElementById('settlementFields');
+    var judge = document.getElementById('judgmentFields');
+    if (settle) settle.classList.toggle('hidden', type !== 'settled');
+    if (judge) judge.classList.toggle('hidden', type !== 'won' && type !== 'lost');
+}
+function toggleAppealFields() {
+    var el = document.getElementById('appealFields');
+    var checked = document.getElementById('isAppealedCheck')?.checked;
+    if (el) el.classList.toggle('hidden', !checked);
+}
+toggleOutcomeFields();
+</script>
 <?php endif; ?>

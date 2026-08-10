@@ -13,7 +13,7 @@ class CheckLegalMilestoneReminders extends Command
 
     protected $description = 'Remind legal managers of upcoming case milestones and deadlines';
 
-    public function handle(LegalCaseRepository $repo, NotificationService $notifications)
+    public function handle(LegalCaseRepository $repo, NotificationService $notifications, \App\Services\LegalCaseService $legalService)
     {
         $until = Carbon::now()->addDays(3)->endOfDay()->format('Y-m-d H:i:s');
         $milestones = $repo->upcomingMilestonesNeedingReminder($until);
@@ -40,7 +40,11 @@ class CheckLegalMilestoneReminders extends Command
             $count++;
         }
 
-        $this->info("Sent reminders for {$count} milestone(s).");
+        // Also check general deadlines
+        $deadlineResult = $legalService->sendDeadlineReminders();
+        $deadlineCount = $deadlineResult['sent_count'] ?? 0;
+
+        $this->info("Sent reminders for {$count} milestone(s) and {$deadlineCount} deadline(s).");
 
         return self::SUCCESS;
     }

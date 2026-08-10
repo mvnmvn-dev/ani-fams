@@ -29,6 +29,7 @@ class ContractController extends Controller
             'templates' => $service->templates(),
             'chains' => $service->approvalChains(),
             'spendRollup' => $service->spendRollup(),
+            'vendorScoreRollup' => $service->vendorScoreRollup(),
             'users' => $users,
             'cases' => $cases,
             'canCreate' => Auth::user()->canPermission('contract.create'),
@@ -188,6 +189,70 @@ class ContractController extends Controller
             $result['success'] ? 'flash_success' : 'flash_error',
             $result['success'] ? 'Amendment recorded.' : $result['error']
         );
+    }
+
+    public function autoDraftRenewal(string $id, ContractService $service)
+    {
+        $result = $service->autoDraftRenewal((int) $id);
+        
+        return redirect()->route('contracts.index', ['open' => $result['id'] ?? $id])->with(
+            $result['success'] ? 'flash_success' : 'flash_error',
+            $result['success'] ? 'Contract renewal drafted successfully.' : $result['error']
+        );
+    }
+
+    public function addObligation(Request $request, string $id, ContractService $service)
+    {
+        $data = $request->all();
+        $data['contract_id'] = (int) $id;
+        $result = $service->addObligation($data);
+
+        return redirect()->route('contracts.index', ['open' => $id])->with(
+            $result['success'] ? 'flash_success' : 'flash_error',
+            $result['success'] ? 'Obligation added.' : ($result['error'] ?? 'Unable to add obligation.')
+        );
+    }
+
+    public function toggleObligation(Request $request, string $contractId, string $obligationId, ContractService $service)
+    {
+        $result = $service->toggleObligation((int) $obligationId, $request->boolean('completed'));
+        $success = (bool) ($result['success'] ?? false);
+
+        return $this->flashOrJson(
+            $request,
+            redirect()->route('contracts.index', ['open' => $contractId]),
+            $success,
+            $success ? 'Obligation updated.' : (string) ($result['error'] ?? 'Unable to update.'),
+            array_merge(['action' => 'contract.obligation.toggle', 'contract_id' => (int) $contractId], $result)
+        );
+    }
+
+    public function recordVendorScore(Request $request, string $id, ContractService $service)
+    {
+        $data = $request->all();
+        $data['contract_id'] = (int) $id;
+        $result = $service->recordVendorScore($data);
+
+        return redirect()->route('contracts.index', ['open' => $id])->with(
+            $result['success'] ? 'flash_success' : 'flash_error',
+            $result['success'] ? 'Vendor score recorded.' : ($result['error'] ?? 'Unable to record score.')
+        );
+    }
+
+    public function signatureCertificate(string $id, ContractService $service)
+    {
+        $result = $service->generateSignatureCertificate((int) $id);
+        if (! ($result['success'] ?? false)) {
+            return redirect()->route('contracts.index', ['open' => $id])->with(
+                'flash_error',
+                $result['error'] ?? 'Unable to generate certificate.'
+            );
+        }
+
+        return response($result['html'], 200, [
+            'Content-Type' => 'text/html; charset=UTF-8',
+            'Content-Disposition' => 'inline; filename="signature_audit_' . $id . '.html"',
+        ]);
     }
 
     public function destroy(string $id, ContractService $service)

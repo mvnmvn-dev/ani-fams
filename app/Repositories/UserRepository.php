@@ -117,4 +117,64 @@ class UserRepository
             'id' => $id,
         ]);
     }
+
+    public function roleExists(int $roleId): bool
+    {
+        $stmt = $this->pdo()->prepare('SELECT COUNT(*) FROM roles WHERE id = :id');
+        $stmt->execute(['id' => $roleId]);
+
+        return (int) $stmt->fetchColumn() > 0;
+    }
+
+    /**
+     * Count active (non-deleted) users with a role, optionally excluding a set of IDs.
+     *
+     * @param  list<int>  $excludeIds
+     */
+    public function countActiveUsersWithRole(int $roleId, array $excludeIds = []): int
+    {
+        $sql = 'SELECT COUNT(*) FROM users WHERE role_id = :roleId AND deleted_at IS NULL AND status = \'active\'';
+        $bindings = ['roleId' => $roleId];
+
+        if ($excludeIds !== []) {
+            $placeholders = [];
+            foreach (array_values($excludeIds) as $i => $id) {
+                $key = 'ex' . $i;
+                $placeholders[] = ':' . $key;
+                $bindings[$key] = $id;
+            }
+            $sql .= ' AND id NOT IN (' . implode(',', $placeholders) . ')';
+        }
+
+        $stmt = $this->pdo()->prepare($sql);
+        $stmt->execute($bindings);
+
+        return (int) $stmt->fetchColumn();
+    }
+
+    /**
+     * @param  list<int>  $userIds
+     */
+    public function bulkUpdateRole(array $userIds, int $roleId): int
+    {
+        if ($userIds === []) {
+            return 0;
+        }
+
+        $placeholders = [];
+        $bindings = ['role_id' => $roleId];
+        foreach (array_values($userIds) as $i => $id) {
+            $key = 'uid' . $i;
+            $placeholders[] = ':' . $key;
+            $bindings[$key] = $id;
+        }
+
+        $stmt = $this->pdo()->prepare(
+            'UPDATE users SET role_id = :role_id
+             WHERE deleted_at IS NULL AND id IN (' . implode(',', $placeholders) . ')'
+        );
+        $stmt->execute($bindings);
+
+        return $stmt->rowCount();
+    }
 }

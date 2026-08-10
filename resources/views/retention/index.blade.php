@@ -16,6 +16,13 @@ $dueReview = count(array_filter($assignments, fn($a) => ($a['status'] ?? '') ===
 $activeAsg = count(array_filter($assignments, fn($a) => ($a['status'] ?? '') === 'active'));
 $onHoldAsg = count(array_filter($assignments, fn($a) => ($a['status'] ?? '') === 'on_legal_hold'));
 
+// Templates and Notifications (passed from controller)
+$templates = $templates ?? [];
+$unreadHoldNotifs = $unreadHoldNotifs ?? [];
+$dueReview = count(array_filter($assignments, fn($a) => ($a['status'] ?? '') === 'due_for_review'));
+$activeAsg = count(array_filter($assignments, fn($a) => ($a['status'] ?? '') === 'active'));
+$onHoldAsg = count(array_filter($assignments, fn($a) => ($a['status'] ?? '') === 'on_legal_hold'));
+
 $asgStatusStyles = [
     'active'         => 'bg-brand-50 text-brand-700 border-brand-200',
     'due_for_review' => 'bg-accent-50 text-accent-700 border-accent-200',
@@ -50,6 +57,7 @@ $dueReviewList = array_slice($dueReviewList, 0, 5);
             ?>
             <button onclick="openModal('assignPolicyModal')" class="btn-secondary">Assign Policy</button>
             <button onclick="openModal('placeHoldModal')" class="btn-secondary">Place Legal Hold</button>
+            <button onclick="openComplianceCalendar()" class="btn-secondary">Compliance Calendar</button>
             <button onclick="openModal('definePolicyModal')" class="btn-primary">Define Policy</button>
             <?php
         },
@@ -62,6 +70,24 @@ $dueReviewList = array_slice($dueReviewList, 0, 5);
         ['label' => 'Overdue disposal', 'value' => count($overdueList), 'hint' => 'Past calculated date', 'tone' => 'terracotta', 'icon' => 'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z'],
         ['label' => 'Legal holds', 'value' => $lockedHolds, 'hint' => 'Active locks in place', 'tone' => 'brown', 'icon' => 'M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z'],
     ]])
+
+    <?php if (!empty($unreadHoldNotifs)): ?>
+    <div class="border border-red-300 bg-red-100 rounded-lg px-5 py-4 text-sm text-red-900 flex flex-col gap-3">
+        <h3 class="font-bold flex items-center gap-2">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+            Urgent Hold Notifications
+        </h3>
+        <ul class="space-y-2">
+            <?php foreach ($unreadHoldNotifs as $notif): ?>
+                <li class="flex items-center justify-between" id="notif-row-<?= $notif['id'] ?>">
+                    <span><?= htmlspecialchars($notif['reason'] ?? 'Hold Notice') ?> — <strong class="capitalize"><?= htmlspecialchars($notif['notification_type'] ?? 'Placed') ?></strong> on <?= date('M d, Y', strtotime($notif['notified_at'])) ?></span>
+                    <button onclick="markHoldNotifRead(<?= $notif['id'] ?>)" class="px-3 py-1 bg-red-200 hover:bg-red-300 text-red-900 rounded font-semibold transition text-xs">Dismiss</button>
+                </li>
+            <?php endforeach; ?>
+        </ul>
+    </div>
+    <?php endif; ?>
+
 
     <div class="module-info-grid">
         @include('partials.module_feed_list', [
@@ -431,8 +457,111 @@ $dueReviewList = array_slice($dueReviewList, 0, 5);
                 <button type="submit" class="px-4 py-2 rounded-md bg-brand-700 hover:bg-brand-600 text-white text-sm font-semibold">Save Policy</button>
             </div>
         </form>
+
+        <!-- Template Section -->
+        <?php if (!empty($templates)): ?>
+        <div class="p-6 bg-gray-50 border-t border-ink/10">
+            <h4 class="text-sm font-semibold text-ink mb-3">Or create from a regulatory template:</h4>
+            <form action="<?= url('/retention/policies/from-template') ?>" method="POST" class="flex gap-3">
+                @csrf
+                <select name="template_id" required class="flex-1 border border-ink/15 rounded-md p-2.5 text-sm bg-white outline-none">
+                    <option value="">— Select Template —</option>
+                    <?php foreach ($templates as $tmpl): ?>
+                        <option value="<?= $tmpl['id'] ?>"><?= htmlspecialchars($tmpl['regulation_code']) ?> - <?= htmlspecialchars($tmpl['name']) ?> (<?= $tmpl['retention_period_months'] ?> months)</option>
+                    <?php endforeach; ?>
+                </select>
+                <button type="submit" class="px-4 py-2 rounded-md border border-brand-500 text-brand-700 hover:bg-brand-50 text-sm font-semibold">Use Template</button>
+            </form>
+        </div>
+        <?php endif; ?>
     </div>
 </div>
 <?php endif; ?>
+
+<div id="complianceCalendarModal" class="modal-overlay hidden">
+    <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full border border-ink/10 flex flex-col max-h-[90vh]" onclick="event.stopPropagation()">
+        <div class="px-6 py-4 border-b border-ink/10 flex justify-between items-center bg-gray-50/50 flex-shrink-0">
+            <div>
+                <h3 class="text-lg font-semibold text-ink">Compliance Calendar</h3>
+                <p class="text-xs text-ink/60">Upcoming disposal deadlines and legal hold events</p>
+            </div>
+            <button onclick="closeModal('complianceCalendarModal')" class="text-ink/40 hover:text-ink/60"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg></button>
+        </div>
+        <div class="p-6 overflow-y-auto flex-1 bg-sand/5">
+            <div id="calendar-events-container" class="space-y-4">
+                <div class="text-center text-ink/40 py-8 text-sm">Loading events...</div>
+            </div>
+        </div>
+        <div class="px-6 py-4 border-t border-ink/10 bg-gray-50 flex justify-end flex-shrink-0">
+            <button type="button" onclick="closeModal('complianceCalendarModal')" class="px-4 py-2 rounded-md border border-ink/10 text-sm font-semibold text-ink/70 bg-white">Close</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    function markHoldNotifRead(id) {
+        fetch('<?= url('/retention/notifications') ?>/' + id + '/read', {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': '<?= csrf_token() ?>',
+                'Content-Type': 'application/json'
+            }
+        }).then(res => res.json()).then(data => {
+            if (data.success) {
+                document.getElementById('notif-row-' + id).remove();
+            }
+        });
+    }
+
+    function openComplianceCalendar() {
+        openModal('complianceCalendarModal');
+        const container = document.getElementById('calendar-events-container');
+        
+        // Fetch events for current month (or any range, default uses current month in controller)
+        fetch('<?= url('/retention/compliance-calendar') ?>')
+            .then(res => res.json())
+            .then(data => {
+                if (!data.events || data.events.length === 0) {
+                    container.innerHTML = '<div class="text-center text-ink/50 py-8 text-sm">No compliance events scheduled for this period.</div>';
+                    return;
+                }
+
+                let html = '<div class="grid gap-3">';
+                data.events.forEach(ev => {
+                    let color = 'border-gray-200 bg-white';
+                    let icon = '';
+                    if (ev.event_type === 'disposal') {
+                        color = 'border-brand-200 bg-brand-50/50';
+                        icon = '<svg class="w-5 h-5 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>';
+                    } else if (ev.event_type === 'legal_hold') {
+                        color = 'border-red-200 bg-red-50/50';
+                        icon = '<svg class="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>';
+                    } else if (ev.event_type === 'legal_hold_release') {
+                        color = 'border-green-200 bg-green-50/50';
+                        icon = '<svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"/></svg>';
+                    }
+                    
+                    const eventDate = new Date(ev.event_date).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'});
+
+                    html += `
+                        <div class="flex items-center gap-4 p-4 rounded-lg border ${color}">
+                            <div class="flex-shrink-0 bg-white p-2 rounded-full shadow-sm">
+                                ${icon}
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <p class="text-sm font-semibold text-ink">${ev.title}</p>
+                                <p class="text-xs text-ink/60 mt-0.5 capitalize">${ev.event_type.replace(/_/g, ' ')}</p>
+                            </div>
+                            <div class="flex-shrink-0 text-right">
+                                <span class="text-sm font-bold text-ink/70">${eventDate}</span>
+                            </div>
+                        </div>
+                    `;
+                });
+                html += '</div>';
+                container.innerHTML = html;
+            });
+    }
+</script>
 
 @endsection

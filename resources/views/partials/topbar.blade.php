@@ -222,11 +222,34 @@ $notifIcons = [
                 <div class="space-y-3">
                     <input type="password" name="current_password" placeholder="Current password"
                            class="w-full border border-ink/15 rounded-xl px-3 py-2.5 text-sm bg-sand/10 focus:border-brand-500 outline-none" autocomplete="current-password">
-                    <input type="password" name="new_password" placeholder="New password (min 8 characters)"
-                           class="w-full border border-ink/15 rounded-xl px-3 py-2.5 text-sm bg-sand/10 focus:border-brand-500 outline-none" autocomplete="new-password">
+                    <input type="password" name="new_password" placeholder="New password (min 10; mixed case, number, symbol)"
+                           class="w-full border border-ink/15 rounded-xl px-3 py-2.5 text-sm bg-sand/10 focus:border-brand-500 outline-none" autocomplete="new-password" minlength="10">
                     <input type="password" name="confirm_password" placeholder="Confirm new password"
-                           class="w-full border border-ink/15 rounded-xl px-3 py-2.5 text-sm bg-sand/10 focus:border-brand-500 outline-none" autocomplete="new-password">
+                           class="w-full border border-ink/15 rounded-xl px-3 py-2.5 text-sm bg-sand/10 focus:border-brand-500 outline-none" autocomplete="new-password" minlength="10">
+                    <p class="text-[11px] text-ink/40">Passwords need 10+ characters with upper, lower, number, and special character.</p>
                 </div>
+            </div>
+            <div class="border-t border-ink/10 pt-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm font-semibold text-ink">Two-Factor Authentication (2FA)</p>
+                        <p class="text-xs text-ink/50 mt-0.5">Secure your account with an authenticator app.</p>
+                    </div>
+                    <?php if ($user->two_factor_enabled): ?>
+                        <button type="submit" form="disable-2fa-form" class="px-3 py-1.5 rounded-lg border border-red-500/30 text-red-600 hover:bg-red-50 text-xs font-semibold transition">Disable 2FA</button>
+                    <?php else: ?>
+                        <button type="submit" form="enable-2fa-form" class="px-3 py-1.5 rounded-lg border border-brand-500/30 text-brand-600 hover:bg-brand-50 text-xs font-semibold transition">Enable 2FA</button>
+                    <?php endif; ?>
+                </div>
+                <?php if ($user->two_factor_enabled && $user->two_factor_secret): ?>
+                    <div class="mt-4 p-4 bg-sand/10 border border-ink/10 rounded-xl flex items-start gap-4">
+                        <img src="<?= htmlspecialchars(app(\App\Services\TwoFactorService::class)->getQRCodeUrl(config('app.name'), $user->email, $user->two_factor_secret)) ?>" alt="2FA QR Code" class="w-24 h-24 rounded shadow-sm border border-white">
+                        <div class="text-sm text-ink/70">
+                            <p class="mb-2">Scan this QR code with Google Authenticator or Authy. Alternatively, use this setup key:</p>
+                            <code class="px-2 py-1 bg-ink/5 text-ink font-mono text-xs rounded"><?= htmlspecialchars($user->two_factor_secret) ?></code>
+                        </div>
+                    </div>
+                <?php endif; ?>
             </div>
             <div class="flex justify-end gap-2 pt-2">
                 <button type="button" onclick="closeModal('profileModal')"
@@ -241,6 +264,13 @@ $notifIcons = [
         </form>
     </div>
 </div>
+
+<form id="enable-2fa-form" action="{{ route('2fa.enable') }}" method="POST" style="display: none;">
+    @csrf
+</form>
+<form id="disable-2fa-form" action="{{ route('2fa.disable') }}" method="POST" style="display: none;">
+    @csrf
+</form>
 
 @include('partials.sessions_modal')
 

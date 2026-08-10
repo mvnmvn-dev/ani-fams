@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Services\SessionAnomalyService;
 use App\Support\AuditLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -27,17 +28,39 @@ class LoginController extends Controller
             'remember' => ['sometimes', 'boolean'],
         ]);
 
+        $throttleKey = \Illuminate\Support\Str::lower($request->input('email')).'|'.$request->ip();
+        if (\Illuminate\Support\Facades\RateLimiter::tooManyAttempts($throttleKey, 5)) {
+            $seconds = \Illuminate\Support\Facades\RateLimiter::availableIn($throttleKey);
+            return back()->with('flash_error', "Too many login attempts. Please try again in {$seconds} seconds.")->onlyInput('email', 'remember');
+        }
+
         $remember = $request->boolean('remember');
 
         /** @var User|null $user */
         $user = User::with('role.permissions')->where('email', $credentials['email'])->first();
 
-        if (! $user || ! $user->isActive() || ! Auth::attempt(['email' => $credentials['email'], 'password' => $credentials['password']], $remember)) {
+        if (! $user || ! $user->isActive() || ! Auth::validate(['email' => $credentials['email'], 'password' => $credentials['password']])) {
+            \Illuminate\Support\Facades\RateLimiter::hit($throttleKey, 300);
             return back()->with('flash_error', 'Invalid email or password.')->onlyInput('email', 'remember');
         }
 
+        \Illuminate\Support\Facades\RateLimiter::clear($throttleKey);
+
+        if ($user->two_factor_enabled && !empty($user->two_factor_secret)) {
+            $request->session()->put('2fa:user:id', $user->id);
+            $request->session()->put('2fa:remember', $remember);
+            return redirect()->route('2fa.challenge');
+        }
+
+        Auth::login($user, $remember);
         $request->session()->regenerate();
         Auth::user()->load('role.permissions');
+
+        try {
+            app(SessionAnomalyService::class)->checkAndAlert($user, $request);
+        } catch (\Throwable $e) {
+            report($e);
+        }
 
         AuditLogger::log('auth', 'login', 'user', Auth::id(), null, ['email' => Auth::user()->email]);
 

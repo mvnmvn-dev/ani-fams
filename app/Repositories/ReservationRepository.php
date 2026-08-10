@@ -254,4 +254,198 @@ class ReservationRepository
 
         return array_map('intval', array_column($stmt->fetchAll(), 'id'));
     }
+
+    // ===================== WAITLIST METHODS =====================
+
+    public function createWaitlistEntry(array $data): int
+    {
+        $stmt = $this->pdo()->prepare(
+            "INSERT INTO reservation_waitlist (
+                facility_id, requested_by, purpose, preferred_start_datetime, 
+                preferred_end_datetime, status, notes
+             ) VALUES (
+                :facility_id, :requested_by, :purpose, :preferred_start, 
+                :preferred_end, :status, :notes
+             )"
+        );
+        $stmt->execute([
+            'facility_id' => $data['facility_id'],
+            'requested_by' => $data['requested_by'],
+            'purpose' => $data['purpose'],
+            'preferred_start' => $data['preferred_start_datetime'],
+            'preferred_end' => $data['preferred_end_datetime'],
+            'status' => $data['status'] ?? 'pending',
+            'notes' => $data['notes'] ?? null,
+        ]);
+
+        return (int) $this->pdo()->lastInsertId();
+    }
+
+    public function getWaitlistForFacility(int $facilityId): array
+    {
+        $stmt = $this->pdo()->prepare(
+            "SELECT w.*, u.full_name AS requester_name, f.name AS facility_name
+             FROM reservation_waitlist w
+             JOIN users u ON u.id = w.requested_by
+             JOIN facilities f ON f.id = w.facility_id
+             WHERE w.facility_id = :facility_id
+             ORDER BY w.created_at ASC"
+        );
+        $stmt->execute(['facility_id' => $facilityId]);
+
+        return $stmt->fetchAll();
+    }
+
+    public function getWaitlistForUser(int $userId): array
+    {
+        $stmt = $this->pdo()->prepare(
+            "SELECT w.*, f.name AS facility_name
+             FROM reservation_waitlist w
+             JOIN facilities f ON f.id = w.facility_id
+             WHERE w.requested_by = :user_id
+             ORDER BY w.created_at DESC"
+        );
+        $stmt->execute(['user_id' => $userId]);
+
+        return $stmt->fetchAll();
+    }
+
+    public function updateWaitlistStatus(int $waitlistId, string $status, ?int $offeredReservationId = null): void
+    {
+        $sql = "UPDATE reservation_waitlist SET status = :status";
+        $params = ['status' => $status, 'id' => $waitlistId];
+        
+        if ($offeredReservationId) {
+            $sql .= ", offered_reservation_id = :offered_id";
+            $params['offered_id'] = $offeredReservationId;
+        }
+        
+        $sql .= " WHERE id = :id";
+        $stmt = $this->pdo()->prepare($sql);
+        $stmt->execute($params);
+    }
+
+    // ===================== COST TRACKING METHODS =====================
+
+    public function updateCostInfo(int $reservationId, array $costData): void
+    {
+        $stmt = $this->pdo()->prepare(
+            "UPDATE reservations 
+             SET cost_amount = :cost_amount, 
+                 cost_currency = :cost_currency,
+                 chargeback_department_id = :chargeback_dept,
+                 cost_note = :cost_note
+             WHERE id = :id"
+        );
+        $stmt->execute([
+            'cost_amount' => $costData['cost_amount'] ?? null,
+            'cost_currency' => $costData['cost_currency'] ?? 'PHP',
+            'chargeback_dept' => $costData['chargeback_department_id'] ?? null,
+            'cost_note' => $costData['cost_note'] ?? null,
+            'id' => $reservationId,
+        ]);
+    }
+
+    public function getCostSummaryByDepartment(string $startDate, string $endDate): array
+    {
+        $stmt = $this->pdo()->prepare(
+            "SELECT d.name AS department_name, 
+                    COUNT(r.id) AS reservation_count,
+                    COALESCE(SUM(r.cost_amount), 0) AS total_cost
+             FROM reservations r
+             JOIN departments d ON d.id = r.chargeback_department_id
+             WHERE r.status = 'approved'
+               AND r.cost_amount IS NOT NULL
+               AND r.start_datetime >= :start_date
+               AND r.start_datetime <= :end_date
+             GROUP BY d.id, d.name
+             ORDER BY total_cost DESC"
+        );
+        $stmt->execute(['start_date' => $startDate, 'end_date' => $endDate]);
+
+        return $stmt->fetchAll();
+    }
+
+    // ===================== NO-SHOW TRACKING METHODS =====================
+
+    public function markNoShow(int $reservationId, int $reportedBy): void
+    {
+        $stmt = $this->pdo()->prepare(
+            "UPDATE reservations 
+             SET no_show = 1, 
+                 no_show_reported_by = :reported_by, 
+                 no_show_reported_at = CURRENT_TIMESTAMP 
+             WHERE id = :id"
+        );
+        $stmt->execute(['reported_by' => $reportedBy, 'id' => $reservationId]);
+    }
+
+    public function getNoShowStats(int $userId): array
+    {
+        $stmt = $this->pdo()->prepare(
+            "SELECT COUNT(*) AS total_reservations,
+                    SUM(CASE WHEN no_show = 1 THEN 1 ELSE 0 END) AS no_show_count,
+                    ROUND(SUM(CASE WHEN no_show = 1 THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 2) AS no_show_percentage
+             FROM reservations
+             WHERE requested_by = :user_id
+               AND deleted_at IS NULL"
+        );
+        $stmt->execute(['user_id' => $userId]);
+
+        return $stmt->fetch();
+    }
+
+    // ===================== CANCELLATION METHODS =====================
+
+    public function markCancelled(int $reservationId, int $cancelledBy, string $reason): void
+    {
+        $stmt = $this->pdo()->prepare(
+            "UPDATE reservations 
+             SET status = 'cancelled',
+                 cancellation_reason = :reason,
+                 cancelled_by = :cancelled_by,
+                 cancelled_at = CURRENT_TIMESTAMP
+             WHERE id = :id"
+        );
+        $stmt->execute([
+            'reason' => $reason,
+            'cancelled_by' => $cancelledBy,
+            'id' => $reservationId,
+        ]);
+    }
+
+    // ===================== FEEDBACK METHODS =====================
+
+    public function submitFeedback(int $reservationId, int $rating, ?string $comment): void
+    {
+        $stmt = $this->pdo()->prepare(
+            "UPDATE reservations 
+             SET feedback_rating = :rating,
+                 feedback_comment = :comment,
+                 feedback_submitted_at = CURRENT_TIMESTAMP
+             WHERE id = :id"
+        );
+        $stmt->execute([
+            'rating' => $rating,
+            'comment' => $comment,
+            'id' => $reservationId,
+        ]);
+    }
+
+    public function getFeedbackSummary(int $facilityId): array
+    {
+        $stmt = $this->pdo()->prepare(
+            "SELECT COUNT(*) AS total_feedback,
+                    AVG(feedback_rating) AS average_rating,
+                    MIN(feedback_rating) AS min_rating,
+                    MAX(feedback_rating) AS max_rating
+             FROM reservations
+             WHERE facility_id = :facility_id
+               AND feedback_rating IS NOT NULL
+               AND deleted_at IS NULL"
+        );
+        $stmt->execute(['facility_id' => $facilityId]);
+
+        return $stmt->fetch();
+    }
 }

@@ -200,4 +200,174 @@ class DocumentController extends Controller
 
         return $this->streamExportPdf('documents', 'Documents Export', $headers, $rows);
     }
+
+    // ===================== DOCUMENT REVIEW/EXPIRATION REMINDERS =====================
+
+    public function documentsNeedingReview(DocumentService $service)
+    {
+        $documents = $service->getDocumentsNeedingReview();
+
+        return response()->json(['documents' => $documents]);
+    }
+
+    public function sendReviewReminders(DocumentService $service)
+    {
+        $result = $service->sendReviewReminders();
+
+        return response()->json($result);
+    }
+
+    public function markReviewed(Request $request, string $id, DocumentService $service)
+    {
+        $result = $service->markDocumentReviewed((int) $id);
+
+        return redirect()->route('documents.index')->with(
+            $result['success'] ? 'flash_success' : 'flash_error',
+            $result['success'] ? 'Document marked as reviewed.' : $result['error']
+        );
+    }
+
+    public function updateReviewDate(Request $request, string $id, DocumentService $service)
+    {
+        $result = $service->updateReviewDate((int) $id, $request->input('review_by_date'));
+
+        return redirect()->route('documents.index')->with(
+            $result['success'] ? 'flash_success' : 'flash_error',
+            $result['success'] ? 'Review date updated.' : $result['error']
+        );
+    }
+
+    // ===================== CHECK-OUT/LOCK FUNCTIONALITY =====================
+
+    public function checkOut(Request $request, string $id, DocumentService $service)
+    {
+        $result = $service->checkOutDocument((int) $id, $request->input('notes'));
+
+        return redirect()->route('documents.index')->with(
+            $result['success'] ? 'flash_success' : 'flash_error',
+            $result['success'] ? 'Document checked out.' : $result['error']
+        );
+    }
+
+    public function checkIn(Request $request, string $id, DocumentService $service)
+    {
+        $result = $service->checkInDocument((int) $id);
+
+        return redirect()->route('documents.index')->with(
+            $result['success'] ? 'flash_success' : 'flash_error',
+            $result['success'] ? 'Document checked in.' : $result['error']
+        );
+    }
+
+    public function checkedOutDocuments(DocumentService $service)
+    {
+        $documents = $service->getCheckedOutDocuments();
+
+        return response()->json(['documents' => $documents]);
+    }
+
+    // ===================== OCR PROCESSING =====================
+
+    public function processOcr(DocumentService $service)
+    {
+        $result = $service->processOcrForPendingVersions();
+
+        return response()->json($result);
+    }
+
+    // ===================== BULK UPLOAD TRACKING =====================
+
+    public function startBulkUpload(Request $request, DocumentService $service)
+    {
+        $fileCount = (int) $request->input('file_count', 0);
+        $result = $service->startBulkUpload($fileCount);
+
+        return response()->json($result);
+    }
+
+    public function completeBulkUpload(Request $request, DocumentService $service)
+    {
+        $uploadId = (int) $request->input('upload_id', 0);
+        $status = $request->input('status', 'completed');
+        $errorMessage = $request->input('error_message', null);
+        
+        $result = $service->completeBulkUpload($uploadId, $status, $errorMessage);
+
+        return response()->json($result);
+    }
+
+    public function bulkUploads(DocumentService $service)
+    {
+        $uploads = $service->getBulkUploads();
+
+        return response()->json(['uploads' => $uploads]);
+    }
+
+    // ===================== E-SIGNATURE REQUESTS =====================
+
+    public function requestSignature(Request $request, string $id, DocumentService $service)
+    {
+        $result = $service->requestSignature(
+            (int) $id,
+            $request->input('signer_email'),
+            $request->input('signer_name'),
+            $request->input('message')
+        );
+
+        return redirect()->route('documents.index')->with(
+            $result['success'] ? 'flash_success' : 'flash_error',
+            $result['success'] ? 'Signature request sent.' : $result['error']
+        );
+    }
+
+    public function showSignatureForm(string $token, DocumentService $service)
+    {
+        $result = $service->getSignatureRequestByToken($token);
+        if (! $result['success']) {
+            return redirect()->route('documents.index')->with('flash_error', $result['error']);
+        }
+
+        return view('documents.signature', [
+            'pageTitle' => 'Sign Document',
+            'request' => $result['request'],
+            'token' => $token,
+        ]);
+    }
+
+    public function submitSignature(Request $request, string $token, DocumentService $service)
+    {
+        // First get the request ID from token
+        $result = $service->getSignatureRequestByToken($token);
+        if (! $result['success']) {
+            return redirect()->route('documents.index')->with('flash_error', $result['error']);
+        }
+
+        $signResult = $service->signDocument(
+            (int) $result['request']['id'],
+            $request->input('signature_data'),
+            $request->ip()
+        );
+
+        return redirect()->route('documents.index')->with(
+            $signResult['success'] ? 'flash_success' : 'flash_error',
+            $signResult['success'] ? 'Document signed successfully.' : $signResult['error']
+        );
+    }
+
+    public function declineSignature(Request $request, string $id, DocumentService $service)
+    {
+        $result = $service->declineSignature((int) $id);
+
+        return redirect()->route('documents.index')->with(
+            $result['success'] ? 'flash_success' : 'flash_error',
+            $result['success'] ? 'Signature declined.' : $result['error']
+        );
+    }
+
+    public function signatureRequests(Request $request, string $id, DocumentService $service)
+    {
+        $requests = $service->getDocumentSignatureRequests((int) $id);
+
+        return response()->json(['requests' => $requests]);
+    }
 }

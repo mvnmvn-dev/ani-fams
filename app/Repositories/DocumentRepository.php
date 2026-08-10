@@ -336,4 +336,246 @@ class DocumentRepository
             ->query("SELECT COUNT(*) FROM documents WHERE status = 'active' AND deleted_at IS NULL")
             ->fetchColumn();
     }
+
+    // ===================== DOCUMENT REVIEW/EXPIRATION REMINDERS =====================
+
+    public function getDocumentsNeedingReview(): array
+    {
+        return $this->pdo()->query(
+            "SELECT d.*, dc.name AS category_name, u.full_name AS owner_name
+             FROM documents d
+             LEFT JOIN document_categories dc ON dc.id = d.category_id
+             JOIN users u ON u.id = d.owner_id
+             WHERE d.review_by_date <= CURRENT_DATE
+               AND d.review_reminder_sent_at IS NULL
+               AND d.status = 'active'
+               AND d.deleted_at IS NULL
+             ORDER BY d.review_by_date ASC"
+        )->fetchAll();
+    }
+
+    public function markReviewReminderSent(int $documentId): void
+    {
+        $stmt = $this->pdo()->prepare(
+            'UPDATE documents SET review_reminder_sent_at = CURRENT_TIMESTAMP WHERE id = :id'
+        );
+        $stmt->execute(['id' => $documentId]);
+    }
+
+    public function markDocumentReviewed(int $documentId, int $reviewedBy): void
+    {
+        $stmt = $this->pdo()->prepare(
+            'UPDATE documents 
+             SET last_reviewed_at = CURRENT_TIMESTAMP, 
+                 last_reviewed_by = :reviewed_by,
+                 review_reminder_sent_at = NULL
+             WHERE id = :id'
+        );
+        $stmt->execute(['reviewed_by' => $reviewedBy, 'id' => $documentId]);
+    }
+
+    public function updateReviewDate(int $documentId, string $reviewDate): void
+    {
+        $stmt = $this->pdo()->prepare(
+            'UPDATE documents SET review_by_date = :review_date, review_reminder_sent_at = NULL WHERE id = :id'
+        );
+        $stmt->execute(['review_date' => $reviewDate, 'id' => $documentId]);
+    }
+
+    // ===================== CHECK-OUT/LOCK FUNCTIONALITY =====================
+
+    public function checkOutDocument(int $documentId, int $userId, ?string $notes = null): void
+    {
+        $stmt = $this->pdo()->prepare(
+            'UPDATE documents 
+             SET checked_out_by = :user_id, 
+                 checked_out_at = CURRENT_TIMESTAMP,
+                 checked_out_notes = :notes
+             WHERE id = :id'
+        );
+        $stmt->execute(['user_id' => $userId, 'notes' => $notes, 'id' => $documentId]);
+    }
+
+    public function checkInDocument(int $documentId): void
+    {
+        $stmt = $this->pdo()->prepare(
+            'UPDATE documents 
+             SET checked_out_by = NULL, 
+                 checked_out_at = NULL,
+                 checked_out_notes = NULL
+             WHERE id = :id'
+        );
+        $stmt->execute(['id' => $documentId]);
+    }
+
+    public function getCheckedOutDocuments(): array
+    {
+        return $this->pdo()->query(
+            "SELECT d.*, u.full_name AS checked_out_by_name, 
+                    d.checked_out_at, d.checked_out_notes
+             FROM documents d
+             JOIN users u ON u.id = d.checked_out_by
+             WHERE d.checked_out_by IS NOT NULL
+               AND d.deleted_at IS NULL
+             ORDER BY d.checked_out_at ASC"
+        )->fetchAll();
+    }
+
+    // ===================== OCR PROCESSING =====================
+
+    public function markOcrProcessed(int $versionId, float $confidence): void
+    {
+        $stmt = $this->pdo()->prepare(
+            'UPDATE document_versions 
+             SET ocr_processed = 1, 
+                 ocr_processed_at = CURRENT_TIMESTAMP,
+                 ocr_confidence = :confidence
+             WHERE id = :id'
+        );
+        $stmt->execute(['confidence' => $confidence, 'id' => $versionId]);
+    }
+
+    public function getVersionsNeedingOcr(): array
+    {
+        return $this->pdo()->query(
+            "SELECT dv.*, d.title AS document_title
+             FROM document_versions dv
+             JOIN documents d ON d.id = dv.document_id
+             WHERE dv.ocr_processed = 0
+               AND d.deleted_at IS NULL
+             ORDER BY dv.uploaded_at ASC
+             LIMIT 100"
+        )->fetchAll();
+    }
+
+    // ===================== BULK UPLOAD TRACKING =====================
+
+    public function createBulkUpload(array $data): int
+    {
+        $stmt = $this->pdo()->prepare(
+            'INSERT INTO bulk_uploads (uploaded_by, module, file_count, status)
+             VALUES (:uploaded_by, :module, :file_count, :status)'
+        );
+        $stmt->execute([
+            'uploaded_by' => $data['uploaded_by'],
+            'module' => $data['module'],
+            'file_count' => $data['file_count'],
+            'status' => $data['status'] ?? 'processing',
+        ]);
+
+        return (int) $this->pdo()->lastInsertId();
+    }
+
+    public function updateBulkUploadStatus(int $uploadId, string $status, ?string $errorMessage = null): void
+    {
+        $sql = 'UPDATE bulk_uploads SET status = :status';
+        $params = ['status' => $status, 'id' => $uploadId];
+
+        if ($status === 'completed' || $status === 'failed') {
+            $sql .= ', completed_at = CURRENT_TIMESTAMP';
+        }
+
+        if ($errorMessage) {
+            $sql .= ', error_message = :error_message';
+            $params['error_message'] = $errorMessage;
+        }
+
+        $sql .= ' WHERE id = :id';
+        $stmt = $this->pdo()->prepare($sql);
+        $stmt->execute($params);
+    }
+
+    public function getBulkUploads(int $userId): array
+    {
+        $stmt = $this->pdo()->prepare(
+            'SELECT * FROM bulk_uploads WHERE uploaded_by = :user_id ORDER BY created_at DESC LIMIT 50'
+        );
+        $stmt->execute(['user_id' => $userId]);
+
+        return $stmt->fetchAll();
+    }
+
+    // ===================== E-SIGNATURE REQUESTS =====================
+
+    public function createSignatureRequest(array $data): int
+    {
+        $stmt = $this->pdo()->prepare(
+            'INSERT INTO document_signature_requests 
+             (document_id, requested_by, signer_email, signer_name, message, token, expires_at)
+             VALUES (:document_id, :requested_by, :signer_email, :signer_name, :message, :token, :expires_at)'
+        );
+        $stmt->execute([
+            'document_id' => $data['document_id'],
+            'requested_by' => $data['requested_by'],
+            'signer_email' => $data['signer_email'],
+            'signer_name' => $data['signer_name'],
+            'message' => $data['message'] ?? null,
+            'token' => $data['token'],
+            'expires_at' => $data['expires_at'],
+        ]);
+
+        return (int) $this->pdo()->lastInsertId();
+    }
+
+    public function findSignatureRequestByToken(string $token): ?array
+    {
+        $stmt = $this->pdo()->prepare(
+            'SELECT dsr.*, d.title AS document_title 
+             FROM document_signature_requests dsr
+             JOIN documents d ON d.id = dsr.document_id
+             WHERE dsr.token = :token'
+        );
+        $stmt->execute(['token' => $token]);
+        $row = $stmt->fetch();
+
+        return $row ?: null;
+    }
+
+    public function markSignatureSigned(int $requestId, string $signaturePath, string $ipAddress): void
+    {
+        $stmt = $this->pdo()->prepare(
+            'UPDATE document_signature_requests 
+             SET status = :status,
+                 signed_at = CURRENT_TIMESTAMP,
+                 signature_path = :signature_path,
+                 signature_ip = :ip_address
+             WHERE id = :id'
+        );
+        $stmt->execute([
+            'status' => 'signed',
+            'signature_path' => $signaturePath,
+            'ip_address' => $ipAddress,
+            'id' => $requestId,
+        ]);
+    }
+
+    public function markSignatureDeclined(int $requestId): void
+    {
+        $stmt = $this->pdo()->prepare(
+            'UPDATE document_signature_requests SET status = :status WHERE id = :id'
+        );
+        $stmt->execute(['status' => 'declined', 'id' => $requestId]);
+    }
+
+    public function getDocumentSignatureRequests(int $documentId): array
+    {
+        $stmt = $this->pdo()->prepare(
+            'SELECT * FROM document_signature_requests WHERE document_id = :document_id ORDER BY created_at DESC'
+        );
+        $stmt->execute(['document_id' => $documentId]);
+
+        return $stmt->fetchAll();
+    }
+
+    public function expirePendingSignatureRequests(): int
+    {
+        $stmt = $this->pdo()->prepare(
+            "UPDATE document_signature_requests 
+             SET status = 'expired' 
+             WHERE status = 'pending' AND expires_at < CURRENT_TIMESTAMP"
+        );
+        $stmt->execute();
+
+        return $stmt->rowCount();
+    }
 }
