@@ -29,9 +29,14 @@ class LoginController extends Controller
         ]);
 
         $throttleKey = \Illuminate\Support\Str::lower($request->input('email')).'|'.$request->ip();
-        if (\Illuminate\Support\Facades\RateLimiter::tooManyAttempts($throttleKey, 5)) {
-            $seconds = \Illuminate\Support\Facades\RateLimiter::availableIn($throttleKey);
-            return back()->with('flash_error', "Too many login attempts. Please try again in {$seconds} seconds.")->onlyInput('email', 'remember');
+        try {
+            if (\Illuminate\Support\Facades\RateLimiter::tooManyAttempts($throttleKey, 5)) {
+                $seconds = \Illuminate\Support\Facades\RateLimiter::availableIn($throttleKey);
+                return back()->with('flash_error', "Too many login attempts. Please try again in {$seconds} seconds.")->onlyInput('email', 'remember');
+            }
+        } catch (\Throwable $e) {
+            // Cache store/table may be missing on fresh clones — do not block login.
+            report($e);
         }
 
         $remember = $request->boolean('remember');
@@ -40,11 +45,19 @@ class LoginController extends Controller
         $user = User::with('role.permissions')->where('email', $credentials['email'])->first();
 
         if (! $user || ! $user->isActive() || ! Auth::validate(['email' => $credentials['email'], 'password' => $credentials['password']])) {
-            \Illuminate\Support\Facades\RateLimiter::hit($throttleKey, 300);
+            try {
+                \Illuminate\Support\Facades\RateLimiter::hit($throttleKey, 300);
+            } catch (\Throwable $e) {
+                report($e);
+            }
             return back()->with('flash_error', 'Invalid email or password.')->onlyInput('email', 'remember');
         }
 
-        \Illuminate\Support\Facades\RateLimiter::clear($throttleKey);
+        try {
+            \Illuminate\Support\Facades\RateLimiter::clear($throttleKey);
+        } catch (\Throwable $e) {
+            report($e);
+        }
 
         if ($user->two_factor_enabled && !empty($user->two_factor_secret)) {
             $request->session()->put('2fa:user:id', $user->id);

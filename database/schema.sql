@@ -87,6 +87,20 @@ CREATE TABLE IF NOT EXISTS sessions (
     INDEX sessions_last_activity_index (last_activity)
 );
 
+CREATE TABLE IF NOT EXISTS cache (
+    `key` VARCHAR(255) NOT NULL PRIMARY KEY,
+    value MEDIUMTEXT NOT NULL,
+    expiration INT NOT NULL,
+    INDEX cache_expiration_index (expiration)
+);
+
+CREATE TABLE IF NOT EXISTS cache_locks (
+    `key` VARCHAR(255) NOT NULL PRIMARY KEY,
+    owner VARCHAR(255) NOT NULL,
+    expiration INT NOT NULL,
+    INDEX cache_locks_expiration_index (expiration)
+);
+
 CREATE TABLE IF NOT EXISTS audit_logs (
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     user_id INT UNSIGNED NULL,
