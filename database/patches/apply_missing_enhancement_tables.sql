@@ -60,8 +60,8 @@ CREATE TABLE IF NOT EXISTS legal_case_counsel_conflicts (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS contract_obligations (
-    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    contract_id INT UNSIGNED NOT NULL,
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    contract_id BIGINT UNSIGNED NOT NULL,
     title VARCHAR(255) NOT NULL,
     description TEXT NULL,
     responsible_party VARCHAR(255) NULL,
@@ -76,8 +76,8 @@ CREATE TABLE IF NOT EXISTS contract_obligations (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS contract_vendor_scores (
-    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    contract_id INT UNSIGNED NOT NULL,
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    contract_id BIGINT UNSIGNED NOT NULL,
     quality_score TINYINT UNSIGNED NOT NULL,
     timeliness_score TINYINT UNSIGNED NOT NULL,
     communication_score TINYINT UNSIGNED NOT NULL,

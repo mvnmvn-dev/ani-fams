@@ -292,15 +292,19 @@ class RetentionRepository
             $ownerId = $stmt->fetchColumn();
 
             if ($ownerId) {
-                $stmt = $this->pdo()->prepare(
-                    'INSERT INTO legal_hold_notifications (legal_hold_id, user_id, notification_type)
-                     VALUES (:hold_id, :user_id, :type)'
-                );
-                $stmt->execute([
-                    'hold_id' => $holdId,
-                    'user_id' => $ownerId,
-                    'type' => 'placed',
-                ]);
+                try {
+                    $stmt = $this->pdo()->prepare(
+                        'INSERT INTO legal_hold_notifications (legal_hold_id, user_id, notification_type)
+                         VALUES (:hold_id, :user_id, :type)'
+                    );
+                    $stmt->execute([
+                        'hold_id' => $holdId,
+                        'user_id' => $ownerId,
+                        'type' => 'placed',
+                    ]);
+                } catch (\Throwable $e) {
+                    report($e);
+                }
 
                 // Also insert into the global notifications table
                 $stmtGlobal = $this->pdo()->prepare(
@@ -330,15 +334,19 @@ class RetentionRepository
         $ownerIds = $stmt->fetchAll(PDO::FETCH_COLUMN);
 
         foreach ($ownerIds as $ownerId) {
-            $stmt = $this->pdo()->prepare(
-                'INSERT INTO legal_hold_notifications (legal_hold_id, user_id, notification_type)
-                 VALUES (:hold_id, :user_id, :type)'
-            );
-            $stmt->execute([
-                'hold_id' => $holdId,
-                'user_id' => $ownerId,
-                'type' => 'released',
-            ]);
+            try {
+                $stmt = $this->pdo()->prepare(
+                    'INSERT INTO legal_hold_notifications (legal_hold_id, user_id, notification_type)
+                     VALUES (:hold_id, :user_id, :type)'
+                );
+                $stmt->execute([
+                    'hold_id' => $holdId,
+                    'user_id' => $ownerId,
+                    'type' => 'released',
+                ]);
+            } catch (\Throwable $e) {
+                report($e);
+            }
 
             // Also insert into the global notifications table
             $stmtGlobal = $this->pdo()->prepare(
@@ -357,25 +365,33 @@ class RetentionRepository
 
     public function getUnreadHoldNotifications(int $userId): array
     {
-        $stmt = $this->pdo()->prepare(
-            "SELECT lhn.*, lh.reason, lh.placed_at, lh.released_at
-             FROM legal_hold_notifications lhn
-             JOIN legal_holds lh ON lh.id = lhn.legal_hold_id
-             WHERE lhn.user_id = :user_id
-               AND lhn.read_at IS NULL
-             ORDER BY lhn.notified_at DESC"
-        );
-        $stmt->execute(['user_id' => $userId]);
+        try {
+            $stmt = $this->pdo()->prepare(
+                "SELECT lhn.*, lh.reason, lh.placed_at, lh.released_at
+                 FROM legal_hold_notifications lhn
+                 JOIN legal_holds lh ON lh.id = lhn.legal_hold_id
+                 WHERE lhn.user_id = :user_id
+                   AND lhn.read_at IS NULL
+                 ORDER BY lhn.notified_at DESC"
+            );
+            $stmt->execute(['user_id' => $userId]);
 
-        return $stmt->fetchAll();
+            return $stmt->fetchAll();
+        } catch (\Throwable $e) {
+            return [];
+        }
     }
 
     public function markHoldNotificationRead(int $notificationId): void
     {
-        $stmt = $this->pdo()->prepare(
-            'UPDATE legal_hold_notifications SET read_at = CURRENT_TIMESTAMP WHERE id = :id'
-        );
-        $stmt->execute(['id' => $notificationId]);
+        try {
+            $stmt = $this->pdo()->prepare(
+                'UPDATE legal_hold_notifications SET read_at = CURRENT_TIMESTAMP WHERE id = :id'
+            );
+            $stmt->execute(['id' => $notificationId]);
+        } catch (\Throwable $e) {
+            // Table may be missing on older DB clones.
+        }
     }
 
     // ===================== POLICY TEMPLATES =====================

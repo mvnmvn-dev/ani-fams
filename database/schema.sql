@@ -1,23 +1,28 @@
 -- =========================================================
 -- FAMS — Facilities & Administrative Management System
--- Full schema + RBAC seed (Admin / Staff / Employee)
+-- COMPLETE schema + RBAC seed (Admin / Staff / Employee)
 -- Engine: MySQL / MariaDB
 --
+-- This is the single source of truth for a clean install.
+-- Import THIS file only — patches are for upgrading older DBs.
+--
 -- CLEAN REIMPORT (phpMyAdmin or CLI):
---   1. Drop the old database (optional but recommended):
---        DROP DATABASE IF EXISTS facilities_admin_db;
---   2. Import THIS file only (do not run patches afterward):
---        database/schema.sql
---   3. Default logins (password for all: password)
+--   1. DROP DATABASE IF EXISTS facilities_admin_db;
+--   2. Import: database/schema.sql
+--   3. Default logins (password for all: Password123!):
 --        admin@facilitiesadmin.local
 --        staff@facilitiesadmin.local
 --        employee@facilitiesadmin.local
 --
--- Includes: reservations (recurring/maintenance/equipment),
--- visitors, documents (content_text search), retention, legal
--- (budget/vendors/milestones), contracts (templates/chains/
--- e-sign signature_path), notifications, attachments, sessions,
--- password reset, queue tables.
+-- Includes ALL modules + enhancements:
+--   core (users/2FA, sessions, cache, audit, notifications)
+--   reservations (recurring, equipment, waitlist, cost, feedback)
+--   visitors (watchlist detail, vehicles, NDA e-sign)
+--   documents (OCR, review/checkout, bulk upload, signature requests)
+--   retention (templates, hold notifications, disposal certificates)
+--   legal (deadlines, outcomes, conflicts, vendors, budget)
+--   contracts (templates, chains, e-sign, obligations, vendor scores)
+--   queue jobs
 -- =========================================================
 
 CREATE DATABASE IF NOT EXISTS facilities_admin_db;
@@ -59,6 +64,8 @@ CREATE TABLE IF NOT EXISTS users (
     full_name VARCHAR(150) NOT NULL,
     email VARCHAR(150) NOT NULL UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
+    two_factor_secret TEXT NULL,
+    two_factor_enabled TINYINT(1) DEFAULT 0,
     role_id INT UNSIGNED NOT NULL,            -- one primary role per user (admin/staff/employee)
     status ENUM('active','inactive','suspended') DEFAULT 'active',
     photo_path VARCHAR(500) NULL,
@@ -266,11 +273,30 @@ CREATE TABLE IF NOT EXISTS reservations (
     recurrence_until DATE NULL,
     is_maintenance TINYINT(1) DEFAULT 0,
     reminder_sent_at DATETIME NULL,
+    -- Cost / chargeback
+    cost_amount DECIMAL(10,2) NULL,
+    cost_currency VARCHAR(10) DEFAULT 'PHP',
+    chargeback_department_id INT UNSIGNED NULL,
+    cost_note VARCHAR(255) NULL,
+    -- No-show / cancellation
+    no_show BOOLEAN DEFAULT FALSE,
+    no_show_reported_by INT UNSIGNED NULL,
+    no_show_reported_at DATETIME NULL,
+    cancellation_reason VARCHAR(255) NULL,
+    cancelled_by INT UNSIGNED NULL,
+    cancelled_at DATETIME NULL,
+    -- Feedback
+    feedback_rating INT UNSIGNED NULL,
+    feedback_comment TEXT NULL,
+    feedback_submitted_at DATETIME NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     deleted_at DATETIME NULL,
     FOREIGN KEY (facility_id) REFERENCES facilities(id) ON DELETE CASCADE,
     FOREIGN KEY (requested_by) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (approved_by) REFERENCES users(id) ON DELETE SET NULL,
+    FOREIGN KEY (chargeback_department_id) REFERENCES departments(id) ON DELETE SET NULL,
+    FOREIGN KEY (no_show_reported_by) REFERENCES users(id) ON DELETE SET NULL,
+    FOREIGN KEY (cancelled_by) REFERENCES users(id) ON DELETE SET NULL,
     INDEX idx_facility_time (facility_id, start_datetime, end_datetime),
     INDEX idx_series (series_id)
 );
@@ -292,6 +318,25 @@ CREATE TABLE IF NOT EXISTS reservation_equipment (
     PRIMARY KEY (reservation_id, equipment_id),
     FOREIGN KEY (reservation_id) REFERENCES reservations(id) ON DELETE CASCADE,
     FOREIGN KEY (equipment_id) REFERENCES equipment_items(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS reservation_waitlist (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    facility_id INT UNSIGNED NOT NULL,
+    requested_by INT UNSIGNED NOT NULL,
+    purpose VARCHAR(255) NOT NULL,
+    preferred_start_datetime DATETIME NOT NULL,
+    preferred_end_datetime DATETIME NOT NULL,
+    status ENUM('pending','offered','declined','expired') DEFAULT 'pending',
+    offered_reservation_id BIGINT UNSIGNED NULL,
+    notes TEXT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (facility_id) REFERENCES facilities(id) ON DELETE CASCADE,
+    FOREIGN KEY (requested_by) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (offered_reservation_id) REFERENCES reservations(id) ON DELETE SET NULL,
+    INDEX idx_facility_status (facility_id, status),
+    INDEX idx_requested_by (requested_by)
 );
 
 INSERT INTO facilities (name, type, location, capacity, status) VALUES
@@ -344,8 +389,13 @@ CREATE TABLE IF NOT EXISTS visitors (
     phone VARCHAR(30) NULL,
     photo_path VARCHAR(500) NULL,
     is_watchlisted BOOLEAN DEFAULT FALSE,
+    watchlist_reason VARCHAR(255) NULL,
+    watchlist_expiry_date DATE NULL,
+    watchlist_added_by INT UNSIGNED NULL,
+    watchlist_added_at DATETIME NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    deleted_at DATETIME NULL
+    deleted_at DATETIME NULL,
+    FOREIGN KEY (watchlist_added_by) REFERENCES users(id) ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS visits (
@@ -359,9 +409,30 @@ CREATE TABLE IF NOT EXISTS visits (
     badge_code VARCHAR(50) NULL,
     status ENUM('scheduled','checked_in','checked_out','no_show','denied') DEFAULT 'scheduled',
     notes TEXT NULL,
+    nda_required BOOLEAN DEFAULT FALSE,
+    nda_signed BOOLEAN DEFAULT FALSE,
+    nda_signature_path VARCHAR(500) NULL,
+    nda_signed_at DATETIME NULL,
+    nda_ip_address VARCHAR(45) NULL,
     deleted_at DATETIME NULL,
     FOREIGN KEY (visitor_id) REFERENCES visitors(id) ON DELETE CASCADE,
     FOREIGN KEY (host_employee_id) REFERENCES employees(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS visitor_vehicles (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    visitor_id INT UNSIGNED NOT NULL,
+    visit_id BIGINT UNSIGNED NULL,
+    plate_number VARCHAR(50) NOT NULL,
+    vehicle_make VARCHAR(100) NULL,
+    vehicle_model VARCHAR(100) NULL,
+    vehicle_color VARCHAR(50) NULL,
+    notes VARCHAR(255) NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (visitor_id) REFERENCES visitors(id) ON DELETE CASCADE,
+    FOREIGN KEY (visit_id) REFERENCES visits(id) ON DELETE SET NULL,
+    INDEX idx_visitor_id (visitor_id),
+    INDEX idx_visit_id (visit_id)
 );
 
 CREATE TABLE IF NOT EXISTS visit_areas (
@@ -400,10 +471,19 @@ CREATE TABLE IF NOT EXISTS documents (
     owner_id INT UNSIGNED NOT NULL,
     confidentiality ENUM('public','internal','confidential','restricted') DEFAULT 'internal',
     status ENUM('draft','active','archived','disposed') DEFAULT 'active',
+    review_by_date DATE NULL,
+    review_reminder_sent_at DATETIME NULL,
+    last_reviewed_at DATETIME NULL,
+    last_reviewed_by INT UNSIGNED NULL,
+    checked_out_by INT UNSIGNED NULL,
+    checked_out_at DATETIME NULL,
+    checked_out_notes VARCHAR(255) NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     deleted_at DATETIME NULL,
     FOREIGN KEY (category_id) REFERENCES document_categories(id) ON DELETE SET NULL,
-    FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE
+    FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (last_reviewed_by) REFERENCES users(id) ON DELETE SET NULL,
+    FOREIGN KEY (checked_out_by) REFERENCES users(id) ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS document_versions (
@@ -413,6 +493,9 @@ CREATE TABLE IF NOT EXISTS document_versions (
     file_path VARCHAR(500) NOT NULL,
     checksum VARCHAR(64) NULL,
     content_text LONGTEXT NULL,
+    ocr_processed BOOLEAN DEFAULT FALSE,
+    ocr_processed_at DATETIME NULL,
+    ocr_confidence DECIMAL(5,2) NULL,
     uploaded_by INT UNSIGNED NOT NULL,
     uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     change_notes VARCHAR(255) NULL,
@@ -444,6 +527,38 @@ CREATE TABLE IF NOT EXISTS document_access (
     PRIMARY KEY (document_id, user_id, role_id),
     FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE
     -- Note: user_id/role_id are not FK-constrained so 0 can be used as a sentinel
+);
+
+CREATE TABLE IF NOT EXISTS bulk_uploads (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    uploaded_by INT UNSIGNED NOT NULL,
+    module VARCHAR(50) NOT NULL,
+    file_count INT UNSIGNED NOT NULL,
+    status ENUM('processing','completed','failed') DEFAULT 'processing',
+    error_message TEXT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    completed_at DATETIME NULL,
+    FOREIGN KEY (uploaded_by) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS document_signature_requests (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    document_id BIGINT UNSIGNED NOT NULL,
+    requested_by INT UNSIGNED NOT NULL,
+    signer_email VARCHAR(150) NOT NULL,
+    signer_name VARCHAR(150) NOT NULL,
+    message TEXT NULL,
+    token VARCHAR(64) NOT NULL UNIQUE,
+    status ENUM('pending','signed','declined','expired') DEFAULT 'pending',
+    signed_at DATETIME NULL,
+    signature_path VARCHAR(500) NULL,
+    signature_ip VARCHAR(45) NULL,
+    expires_at DATETIME NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE,
+    FOREIGN KEY (requested_by) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_token (token),
+    INDEX idx_document (document_id)
 );
 
 -- Seed document categories
@@ -488,6 +603,9 @@ CREATE TABLE IF NOT EXISTS legal_cases (
     external_counsel_name VARCHAR(255) NULL,
     risk_level ENUM('low','medium','high','critical') DEFAULT 'medium',
     budget_amount DECIMAL(14,2) NULL,
+    statute_of_limitations_date DATE NULL,
+    deadline_escalation_level ENUM('none','30_days','7_days','1_day','overdue') DEFAULT 'none',
+    deadline_last_notified_at DATETIME NULL,
     description TEXT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     deleted_at DATETIME NULL,
@@ -520,8 +638,34 @@ CREATE TABLE IF NOT EXISTS disposal_logs (
     performed_by INT UNSIGNED NOT NULL,
     performed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     certificate_path VARCHAR(500) NULL,
+    certificate_generated TINYINT(1) NOT NULL DEFAULT 0,
+    certificate_generated_at DATETIME NULL,
+    certificate_generated_by INT UNSIGNED NULL,
     FOREIGN KEY (retention_assignment_id) REFERENCES retention_assignments(id) ON DELETE CASCADE,
     FOREIGN KEY (performed_by) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS legal_hold_notifications (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    legal_hold_id INT UNSIGNED NOT NULL,
+    user_id INT UNSIGNED NOT NULL,
+    notified_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    notification_type ENUM('placed','released') DEFAULT 'placed',
+    read_at DATETIME NULL,
+    INDEX idx_legal_hold (legal_hold_id),
+    INDEX idx_user (user_id)
+);
+
+CREATE TABLE IF NOT EXISTS retention_policy_templates (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(150) NOT NULL,
+    regulation_code VARCHAR(50) NOT NULL,
+    description TEXT NULL,
+    retention_period_months INT UNSIGNED NOT NULL,
+    trigger_event ENUM('creation_date','last_activity','contract_end','fiscal_year_end') DEFAULT 'creation_date',
+    disposal_action ENUM('review','archive','destroy') DEFAULT 'review',
+    is_active TINYINT(1) NOT NULL DEFAULT 1,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Seed retention policies
@@ -529,6 +673,13 @@ INSERT INTO retention_policies (name, record_category, retention_period_months, 
 ('Standard HR Records - 5 Years', 'HR Files', 60, 'creation_date', 'destroy', 'National HR Regulations'),
 ('Tax Documents - 7 Years', 'Financial Invoices', 84, 'fiscal_year_end', 'review', 'Internal Revenue Service'),
 ('Active Contracts - 10 Years', 'Contracts', 120, 'contract_end', 'archive', 'Corporate Governance Policy')
+ON DUPLICATE KEY UPDATE name = name;
+
+INSERT INTO retention_policy_templates (name, regulation_code, description, retention_period_months, trigger_event, disposal_action) VALUES
+('BIR Tax Records - 7 Years', 'BIR', 'BIR Revenue Regulations No. 18-2012 - 7 year retention for tax documents', 84, 'fiscal_year_end', 'review'),
+('SEC Corporate Records - 10 Years', 'SEC', 'SEC requirements for corporate record retention', 120, 'creation_date', 'archive'),
+('Data Privacy Act - 3 Years', 'DPA', 'National Privacy Commission requirements for personal data', 36, 'last_activity', 'destroy'),
+('Labor Records - 3 Years', 'DOLE', 'Department of Labor and Employment requirements', 36, 'creation_date', 'review')
 ON DUPLICATE KEY UPDATE name = name;
 
 -- ===================== MODULE 5: LEGAL MANAGEMENT =====================
@@ -589,6 +740,86 @@ CREATE TABLE IF NOT EXISTS legal_case_vendors (
     PRIMARY KEY (case_id, vendor_id),
     FOREIGN KEY (case_id) REFERENCES legal_cases(id) ON DELETE CASCADE,
     FOREIGN KEY (vendor_id) REFERENCES legal_vendors(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS legal_case_deadlines (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    case_id INT UNSIGNED NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    due_date DATE NOT NULL,
+    description TEXT NULL,
+    is_completed TINYINT(1) DEFAULT 0,
+    created_at TIMESTAMP NULL DEFAULT NULL,
+    updated_at TIMESTAMP NULL DEFAULT NULL,
+    FOREIGN KEY (case_id) REFERENCES legal_cases(id) ON DELETE CASCADE,
+    INDEX (case_id)
+);
+
+CREATE TABLE IF NOT EXISTS legal_case_outcomes (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    case_id INT UNSIGNED NOT NULL,
+    outcome_type ENUM('won','lost','settled','dismissed','appealed','other') NOT NULL DEFAULT 'other',
+    outcome_date DATE NULL,
+    description TEXT NULL,
+    settlement_amount DECIMAL(14,2) NULL,
+    settlement_terms TEXT NULL,
+    settlement_date DATE NULL,
+    judgment_summary TEXT NULL,
+    awarded_amount DECIMAL(14,2) NULL,
+    is_appealed TINYINT(1) NOT NULL DEFAULT 0,
+    appeal_reason TEXT NULL,
+    appeal_deadline DATE NULL,
+    recorded_by INT UNSIGNED NULL,
+    created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMP NULL,
+    FOREIGN KEY (case_id) REFERENCES legal_cases(id) ON DELETE CASCADE,
+    FOREIGN KEY (recorded_by) REFERENCES users(id) ON DELETE SET NULL,
+    INDEX (case_id)
+);
+
+CREATE TABLE IF NOT EXISTS legal_case_party_conflicts (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    case_id INT UNSIGNED NOT NULL,
+    party_a_id INT UNSIGNED NOT NULL,
+    party_b_id INT UNSIGNED NOT NULL,
+    conflict_type ENUM('direct_conflict','prior_representation','family_relation','financial_interest','other') NOT NULL DEFAULT 'other',
+    description TEXT NULL,
+    severity ENUM('low','medium','high','critical') NOT NULL DEFAULT 'medium',
+    conflict_flagged TINYINT(1) NOT NULL DEFAULT 1,
+    flagged_by INT UNSIGNED NULL,
+    flagged_at TIMESTAMP NULL,
+    resolution_notes TEXT NULL,
+    resolution_status ENUM('pending','reviewed','waived','mitigated','unresolved') NOT NULL DEFAULT 'pending',
+    created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (case_id) REFERENCES legal_cases(id) ON DELETE CASCADE,
+    FOREIGN KEY (party_a_id) REFERENCES legal_case_parties(id) ON DELETE CASCADE,
+    FOREIGN KEY (party_b_id) REFERENCES legal_case_parties(id) ON DELETE CASCADE,
+    FOREIGN KEY (flagged_by) REFERENCES users(id) ON DELETE SET NULL,
+    UNIQUE KEY uniq_party_pair (case_id, party_a_id, party_b_id),
+    INDEX (case_id)
+);
+
+CREATE TABLE IF NOT EXISTS legal_case_counsel_conflicts (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    case_id INT UNSIGNED NOT NULL,
+    counsel_id INT UNSIGNED NULL,
+    external_party VARCHAR(255) NULL,
+    conflict_type ENUM('prior_representation','financial_interest','family_relation','business_relation','other') NOT NULL DEFAULT 'other',
+    description TEXT NULL,
+    severity ENUM('low','medium','high','critical') NOT NULL DEFAULT 'medium',
+    conflict_verified TINYINT(1) NOT NULL DEFAULT 0,
+    verified_by INT UNSIGNED NULL,
+    verified_at TIMESTAMP NULL,
+    mitigation_plan TEXT NULL,
+    status ENUM('under_review','confirmed','waived','resolved','dismissed') NOT NULL DEFAULT 'under_review',
+    created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (case_id) REFERENCES legal_cases(id) ON DELETE CASCADE,
+    FOREIGN KEY (counsel_id) REFERENCES employees(id) ON DELETE CASCADE,
+    FOREIGN KEY (verified_by) REFERENCES users(id) ON DELETE SET NULL,
+    INDEX (case_id)
 );
 
 -- ===================== MODULE 6: CONTRACT MANAGEMENT =====================
@@ -697,6 +928,43 @@ CREATE TABLE IF NOT EXISTS contract_amendments (
     FOREIGN KEY (contract_id) REFERENCES contracts(id) ON DELETE CASCADE,
     FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE SET NULL,
     FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS contract_obligations (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    contract_id BIGINT UNSIGNED NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    description TEXT NULL,
+    responsible_party VARCHAR(255) NULL,
+    due_date DATE NULL,
+    is_completed TINYINT(1) NOT NULL DEFAULT 0,
+    completed_at TIMESTAMP NULL,
+    completed_by INT UNSIGNED NULL,
+    created_by INT UNSIGNED NULL,
+    created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (contract_id) REFERENCES contracts(id) ON DELETE CASCADE,
+    FOREIGN KEY (completed_by) REFERENCES users(id) ON DELETE SET NULL,
+    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+    INDEX (contract_id)
+);
+
+CREATE TABLE IF NOT EXISTS contract_vendor_scores (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    contract_id BIGINT UNSIGNED NOT NULL,
+    quality_score TINYINT UNSIGNED NOT NULL,
+    timeliness_score TINYINT UNSIGNED NOT NULL,
+    communication_score TINYINT UNSIGNED NOT NULL,
+    value_score TINYINT UNSIGNED NOT NULL,
+    overall_score DECIMAL(4,2) NOT NULL,
+    notes TEXT NULL,
+    scored_at DATE NULL,
+    scored_by INT UNSIGNED NULL,
+    created_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (contract_id) REFERENCES contracts(id) ON DELETE CASCADE,
+    FOREIGN KEY (scored_by) REFERENCES users(id) ON DELETE SET NULL,
+    INDEX (contract_id)
 );
 
 -- Seed a starter contract template (optional demo content)
