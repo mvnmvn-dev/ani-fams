@@ -480,6 +480,20 @@ class RetentionRepository
 
     public function getUpcomingDisposals(int $daysAhead = 30): array
     {
+        $driver = $this->pdo()->getAttribute(PDO::ATTR_DRIVER_NAME);
+
+        if ($driver === 'pgsql') {
+            $stmt = $this->pdo()->prepare(
+                "SELECT ra.*, d.title AS document_title, d.document_number, u.full_name AS owner_name, rp.name AS policy_name
+                 FROM retention_assignments ra
+                 JOIN documents d ON d.id = ra.document_id
+                 JOIN users u ON u.id = d.owner_id
+                 JOIN retention_policies rp ON rp.id = ra.policy_id
+                 WHERE ra.calculated_disposal_date BETWEEN CURRENT_DATE AND (CURRENT_DATE + (:days || ' days')::interval)
+                   AND ra.status = 'active'
+                 ORDER BY ra.calculated_disposal_date ASC"
+            );
+        } else {
         $stmt = $this->pdo()->prepare(
             "SELECT ra.*, d.title AS document_title, d.document_number, u.full_name AS owner_name, rp.name AS policy_name
              FROM retention_assignments ra
@@ -490,6 +504,7 @@ class RetentionRepository
                AND ra.status = 'active'
              ORDER BY ra.calculated_disposal_date ASC"
         );
+        }
         $stmt->execute(['days' => $daysAhead]);
 
         return $stmt->fetchAll();

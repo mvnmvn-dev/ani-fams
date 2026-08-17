@@ -115,6 +115,12 @@ class LegalCaseRepository
                 'INSERT OR IGNORE INTO legal_case_vendors (case_id, vendor_id, role_note)
                  VALUES (:case_id, :vendor_id, :role_note)'
             );
+        } elseif ($driver === 'pgsql') {
+            $stmt = $this->pdo()->prepare(
+                'INSERT INTO legal_case_vendors (case_id, vendor_id, role_note)
+                 VALUES (:case_id, :vendor_id, :role_note)
+                 ON CONFLICT (case_id, vendor_id) DO UPDATE SET role_note = EXCLUDED.role_note'
+            );
         } else {
             $stmt = $this->pdo()->prepare(
                 'INSERT INTO legal_case_vendors (case_id, vendor_id, role_note)
@@ -259,15 +265,29 @@ class LegalCaseRepository
 
     public function getUpcomingDeadlines(int $daysAhead = 30): array
     {
-        $stmt = $this->pdo()->prepare(
-            "SELECT d.*, lc.title AS case_title, lc.case_number, e.user_id AS counsel_user_id
-             FROM legal_case_deadlines d
-             JOIN legal_cases lc ON lc.id = d.case_id AND lc.deleted_at IS NULL
-             LEFT JOIN employees e ON e.id = lc.assigned_counsel_id
-             WHERE d.is_completed = 0
-               AND d.due_date BETWEEN CURRENT_DATE AND DATE_ADD(CURRENT_DATE, INTERVAL :days DAY)
-             ORDER BY d.due_date ASC"
-        );
+        $driver = $this->pdo()->getAttribute(PDO::ATTR_DRIVER_NAME);
+
+        if ($driver === 'pgsql') {
+            $stmt = $this->pdo()->prepare(
+                "SELECT d.*, lc.title AS case_title, lc.case_number, e.user_id AS counsel_user_id
+                 FROM legal_case_deadlines d
+                 JOIN legal_cases lc ON lc.id = d.case_id AND lc.deleted_at IS NULL
+                 LEFT JOIN employees e ON e.id = lc.assigned_counsel_id
+                 WHERE d.is_completed = 0
+                   AND d.due_date BETWEEN CURRENT_DATE AND (CURRENT_DATE + (:days || ' days')::interval)
+                 ORDER BY d.due_date ASC"
+            );
+        } else {
+            $stmt = $this->pdo()->prepare(
+                "SELECT d.*, lc.title AS case_title, lc.case_number, e.user_id AS counsel_user_id
+                 FROM legal_case_deadlines d
+                 JOIN legal_cases lc ON lc.id = d.case_id AND lc.deleted_at IS NULL
+                 LEFT JOIN employees e ON e.id = lc.assigned_counsel_id
+                 WHERE d.is_completed = 0
+                   AND d.due_date BETWEEN CURRENT_DATE AND DATE_ADD(CURRENT_DATE, INTERVAL :days DAY)
+                 ORDER BY d.due_date ASC"
+            );
+        }
         $stmt->execute(['days' => $daysAhead]);
         return $stmt->fetchAll();
     }
@@ -294,6 +314,12 @@ class LegalCaseRepository
         if ($driver === 'sqlite') {
             $stmt = $this->pdo()->prepare(
                 'INSERT OR IGNORE INTO legal_case_documents (case_id, document_id) VALUES (:caseId, :documentId)'
+            );
+        } elseif ($driver === 'pgsql') {
+            $stmt = $this->pdo()->prepare(
+                'INSERT INTO legal_case_documents (case_id, document_id)
+                 VALUES (:caseId, :documentId)
+                 ON CONFLICT (case_id, document_id) DO NOTHING'
             );
         } else {
             $stmt = $this->pdo()->prepare(

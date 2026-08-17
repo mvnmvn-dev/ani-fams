@@ -407,6 +407,12 @@ class ContractRepository
             $stmt = $this->pdo()->prepare(
                 'INSERT OR IGNORE INTO contract_documents (contract_id, document_id) VALUES (:contractId, :documentId)'
             );
+        } elseif ($driver === 'pgsql') {
+            $stmt = $this->pdo()->prepare(
+                'INSERT INTO contract_documents (contract_id, document_id)
+                 VALUES (:contractId, :documentId)
+                 ON CONFLICT (contract_id, document_id) DO NOTHING'
+            );
         } else {
             $stmt = $this->pdo()->prepare(
                 'INSERT INTO contract_documents (contract_id, document_id) VALUES (:contractId, :documentId)

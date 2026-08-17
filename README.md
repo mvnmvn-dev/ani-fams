@@ -5,45 +5,120 @@ Facilities & Administrative Management System, migrated from a custom PHP app to
 ## Requirements
 
 - PHP 8.2+ (XAMPP recommended)
-- MySQL / MariaDB
+- PostgreSQL
 - Composer
 - Apache with `mod_rewrite`
 
 ## Setup
 
-1. Import the schema if the database is empty:
+### 1. Install PostgreSQL
+
+Install PostgreSQL 15+ for Windows and note the `postgres` user password you set during install.
+
+Create the database:
 
 ```bash
-mysql -u root < database/schema.sql
+createdb -U postgres facilities_admin_db
 ```
 
-2. Copy env and set the app key (already done if you cloned this converted project):
+Or in pgAdmin: create database `facilities_admin_db`.
+
+### 2. Enable PHP PostgreSQL extensions (XAMPP)
+
+Edit `C:\xampp\php\php.ini` and uncomment:
+
+```
+extension=pdo_pgsql
+extension=pgsql
+```
+
+Restart Apache.
+
+Verify:
+
+```bash
+C:\xampp\php\php.exe -m | findstr pgsql
+```
+
+### 3. Import schema
+
+**Option A — one-command setup (recommended):**
+
+```powershell
+cd C:\xampp\htdocs\ani-fams
+.\setup-postgres.ps1
+```
+
+Use `-ForceRecreateDb` for a clean reimport, or `-PgPassword "your_password"` to skip the prompt.
+
+**Option B — manual:**
+
+```bash
+C:\xampp\php\php.exe database/convert_schema_to_postgres.php
+"C:\Program Files\PostgreSQL\16\bin\psql.exe" -U postgres -d facilities_admin_db -f database/schema.postgres.sql
+```
+
+Or double-click `database/apply_schema_postgres.bat` (edit paths inside if needed).
+
+### 4. Configure Laravel
 
 ```bash
 copy .env.example .env
-php artisan key:generate
+C:\xampp\php\php.exe artisan key:generate
 ```
 
-3. Point `.env` at MySQL:
+Set `.env`:
 
 ```
-APP_URL=http://localhost/verdmart/public
-DB_CONNECTION=mysql
+APP_URL=http://localhost/ani-fams/public
+DB_CONNECTION=pgsql
 DB_HOST=127.0.0.1
+DB_PORT=5432
 DB_DATABASE=facilities_admin_db
-DB_USERNAME=root
-DB_PASSWORD=
-SESSION_DRIVER=file
+DB_USERNAME=postgres
+DB_PASSWORD=your_postgres_password
+SESSION_DRIVER=database
+QUEUE_CONNECTION=sync
 ```
 
-4. Install dependencies (if needed):
+Clear config cache after changing `.env`:
+
+```bash
+C:\xampp\php\php.exe artisan config:clear
+```
+
+### 5. Install dependencies (if needed)
 
 ```bash
 composer install
 ```
 
-5. Open: [http://localhost/verdmart/public](http://localhost/verdmart/public)  
-   (root `.htaccess` also rewrites to `public/`)
+### 6. Open the app
+
+[http://localhost/ani-fams/public](http://localhost/ani-fams/public)
+
+## Testing
+
+Automated tests still use SQLite in-memory (`phpunit.xml`) and do not require PostgreSQL:
+
+```bash
+C:\xampp\php\php.exe artisan test
+```
+
+Manual smoke test against PostgreSQL:
+
+1. Log in as `admin@facilitiesadmin.local` / `Password123!`
+2. Open Dashboard, Reservations, Visitors, Documents, Legal, Contracts, Retention
+3. Create a reservation request as employee; approve it as staff/admin
+4. Confirm no errors in `storage/logs/laravel.log`
+
+Quick DB connectivity check:
+
+```bash
+C:\xampp\php\php.exe artisan tinker --execute="echo DB::connection()->getDriverName();"
+```
+
+Expected output: `pgsql`
 
 ## Demo accounts
 

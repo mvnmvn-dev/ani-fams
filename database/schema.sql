@@ -1,10 +1,10 @@
 -- =========================================================
 -- FAMS — Facilities & Administrative Management System
 -- COMPLETE schema + RBAC seed (Admin / Staff / Employee)
--- Engine: MySQL / MariaDB
+-- Engine: MySQL / MariaDB (source file)
 --
--- This is the single source of truth for a clean install.
--- Import THIS file only — patches are for upgrading older DBs.
+-- PostgreSQL installs: run `php database/convert_schema_to_postgres.php`
+-- and import `database/schema.postgres.sql` instead of this file.
 --
 -- CLEAN REIMPORT (phpMyAdmin or CLI):
 --   1. DROP DATABASE IF EXISTS facilities_admin_db;

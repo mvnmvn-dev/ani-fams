@@ -252,6 +252,12 @@ class DocumentRepository
             $stmt = $this->pdo()->prepare(
                 'INSERT OR IGNORE INTO document_tag_map (document_id, tag_id) VALUES (:docId, :tagId)'
             );
+        } elseif ($driver === 'pgsql') {
+            $stmt = $this->pdo()->prepare(
+                'INSERT INTO document_tag_map (document_id, tag_id)
+                 VALUES (:docId, :tagId)
+                 ON CONFLICT (document_id, tag_id) DO NOTHING'
+            );
         } else {
             $stmt = $this->pdo()->prepare(
                 'INSERT INTO document_tag_map (document_id, tag_id) VALUES (:docId, :tagId)
@@ -295,6 +301,19 @@ class DocumentRepository
                     'level' => $accessLevel,
                 ]);
             }
+        } elseif ($driver === 'pgsql') {
+            $stmt = $this->pdo()->prepare(
+                'INSERT INTO document_access (document_id, user_id, role_id, access_level)
+                 VALUES (:docId, :userId, :roleId, :level)
+                 ON CONFLICT (document_id, user_id, role_id) DO UPDATE
+                 SET access_level = EXCLUDED.access_level'
+            );
+            $stmt->execute([
+                'docId' => $documentId,
+                'userId' => $userId ?: 0,
+                'roleId' => $roleId ?: 0,
+                'level' => $accessLevel,
+            ]);
         } else {
             $stmt = $this->pdo()->prepare(
                 'INSERT INTO document_access (document_id, user_id, role_id, access_level)

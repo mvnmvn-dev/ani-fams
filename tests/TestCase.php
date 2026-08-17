@@ -34,6 +34,13 @@ abstract class TestCase extends BaseTestCase
         // ENUM(...) -> TEXT
         $sql = preg_replace('/ENUM\s*\([^)]+\)/i', 'TEXT', $sql);
 
+        // UNIQUE KEY name (col1, col2) -> UNIQUE (col1, col2)
+        $sql = preg_replace(
+            '/^\s*UNIQUE\s+KEY\s+\w+\s*\(([^)]+)\)\s*,?\s*$/mi',
+            '    UNIQUE ($1),',
+            $sql
+        );
+
         // Remove UNSIGNED
         $sql = preg_replace('/\bUNSIGNED\b/i', '', $sql);
 
@@ -48,6 +55,11 @@ abstract class TestCase extends BaseTestCase
 
         // Remove inline INDEX definitions inside CREATE TABLE
         $sql = preg_replace('/,\s*INDEX\s+\w+\s*\([^)]+\)/i', '', $sql);
+        $sql = preg_replace('/,\s*INDEX\s*\([^)]+\)/i', '', $sql);
+        $sql = preg_replace('/^\s*INDEX\s*\([^)]+\)\s*,?\s*$/mi', '', $sql);
+
+        // Remove any trailing commas left behind by index removal.
+        $sql = preg_replace('/,\s*\n(\s*\))/m', "\n$1", $sql);
 
         // CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP -> CURRENT_TIMESTAMP
         $sql = preg_replace('/DEFAULT\s+CURRENT_TIMESTAMP\s+ON\s+UPDATE\s+CURRENT_TIMESTAMP/i', 'DEFAULT CURRENT_TIMESTAMP', $sql);

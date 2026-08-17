@@ -157,6 +157,13 @@ class ReservationRepository
                 'INSERT OR REPLACE INTO reservation_equipment (reservation_id, equipment_id, quantity)
                  VALUES (:rid, :eid, :qty)'
             );
+        } elseif ($driver === 'pgsql') {
+            $stmt = $this->pdo()->prepare(
+                'INSERT INTO reservation_equipment (reservation_id, equipment_id, quantity)
+                 VALUES (:rid, :eid, :qty)
+                 ON CONFLICT (reservation_id, equipment_id) DO UPDATE
+                 SET quantity = EXCLUDED.quantity'
+            );
         } else {
             $stmt = $this->pdo()->prepare(
                 'INSERT INTO reservation_equipment (reservation_id, equipment_id, quantity)
@@ -205,6 +212,22 @@ class ReservationRepository
         $driver = $this->pdo()->getAttribute(PDO::ATTR_DRIVER_NAME);
         if ($driver === 'sqlite') {
             return $this->utilizationAnalytics();
+        }
+
+        if ($driver === 'pgsql') {
+            return $this->pdo()->query(
+                "SELECT f.id, f.name,
+                        COUNT(r.id) AS booking_count,
+                        COALESCE(SUM(EXTRACT(EPOCH FROM (r.end_datetime - r.start_datetime))) / 3600.0, 0) AS hours_booked
+                 FROM facilities f
+                 LEFT JOIN reservations r ON r.facility_id = f.id
+                   AND r.deleted_at IS NULL
+                   AND r.status = 'approved'
+                   AND COALESCE(r.is_maintenance, 0) = 0
+                 WHERE f.status != 'retired'
+                 GROUP BY f.id, f.name
+                 ORDER BY booking_count DESC, f.name"
+            )->fetchAll();
         }
 
         return $this->pdo()->query(

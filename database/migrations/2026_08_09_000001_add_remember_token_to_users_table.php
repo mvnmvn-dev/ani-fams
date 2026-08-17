@@ -10,7 +10,7 @@ return new class extends Migration
     {
         if (! Schema::hasColumn('users', 'remember_token')) {
             Schema::table('users', function (Blueprint $table) {
-                $table->rememberToken()->after('photo_path');
+                $table->rememberToken();
             });
         }
     }
