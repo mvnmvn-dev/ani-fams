@@ -125,7 +125,7 @@ class VisitorRepository
             'is_watchlisted' => $this->boolParam(! empty($data['is_watchlisted'])),
         ]);
 
-        return (int) $this->pdo()->lastInsertId();
+        return $this->insertId('visitors');
     }
 
     public function updateVisitorPhoto(int $visitorId, string $photoPath): void
@@ -150,7 +150,7 @@ class VisitorRepository
             'notes' => $data['notes'] ?? null,
         ]);
 
-        return (int) $this->pdo()->lastInsertId();
+        return $this->insertId('visits');
     }
 
     public function addVisitAreaAccess(int $visitId, int $areaId): void
@@ -193,7 +193,7 @@ class VisitorRepository
     public function toggleWatchlist(int $visitorId, int $watchlist): void
     {
         $stmt = $this->pdo()->prepare('UPDATE visitors SET is_watchlisted = :wl WHERE id = :id');
-        $stmt->execute(['wl' => $watchlist, 'id' => $visitorId]);
+        $stmt->execute(['wl' => $this->boolParam((bool) $watchlist), 'id' => $visitorId]);
     }
 
     public function countOnSite(): int
@@ -269,7 +269,7 @@ class VisitorRepository
             'notes' => $data['notes'] ?? null,
         ]);
 
-        return (int) $this->pdo()->lastInsertId();
+        return $this->insertId('visitor_vehicles');
     }
 
     public function getVehiclesForVisitor(int $visitorId): array

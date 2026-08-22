@@ -71,7 +71,7 @@ class RetentionRepository
             'legal_basis' => $data['legal_basis'] ?? null,
         ]);
 
-        return (int) $this->pdo()->lastInsertId();
+        return $this->insertId('retention_policies');
     }
 
     public function assignPolicy(array $data): int
@@ -87,7 +87,7 @@ class RetentionRepository
             'disposal_date' => $data['calculated_disposal_date'],
         ]);
 
-        return (int) $this->pdo()->lastInsertId();
+        return $this->insertId('retention_assignments');
     }
 
     public function findAssignment(int $id): ?array
@@ -133,7 +133,7 @@ class RetentionRepository
             'certificate_path' => $data['certificate_path'] ?? null,
         ]);
 
-        return (int) $this->pdo()->lastInsertId();
+        return $this->insertId('disposal_logs');
     }
 
     public function createLegalHold(array $data): int
@@ -148,7 +148,7 @@ class RetentionRepository
             'placed_by' => $data['placed_by'],
         ]);
 
-        return (int) $this->pdo()->lastInsertId();
+        return $this->insertId('legal_holds');
     }
 
     public function addDocumentToHold(int $holdId, int $documentId): void
@@ -433,7 +433,7 @@ class RetentionRepository
             'legal_basis' => $template['description'],
         ]);
 
-        return (int) $this->pdo()->lastInsertId();
+        return $this->insertId('retention_policies');
     }
 
     // ===================== COMPLIANCE CALENDAR =====================

@@ -31,13 +31,19 @@ class CheckContractExpirations extends Command
     {
         $this->info('Checking for expiring contracts...');
 
-        // Find active contracts where today is (end_date - renewal_notice_days)
-        $expiringContracts = Contract::whereIn('status', ['active', 'renewed'])
-            ->whereNotNull('end_date')
-            ->where(DB::raw('DATEDIFF(end_date, CURRENT_DATE)'), '<=', DB::raw('renewal_notice_days'))
-            ->where(DB::raw('DATEDIFF(end_date, CURRENT_DATE)'), '>', 0)
-            ->with('owner')
-            ->get();
+        $driver = DB::connection()->getDriverName();
+        $query = Contract::whereIn('status', ['active', 'renewed'])
+            ->whereNotNull('end_date');
+
+        if ($driver === 'pgsql') {
+            $query->whereRaw('(end_date - CURRENT_DATE) <= renewal_notice_days')
+                ->whereRaw('(end_date - CURRENT_DATE) > 0');
+        } else {
+            $query->whereRaw('DATEDIFF(end_date, CURRENT_DATE) <= renewal_notice_days')
+                ->whereRaw('DATEDIFF(end_date, CURRENT_DATE) > 0');
+        }
+
+        $expiringContracts = $query->with('owner')->get();
 
         $count = 0;
         foreach ($expiringContracts as $contract) {

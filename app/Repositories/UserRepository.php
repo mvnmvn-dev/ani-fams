@@ -60,7 +60,7 @@ class UserRepository
             'department_id' => ! empty($data['department_id']) ? (int) $data['department_id'] : null,
         ]);
 
-        return (int) $this->pdo()->lastInsertId();
+        return $this->insertId('users');
     }
 
     public function softDelete(int $id): void

@@ -74,7 +74,7 @@ class LegalCaseRepository
             'description' => $data['description'] ?? null,
         ]);
 
-        return (int) $this->pdo()->lastInsertId();
+        return $this->insertId('legal_cases');
     }
 
     public function updateBudget(int $caseId, ?float $amount): void
@@ -104,7 +104,7 @@ class LegalCaseRepository
             'notes' => $data['notes'] ?? null,
         ]);
 
-        return (int) $this->pdo()->lastInsertId();
+        return $this->insertId('legal_vendors');
     }
 
     public function linkVendor(int $caseId, int $vendorId, ?string $roleNote = null): void
@@ -200,7 +200,7 @@ class LegalCaseRepository
             'contact_info' => $data['contact_info'] ?? null,
         ]);
 
-        return (int) $this->pdo()->lastInsertId();
+        return $this->insertId('legal_case_parties');
     }
 
     public function getMilestones(int $caseId): array
@@ -215,22 +215,23 @@ class LegalCaseRepository
     {
         $stmt = $this->pdo()->prepare(
             'INSERT INTO legal_case_milestones (case_id, milestone_type, milestone_date, description, is_completed)
-             VALUES (:case_id, :milestone_type, :milestone_date, :description, 0)'
+             VALUES (:case_id, :milestone_type, :milestone_date, :description, :is_completed)'
         );
         $stmt->execute([
             'case_id' => $data['case_id'],
             'milestone_type' => $data['milestone_type'],
             'milestone_date' => $data['milestone_date'],
             'description' => $data['description'] ?? null,
+            'is_completed' => $this->boolParam(false),
         ]);
 
-        return (int) $this->pdo()->lastInsertId();
+        return $this->insertId('legal_case_milestones');
     }
 
     public function toggleMilestone(int $milestoneId, int $isCompleted): void
     {
         $stmt = $this->pdo()->prepare('UPDATE legal_case_milestones SET is_completed = :status WHERE id = :id');
-        $stmt->execute(['status' => $isCompleted, 'id' => $milestoneId]);
+        $stmt->execute(['status' => $this->boolParam((bool) $isCompleted), 'id' => $milestoneId]);
     }
 
     public function getDeadlines(int $caseId): array
@@ -245,22 +246,23 @@ class LegalCaseRepository
     {
         $stmt = $this->pdo()->prepare(
             'INSERT INTO legal_case_deadlines (case_id, title, due_date, description, is_completed, created_at, updated_at)
-             VALUES (:case_id, :title, :due_date, :description, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)'
+             VALUES (:case_id, :title, :due_date, :description, :is_completed, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)'
         );
         $stmt->execute([
             'case_id' => $data['case_id'],
             'title' => $data['title'],
             'due_date' => $data['due_date'],
             'description' => $data['description'] ?? null,
+            'is_completed' => $this->boolParam(false),
         ]);
 
-        return (int) $this->pdo()->lastInsertId();
+        return $this->insertId('legal_case_deadlines');
     }
 
     public function toggleDeadline(int $deadlineId, int $isCompleted): void
     {
         $stmt = $this->pdo()->prepare('UPDATE legal_case_deadlines SET is_completed = :status, updated_at = CURRENT_TIMESTAMP WHERE id = :id');
-        $stmt->execute(['status' => $isCompleted, 'id' => $deadlineId]);
+        $stmt->execute(['status' => $this->boolParam((bool) $isCompleted), 'id' => $deadlineId]);
     }
 
     public function getUpcomingDeadlines(int $daysAhead = 30): array
@@ -351,7 +353,7 @@ class LegalCaseRepository
             'incurred_date' => $data['incurred_date'],
         ]);
 
-        return (int) $this->pdo()->lastInsertId();
+        return $this->insertId('legal_case_costs');
     }
 
     public function countActiveCases(): int
@@ -416,13 +418,13 @@ class LegalCaseRepository
             'settlement_date' => $data['settlement_date'] ?? null,
             'judgment_summary' => $data['judgment_summary'] ?? null,
             'awarded_amount' => $data['awarded_amount'] ?? null,
-            'is_appealed' => (int) ($data['is_appealed'] ?? false),
+            'is_appealed' => $this->boolParam((bool) ($data['is_appealed'] ?? false)),
             'appeal_reason' => $data['appeal_reason'] ?? null,
             'appeal_deadline' => $data['appeal_deadline'] ?? null,
             'recorded_by' => $data['recorded_by'] ?? null,
         ]);
 
-        return (int) $this->pdo()->lastInsertId();
+        return $this->insertId('legal_case_outcomes');
     }
 
     public function getOutcome(int $caseId): ?array
@@ -450,7 +452,7 @@ class LegalCaseRepository
         
         $sql = "UPDATE legal_cases SET " . implode(', ', $updates) . " WHERE id = :id";
         $stmt = $this->pdo()->prepare($sql);
-        $stmt->execute($bindings);
+        $stmt->execute($this->normalizeBindings($bindings));
     }
 
     // ==================== CONFLICT-OF-INTEREST TRACKING ====================
@@ -471,13 +473,13 @@ class LegalCaseRepository
             'conflict_type' => $data['conflict_type'],
             'description' => $data['description'] ?? null,
             'severity' => $data['severity'] ?? 'medium',
-            'conflict_flagged' => (int) ($data['conflict_flagged'] ?? true),
+            'conflict_flagged' => $this->boolParam((bool) ($data['conflict_flagged'] ?? true)),
             'flagged_by' => $data['flagged_by'] ?? null,
             'flagged_at' => $data['flagged_at'] ?? null,
             'resolution_status' => $data['resolution_status'] ?? 'pending',
         ]);
 
-        return (int) $this->pdo()->lastInsertId();
+        return $this->insertId('legal_case_party_conflicts');
     }
 
     public function updatePartyConflict(int $conflictId, array $data): void
@@ -497,7 +499,7 @@ class LegalCaseRepository
         
         $sql = "UPDATE legal_case_party_conflicts SET " . implode(', ', $updates) . " WHERE id = :id";
         $stmt = $this->pdo()->prepare($sql);
-        $stmt->execute($bindings);
+        $stmt->execute($this->normalizeBindings($bindings));
     }
 
     public function getPartyConflicts(int $caseId): array
@@ -534,11 +536,11 @@ class LegalCaseRepository
             'conflict_type' => $data['conflict_type'],
             'description' => $data['description'] ?? null,
             'severity' => $data['severity'] ?? 'medium',
-            'conflict_verified' => (int) ($data['conflict_verified'] ?? false),
+            'conflict_verified' => $this->boolParam((bool) ($data['conflict_verified'] ?? false)),
             'status' => $data['status'] ?? 'under_review',
         ]);
 
-        return (int) $this->pdo()->lastInsertId();
+        return $this->insertId('legal_case_counsel_conflicts');
     }
 
     public function updateCounselConflict(int $conflictId, array $data): void
@@ -558,7 +560,7 @@ class LegalCaseRepository
         
         $sql = "UPDATE legal_case_counsel_conflicts SET " . implode(', ', $updates) . " WHERE id = :id";
         $stmt = $this->pdo()->prepare($sql);
-        $stmt->execute($bindings);
+        $stmt->execute($this->normalizeBindings($bindings));
     }
 
     public function getCounselConflicts(int $caseId): array

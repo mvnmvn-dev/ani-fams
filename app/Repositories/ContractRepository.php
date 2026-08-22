@@ -98,7 +98,7 @@ class ContractRepository
             'related_case_id' => ! empty($data['related_case_id']) ? (int) $data['related_case_id'] : null,
         ]);
 
-        return (int) $this->pdo()->lastInsertId();
+        return $this->insertId('contracts');
     }
 
     public function allTemplates(): array
@@ -129,7 +129,7 @@ class ContractRepository
             'created_by' => ! empty($data['created_by']) ? (int) $data['created_by'] : null,
         ]);
 
-        return (int) $this->pdo()->lastInsertId();
+        return $this->insertId('contract_templates');
     }
 
     public function findTemplate(int $id): ?array
@@ -181,7 +181,7 @@ class ContractRepository
             'contract_type_id' => $typeId ?: null,
             'is_default' => $this->boolParam($isDefault),
         ]);
-        $chainId = (int) $this->pdo()->lastInsertId();
+        $chainId = $this->insertId('contract_approval_chains');
 
         $stepStmt = $this->pdo()->prepare(
             'INSERT INTO contract_approval_chain_steps (chain_id, approver_id, sequence_order)
@@ -382,7 +382,7 @@ class ContractRepository
             'created_by' => $data['created_by'],
         ]);
 
-        return (int) $this->pdo()->lastInsertId();
+        return $this->insertId('contract_amendments');
     }
 
     public function getDocuments(int $contractId): array
@@ -450,7 +450,7 @@ class ContractRepository
         $stmt = $this->pdo()->prepare(
             'INSERT INTO contract_obligations
              (contract_id, title, description, responsible_party, due_date, is_completed, created_by, created_at, updated_at)
-             VALUES (:contract_id, :title, :description, :responsible_party, :due_date, 0, :created_by, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)'
+             VALUES (:contract_id, :title, :description, :responsible_party, :due_date, :is_completed, :created_by, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)'
         );
         $stmt->execute([
             'contract_id' => $data['contract_id'],
@@ -458,10 +458,11 @@ class ContractRepository
             'description' => $data['description'] ?? null,
             'responsible_party' => $data['responsible_party'] ?? null,
             'due_date' => $data['due_date'] ?? null,
+            'is_completed' => $this->boolParam(false),
             'created_by' => $data['created_by'] ?? null,
         ]);
 
-        return (int) $this->pdo()->lastInsertId();
+        return $this->insertId('contract_obligations');
     }
 
     public function toggleObligation(int $obligationId, bool $completed, ?int $userId): void
@@ -521,7 +522,7 @@ class ContractRepository
             'scored_by' => $data['scored_by'] ?? null,
         ]);
 
-        return (int) $this->pdo()->lastInsertId();
+        return $this->insertId('contract_vendor_scores');
     }
 
     public function vendorScoreRollup(): array

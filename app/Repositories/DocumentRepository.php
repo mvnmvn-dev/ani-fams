@@ -119,7 +119,7 @@ class DocumentRepository
             'confidentiality' => $data['confidentiality'] ?? 'internal',
         ]);
 
-        return (int) $this->pdo()->lastInsertId();
+        return $this->insertId('documents');
     }
 
     public function createDocumentVersion(array $data): int
@@ -138,7 +138,7 @@ class DocumentRepository
             'change_notes' => $data['change_notes'] ?? null,
         ]);
 
-        return (int) $this->pdo()->lastInsertId();
+        return $this->insertId('document_versions');
     }
 
     public function searchContent(string $query, int $userId, int $roleId, bool $canManageAll): array
@@ -242,7 +242,7 @@ class DocumentRepository
         $stmt = $this->pdo()->prepare('INSERT INTO document_tags (name) VALUES (:name)');
         $stmt->execute(['name' => $name]);
 
-        return (int) $this->pdo()->lastInsertId();
+        return $this->insertId('document_tags');
     }
 
     public function addTagToDocument(int $documentId, int $tagId): void
@@ -482,7 +482,7 @@ class DocumentRepository
             'status' => $data['status'] ?? 'processing',
         ]);
 
-        return (int) $this->pdo()->lastInsertId();
+        return $this->insertId('bulk_uploads');
     }
 
     public function updateBulkUploadStatus(int $uploadId, string $status, ?string $errorMessage = null): void
@@ -533,7 +533,7 @@ class DocumentRepository
             'expires_at' => $data['expires_at'],
         ]);
 
-        return (int) $this->pdo()->lastInsertId();
+        return $this->insertId('document_signature_requests');
     }
 
     public function findSignatureRequestByToken(string $token): ?array

@@ -107,8 +107,7 @@ class ReservationRepository
              )"
         );
         $status = $data['status'] ?? 'pending';
-        $isMaintenance = $this->boolParam(! empty($data['is_maintenance']));
-        $stmt->execute([
+        $stmt->execute($this->normalizeBindings([
             'facility_id' => $data['facility_id'],
             'requested_by' => $data['requested_by'],
             'purpose' => $data['purpose'],
@@ -118,12 +117,12 @@ class ReservationRepository
             'series_id' => $data['series_id'] ?? null,
             'recurrence_rule' => $data['recurrence_rule'] ?? 'none',
             'recurrence_until' => $data['recurrence_until'] ?? null,
-            'is_maintenance' => $isMaintenance,
+            'is_maintenance' => ! empty($data['is_maintenance']),
             'approved_by' => $data['approved_by'] ?? null,
             'approved_at' => $data['approved_at'] ?? null,
-        ]);
+        ]));
 
-        return (int) $this->pdo()->lastInsertId();
+        return $this->insertId('reservations');
     }
 
     public function updateStatus(int $id, string $status, int $approverId): void
@@ -189,21 +188,7 @@ class ReservationRepository
 
     public function utilizationAnalytics(): array
     {
-        return $this->pdo()->query(
-            "SELECT f.id, f.name,
-                    COUNT(r.id) AS booking_count,
-                    COALESCE(SUM(
-                        (JULIANDAY(r.end_datetime) - JULIANDAY(r.start_datetime)) * 24
-                    ), 0) AS hours_booked
-             FROM facilities f
-             LEFT JOIN reservations r ON r.facility_id = f.id
-               AND r.deleted_at IS NULL
-               AND r.status = 'approved'
-               AND {$this->coalesceFalseCondition('r.is_maintenance')}
-             WHERE f.status != 'retired'
-             GROUP BY f.id, f.name
-             ORDER BY booking_count DESC, f.name"
-        )->fetchAll();
+        return $this->utilizationAnalyticsSafe();
     }
 
     /** MySQL-friendly hours calculation (also works roughly on SQLite via fallback). */
@@ -211,7 +196,21 @@ class ReservationRepository
     {
         $driver = $this->pdo()->getAttribute(PDO::ATTR_DRIVER_NAME);
         if ($driver === 'sqlite') {
-            return $this->utilizationAnalytics();
+            return $this->pdo()->query(
+                "SELECT f.id, f.name,
+                        COUNT(r.id) AS booking_count,
+                        COALESCE(SUM(
+                            (JULIANDAY(r.end_datetime) - JULIANDAY(r.start_datetime)) * 24
+                        ), 0) AS hours_booked
+                 FROM facilities f
+                 LEFT JOIN reservations r ON r.facility_id = f.id
+                   AND r.deleted_at IS NULL
+                   AND r.status = 'approved'
+                   AND {$this->coalesceFalseCondition('r.is_maintenance')}
+                 WHERE f.status != 'retired'
+                 GROUP BY f.id, f.name
+                 ORDER BY booking_count DESC, f.name"
+            )->fetchAll();
         }
 
         if ($driver === 'pgsql') {
@@ -301,7 +300,7 @@ class ReservationRepository
             'notes' => $data['notes'] ?? null,
         ]);
 
-        return (int) $this->pdo()->lastInsertId();
+        return $this->insertId('reservation_waitlist');
     }
 
     public function getWaitlistForFacility(int $facilityId): array
