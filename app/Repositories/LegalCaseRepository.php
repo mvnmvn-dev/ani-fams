@@ -273,7 +273,7 @@ class LegalCaseRepository
                  FROM legal_case_deadlines d
                  JOIN legal_cases lc ON lc.id = d.case_id AND lc.deleted_at IS NULL
                  LEFT JOIN employees e ON e.id = lc.assigned_counsel_id
-                 WHERE d.is_completed = 0
+                 WHERE {$this->isFalseCondition('d.is_completed')}
                    AND d.due_date BETWEEN CURRENT_DATE AND (CURRENT_DATE + (:days || ' days')::interval)
                  ORDER BY d.due_date ASC"
             );
@@ -283,7 +283,7 @@ class LegalCaseRepository
                  FROM legal_case_deadlines d
                  JOIN legal_cases lc ON lc.id = d.case_id AND lc.deleted_at IS NULL
                  LEFT JOIN employees e ON e.id = lc.assigned_counsel_id
-                 WHERE d.is_completed = 0
+                 WHERE {$this->isFalseCondition('d.is_completed')}
                    AND d.due_date BETWEEN CURRENT_DATE AND DATE_ADD(CURRENT_DATE, INTERVAL :days DAY)
                  ORDER BY d.due_date ASC"
             );
@@ -368,7 +368,7 @@ class LegalCaseRepository
              FROM legal_case_milestones m
              JOIN legal_cases lc ON lc.id = m.case_id AND lc.deleted_at IS NULL
              LEFT JOIN employees e ON e.id = lc.assigned_counsel_id
-             WHERE COALESCE(m.is_completed, 0) = 0
+             WHERE {$this->coalesceFalseCondition('m.is_completed')}
                AND m.reminder_sent_at IS NULL
                AND m.milestone_date <= :until
                AND m.milestone_date >= CURRENT_TIMESTAMP"

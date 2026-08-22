@@ -11,12 +11,7 @@ class RetentionRepository
 
     private function docsConcatSql(): string
     {
-        $driver = $this->pdo()->getAttribute(PDO::ATTR_DRIVER_NAME);
-        if ($driver === 'sqlite') {
-            return 'GROUP_CONCAT(d.title, \', \')';
-        }
-
-        return "GROUP_CONCAT(d.title SEPARATOR ', ')";
+        return $this->groupConcatSql('d.title');
     }
 
     public function allPolicies(): array
@@ -253,7 +248,7 @@ class RetentionRepository
     {
         $stmt = $this->pdo()->prepare(
             'UPDATE disposal_logs 
-             SET certificate_generated = 1, 
+             SET certificate_generated = '.$this->boolLiteral(true).', 
                  certificate_generated_at = CURRENT_TIMESTAMP,
                  certificate_generated_by = :generated_by
              WHERE id = :id'
@@ -269,7 +264,7 @@ class RetentionRepository
                  FROM disposal_logs dl
                  JOIN retention_assignments ra ON ra.id = dl.retention_assignment_id
                  JOIN documents d ON d.id = ra.document_id
-                 WHERE dl.certificate_generated = 0
+                 WHERE {$this->isFalseCondition('dl.certificate_generated')}
                  ORDER BY dl.performed_at DESC"
             );
             $stmt->execute();
@@ -399,7 +394,9 @@ class RetentionRepository
     public function allPolicyTemplates(): array
     {
         try {
-            return $this->pdo()->query('SELECT * FROM retention_policy_templates WHERE is_active = 1 ORDER BY name')->fetchAll();
+            return $this->pdo()->query(
+                'SELECT * FROM retention_policy_templates WHERE '.$this->isTrueCondition('is_active').' ORDER BY name'
+            )->fetchAll();
         } catch (\Throwable $e) {
             return [];
         }

@@ -11,12 +11,7 @@ class VisitorRepository
 
     private function areasConcatSql(): string
     {
-        $driver = $this->pdo()->getAttribute(PDO::ATTR_DRIVER_NAME);
-        if ($driver === 'sqlite') {
-            return "GROUP_CONCAT(va.name, ', ')";
-        }
-
-        return "GROUP_CONCAT(va.name SEPARATOR ', ')";
+        return $this->groupConcatSql('va.name');
     }
 
     public function allVisits(): array
@@ -81,7 +76,7 @@ class VisitorRepository
     /** Find an existing watchlisted visitor matching name, id number, or email. */
     public function findWatchlistedMatch(?string $fullName, ?string $idNumber, ?string $email, ?int $excludeId = null): ?array
     {
-        $clauses = ['is_watchlisted = 1', 'deleted_at IS NULL'];
+        $clauses = [$this->isTrueCondition('is_watchlisted'), 'deleted_at IS NULL'];
         $params = [];
 
         $or = [];
@@ -127,7 +122,7 @@ class VisitorRepository
             'email' => $data['email'] ?? null,
             'phone' => $data['phone'] ?? null,
             'photo_path' => $data['photo_path'] ?? null,
-            'is_watchlisted' => ! empty($data['is_watchlisted']) ? 1 : 0,
+            'is_watchlisted' => $this->boolParam(! empty($data['is_watchlisted'])),
         ]);
 
         return (int) $this->pdo()->lastInsertId();
@@ -222,7 +217,7 @@ class VisitorRepository
              WHERE id = :id'
         );
         $stmt->execute([
-            'wl' => $watchlist ? 1 : 0,
+            'wl' => $this->boolParam($watchlist),
             'reason' => $reason,
             'expiry_date' => $expiryDate,
             'added_by' => $addedBy,
@@ -234,7 +229,7 @@ class VisitorRepository
     {
         return $this->pdo()->query(
             "SELECT * FROM visitors 
-             WHERE is_watchlisted = 1 
+             WHERE {$this->isTrueCondition('is_watchlisted')} 
                AND watchlist_expiry_date IS NOT NULL 
                AND watchlist_expiry_date < CURRENT_DATE"
         )->fetchAll();
@@ -244,10 +239,10 @@ class VisitorRepository
     {
         $stmt = $this->pdo()->prepare(
             "UPDATE visitors 
-             SET is_watchlisted = 0, 
+             SET is_watchlisted = {$this->boolLiteral(false)}, 
                  watchlist_reason = NULL, 
                  watchlist_expiry_date = NULL
-             WHERE is_watchlisted = 1 
+             WHERE {$this->isTrueCondition('is_watchlisted')} 
                AND watchlist_expiry_date IS NOT NULL 
                AND watchlist_expiry_date < CURRENT_DATE"
         );
@@ -303,7 +298,7 @@ class VisitorRepository
     {
         $stmt = $this->pdo()->prepare(
             'UPDATE visits 
-             SET nda_signed = 1, 
+             SET nda_signed = '.$this->boolLiteral(true).', 
                  nda_signature_path = :signature_path, 
                  nda_signed_at = CURRENT_TIMESTAMP,
                  nda_ip_address = :ip_address
@@ -321,7 +316,7 @@ class VisitorRepository
         $stmt = $this->pdo()->prepare(
             'UPDATE visits SET nda_required = :required WHERE id = :id'
         );
-        $stmt->execute(['required' => $required ? 1 : 0, 'id' => $visitId]);
+        $stmt->execute(['required' => $this->boolParam($required), 'id' => $visitId]);
     }
 
     // ===================== EMERGENCY ROSTER =====================

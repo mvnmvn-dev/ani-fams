@@ -93,7 +93,7 @@ class ContractRepository
             'currency' => $data['currency'] ?? 'PHP',
             'start_date' => $data['start_date'],
             'end_date' => ! empty($data['end_date']) ? $data['end_date'] : null,
-            'auto_renew' => ! empty($data['auto_renew']) ? 1 : 0,
+            'auto_renew' => $this->boolParam(! empty($data['auto_renew'])),
             'renewal_notice_days' => ! empty($data['renewal_notice_days']) ? (int) $data['renewal_notice_days'] : 30,
             'related_case_id' => ! empty($data['related_case_id']) ? (int) $data['related_case_id'] : null,
         ]);
@@ -108,7 +108,7 @@ class ContractRepository
              FROM contract_templates t
              LEFT JOIN contract_types ct ON ct.id = t.contract_type_id
              LEFT JOIN users u ON u.id = t.created_by
-             WHERE t.is_active = 1
+             WHERE {$this->isTrueCondition('t.is_active')}
              ORDER BY t.name ASC"
         )->fetchAll();
     }
@@ -125,7 +125,7 @@ class ContractRepository
             'body_text' => $data['body_text'] ?? '',
             'default_value' => isset($data['default_value']) && $data['default_value'] !== '' && $data['default_value'] !== null
                 ? (float) $data['default_value'] : null,
-            'is_active' => isset($data['is_active']) ? ((int) (bool) $data['is_active']) : 1,
+            'is_active' => $this->boolParam(isset($data['is_active']) ? (bool) $data['is_active'] : true),
             'created_by' => ! empty($data['created_by']) ? (int) $data['created_by'] : null,
         ]);
 
@@ -167,7 +167,7 @@ class ContractRepository
     {
         if ($isDefault && $typeId) {
             $clear = $this->pdo()->prepare(
-                'UPDATE contract_approval_chains SET is_default = 0 WHERE contract_type_id = :typeId'
+                'UPDATE contract_approval_chains SET is_default = '.$this->boolLiteral(false).' WHERE contract_type_id = :typeId'
             );
             $clear->execute(['typeId' => $typeId]);
         }
@@ -179,7 +179,7 @@ class ContractRepository
         $stmt->execute([
             'name' => $name,
             'contract_type_id' => $typeId ?: null,
-            'is_default' => $isDefault ? 1 : 0,
+            'is_default' => $this->boolParam($isDefault),
         ]);
         $chainId = (int) $this->pdo()->lastInsertId();
 
@@ -220,9 +220,9 @@ class ContractRepository
     public function findDefaultChainForType(int $typeId): ?array
     {
         $stmt = $this->pdo()->prepare(
-            'SELECT * FROM contract_approval_chains
-             WHERE contract_type_id = :typeId AND is_default = 1
-             ORDER BY id DESC LIMIT 1'
+            "SELECT * FROM contract_approval_chains
+             WHERE contract_type_id = :typeId AND {$this->isTrueCondition('is_default')}
+             ORDER BY id DESC LIMIT 1"
         );
         $stmt->execute(['typeId' => $typeId]);
         $row = $stmt->fetch();
@@ -469,12 +469,12 @@ class ContractRepository
         $stmt = $this->pdo()->prepare(
             'UPDATE contract_obligations
              SET is_completed = :completed,
-                 completed_at = CASE WHEN :completed2 = 1 THEN CURRENT_TIMESTAMP ELSE NULL END,
-                 completed_by = CASE WHEN :completed3 = 1 THEN :userId ELSE NULL END,
+                 completed_at = '.$this->caseWhenParamTrue(':completed2', 'CURRENT_TIMESTAMP').',
+                 completed_by = '.$this->caseWhenParamTrue(':completed3', ':userId').',
                  updated_at = CURRENT_TIMESTAMP
              WHERE id = :id'
         );
-        $flag = $completed ? 1 : 0;
+        $flag = $this->boolParam($completed);
         $stmt->execute([
             'completed' => $flag,
             'completed2' => $flag,

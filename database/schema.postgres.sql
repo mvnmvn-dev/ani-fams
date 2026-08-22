@@ -597,7 +597,7 @@ CREATE TABLE IF NOT EXISTS disposal_logs (
     performed_by INTEGER NOT NULL,
     performed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     certificate_path VARCHAR(500) NULL,
-    certificate_generated BOOLEAN NOT NULL DEFAULT 0,
+    certificate_generated BOOLEAN NOT NULL DEFAULT FALSE,
     certificate_generated_at TIMESTAMP NULL,
     certificate_generated_by INTEGER NULL,
     FOREIGN KEY (retention_assignment_id) REFERENCES retention_assignments(id) ON DELETE CASCADE,
@@ -621,7 +621,7 @@ CREATE TABLE IF NOT EXISTS retention_policy_templates (
     retention_period_months INTEGER NOT NULL,
     trigger_event TEXT DEFAULT 'creation_date',
     disposal_action TEXT DEFAULT 'review',
-    is_active BOOLEAN NOT NULL DEFAULT 1,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -719,7 +719,7 @@ CREATE TABLE IF NOT EXISTS legal_case_outcomes (
     settlement_date DATE NULL,
     judgment_summary TEXT NULL,
     awarded_amount DECIMAL(14,2) NULL,
-    is_appealed BOOLEAN NOT NULL DEFAULT 0,
+    is_appealed BOOLEAN NOT NULL DEFAULT FALSE,
     appeal_reason TEXT NULL,
     appeal_deadline DATE NULL,
     recorded_by INTEGER NULL,
@@ -738,7 +738,7 @@ CREATE TABLE IF NOT EXISTS legal_case_party_conflicts (
     conflict_type TEXT NOT NULL DEFAULT 'other',
     description TEXT NULL,
     severity TEXT NOT NULL DEFAULT 'medium',
-    conflict_flagged BOOLEAN NOT NULL DEFAULT 1,
+    conflict_flagged BOOLEAN NOT NULL DEFAULT TRUE,
     flagged_by INTEGER NULL,
     flagged_at TIMESTAMP NULL,
     resolution_notes TEXT NULL,
@@ -749,7 +749,8 @@ CREATE TABLE IF NOT EXISTS legal_case_party_conflicts (
     FOREIGN KEY (party_a_id) REFERENCES legal_case_parties(id) ON DELETE CASCADE,
     FOREIGN KEY (party_b_id) REFERENCES legal_case_parties(id) ON DELETE CASCADE,
     FOREIGN KEY (flagged_by) REFERENCES users(id) ON DELETE SET NULL,
-    CONSTRAINT uniq_party_pair UNIQUE (case_id, party_a_id, party_b_id)\n);
+    CONSTRAINT uniq_party_pair UNIQUE (case_id, party_a_id, party_b_id)
+);
 
 CREATE TABLE IF NOT EXISTS legal_case_counsel_conflicts (
     id BIGSERIAL PRIMARY KEY,
@@ -759,7 +760,7 @@ CREATE TABLE IF NOT EXISTS legal_case_counsel_conflicts (
     conflict_type TEXT NOT NULL DEFAULT 'other',
     description TEXT NULL,
     severity TEXT NOT NULL DEFAULT 'medium',
-    conflict_verified BOOLEAN NOT NULL DEFAULT 0,
+    conflict_verified BOOLEAN NOT NULL DEFAULT FALSE,
     verified_by INTEGER NULL,
     verified_at TIMESTAMP NULL,
     mitigation_plan TEXT NULL,
@@ -883,7 +884,7 @@ CREATE TABLE IF NOT EXISTS contract_obligations (
     description TEXT NULL,
     responsible_party VARCHAR(255) NULL,
     due_date DATE NULL,
-    is_completed BOOLEAN NOT NULL DEFAULT 0,
+    is_completed BOOLEAN NOT NULL DEFAULT FALSE,
     completed_at TIMESTAMP NULL,
     completed_by INTEGER NULL,
     created_by INTEGER NULL,
@@ -915,7 +916,7 @@ CREATE TABLE IF NOT EXISTS contract_vendor_scores (
 INSERT INTO contract_templates (name, contract_type_id, body_text, default_value, is_active, created_by)
 SELECT 'Standard NDA Template', ct.id,
        'This Non-Disclosure Agreement ("Agreement") is entered into between the Company and the Counterparty.\n\n1. Confidential Information\n2. Obligations of Receiving Party\n3. Term and Termination\n4. Governing Law',
-       NULL, 1, u.id
+       NULL, TRUE, u.id
 FROM contract_types ct
 CROSS JOIN users u
 JOIN roles r ON r.id = u.role_id AND r.code = 'admin'

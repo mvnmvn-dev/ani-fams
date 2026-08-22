@@ -446,7 +446,7 @@ class DocumentRepository
     {
         $stmt = $this->pdo()->prepare(
             'UPDATE document_versions 
-             SET ocr_processed = 1, 
+             SET ocr_processed = '.$this->boolLiteral(true).', 
                  ocr_processed_at = CURRENT_TIMESTAMP,
                  ocr_confidence = :confidence
              WHERE id = :id'
@@ -460,7 +460,7 @@ class DocumentRepository
             "SELECT dv.*, d.title AS document_title
              FROM document_versions dv
              JOIN documents d ON d.id = dv.document_id
-             WHERE dv.ocr_processed = 0
+             WHERE {$this->isFalseCondition('dv.ocr_processed')}
                AND d.deleted_at IS NULL
              ORDER BY dv.uploaded_at ASC
              LIMIT 100"

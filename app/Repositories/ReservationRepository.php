@@ -107,7 +107,7 @@ class ReservationRepository
              )"
         );
         $status = $data['status'] ?? 'pending';
-        $isMaintenance = ! empty($data['is_maintenance']) ? 1 : 0;
+        $isMaintenance = $this->boolParam(! empty($data['is_maintenance']));
         $stmt->execute([
             'facility_id' => $data['facility_id'],
             'requested_by' => $data['requested_by'],
@@ -199,7 +199,7 @@ class ReservationRepository
              LEFT JOIN reservations r ON r.facility_id = f.id
                AND r.deleted_at IS NULL
                AND r.status = 'approved'
-               AND COALESCE(r.is_maintenance, 0) = 0
+               AND {$this->coalesceFalseCondition('r.is_maintenance')}
              WHERE f.status != 'retired'
              GROUP BY f.id, f.name
              ORDER BY booking_count DESC, f.name"
@@ -223,7 +223,7 @@ class ReservationRepository
                  LEFT JOIN reservations r ON r.facility_id = f.id
                    AND r.deleted_at IS NULL
                    AND r.status = 'approved'
-                   AND COALESCE(r.is_maintenance, 0) = 0
+                   AND {$this->coalesceFalseCondition('r.is_maintenance')}
                  WHERE f.status != 'retired'
                  GROUP BY f.id, f.name
                  ORDER BY booking_count DESC, f.name"
@@ -238,7 +238,7 @@ class ReservationRepository
              LEFT JOIN reservations r ON r.facility_id = f.id
                AND r.deleted_at IS NULL
                AND r.status = 'approved'
-               AND COALESCE(r.is_maintenance, 0) = 0
+               AND {$this->coalesceFalseCondition('r.is_maintenance')}
              WHERE f.status != 'retired'
              GROUP BY f.id, f.name
              ORDER BY booking_count DESC, f.name"
@@ -395,7 +395,7 @@ class ReservationRepository
     {
         $stmt = $this->pdo()->prepare(
             "UPDATE reservations 
-             SET no_show = 1, 
+             SET no_show = {$this->boolLiteral(true)}, 
                  no_show_reported_by = :reported_by, 
                  no_show_reported_at = CURRENT_TIMESTAMP 
              WHERE id = :id"
@@ -405,10 +405,11 @@ class ReservationRepository
 
     public function getNoShowStats(int $userId): array
     {
+        $noShowCase = $this->caseWhenTrue('no_show', '1', '0');
         $stmt = $this->pdo()->prepare(
             "SELECT COUNT(*) AS total_reservations,
-                    SUM(CASE WHEN no_show = 1 THEN 1 ELSE 0 END) AS no_show_count,
-                    ROUND(SUM(CASE WHEN no_show = 1 THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 2) AS no_show_percentage
+                    SUM({$noShowCase}) AS no_show_count,
+                    ROUND(SUM({$noShowCase}) * 100.0 / COUNT(*), 2) AS no_show_percentage
              FROM reservations
              WHERE requested_by = :user_id
                AND deleted_at IS NULL"

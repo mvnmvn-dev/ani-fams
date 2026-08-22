@@ -2,7 +2,7 @@
 REM Import a clean PostgreSQL schema for FAMS (Windows).
 REM Edit PSQL, DB, and PGUSER below if your install differs.
 
-set PSQL=C:\Program Files\PostgreSQL\16\bin\psql.exe
+set PSQL=C:\Program Files\PostgreSQL\18\bin\psql.exe
 set DB=facilities_admin_db
 set PGUSER=postgres
 set PGHOST=127.0.0.1

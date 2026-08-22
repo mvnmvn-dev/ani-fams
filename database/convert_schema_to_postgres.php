@@ -87,8 +87,13 @@ $sql = preg_replace('/\bTINYINT\b/i', 'INTEGER', $sql);
 $sql = preg_replace('/\bINTEGER\s*\(\s*1\s*\)\b/i', 'INTEGER', $sql);
 
 // BOOLEAN default normalization (MySQL uses 0/1).
+$sql = preg_replace('/\bBOOLEAN\s+NOT\s+NULL\s+DEFAULT\s+0\b/i', 'BOOLEAN NOT NULL DEFAULT FALSE', $sql);
+$sql = preg_replace('/\bBOOLEAN\s+NOT\s+NULL\s+DEFAULT\s+1\b/i', 'BOOLEAN NOT NULL DEFAULT TRUE', $sql);
 $sql = preg_replace('/\bBOOLEAN\s+DEFAULT\s+0\b/i', 'BOOLEAN DEFAULT FALSE', $sql);
 $sql = preg_replace('/\bBOOLEAN\s+DEFAULT\s+1\b/i', 'BOOLEAN DEFAULT TRUE', $sql);
+
+// MySQL seed SELECTs often use 1/0 for boolean literals.
+$sql = preg_replace('/\bNULL,\s*1,\s*u\.id\b/', 'NULL, TRUE, u.id', $sql);
 
 // Timestamps: allow CURRENT_TIMESTAMP defaults; keep as-is.
 // (If you see errors around `TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP`, adjust manually.)
@@ -100,11 +105,10 @@ $sql = preg_replace(
     $sql
 );
 
-// Clean up any "CONSTRAINT ... UNIQUE (...)," that ends up with an extra comma
-// right before the closing paren.
+// Clean up trailing comma before closing paren on UNIQUE constraints.
 $sql = preg_replace(
-    '/CONSTRAINT\s+(\w+)\s+UNIQUE\s*\(([^)]+)\),\s*\n\s*\)/m',
-    'CONSTRAINT $1 UNIQUE ($2)\n)',
+    '/CONSTRAINT\s+(\w+)\s+UNIQUE\s*\(([^)]+)\),\s*\n(\s*\))/m',
+    "CONSTRAINT $1 UNIQUE ($2)\n$3",
     $sql
 );
 

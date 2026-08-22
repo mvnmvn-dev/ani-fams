@@ -25,6 +25,10 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+if (-not $ProjectRoot) {
+    $ProjectRoot = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Parent $MyInvocation.MyCommand.Path }
+}
+
 function Write-Step([string]$Message) {
     Write-Host "`n==> $Message" -ForegroundColor Cyan
 }
@@ -35,13 +39,25 @@ function Find-PostgresBin {
     }
 
     $candidates = @(
+        "C:\Program Files\PostgreSQL\18\bin",
         "C:\Program Files\PostgreSQL\17\bin",
         "C:\Program Files\PostgreSQL\16\bin",
         "C:\Program Files\PostgreSQL\15\bin",
         "C:\Program Files\PostgreSQL\14\bin"
     )
 
-    foreach ($path in $candidates) {
+    # Any version folder under the default PostgreSQL install root.
+    $pgRoot = "C:\Program Files\PostgreSQL"
+    if (Test-Path $pgRoot) {
+        Get-ChildItem $pgRoot -Directory -ErrorAction SilentlyContinue | ForEach-Object {
+            $bin = Join-Path $_.FullName "bin"
+            if (Test-Path (Join-Path $bin "psql.exe")) {
+                $candidates = @($bin) + $candidates
+            }
+        }
+    }
+
+    foreach ($path in ($candidates | Select-Object -Unique)) {
         if (Test-Path (Join-Path $path "psql.exe")) {
             return $path
         }
@@ -52,25 +68,42 @@ function Find-PostgresBin {
         return Split-Path $fromPath.Source -Parent
     }
 
-    throw "PostgreSQL bin folder not found. Install PostgreSQL or pass -PgBin 'C:\Program Files\PostgreSQL\16\bin'"
+    throw @"
+PostgreSQL bin folder not found.
+
+Install PostgreSQL, or pass the bin path explicitly, e.g.:
+  .\setup-postgres.ps1 -PgBin 'C:\Program Files\PostgreSQL\18\bin'
+
+Your machine may have PostgreSQL 18 at:
+  C:\Program Files\PostgreSQL\18\bin
+"@
 }
 
-function Invoke-Pg([string]$Bin, [string[]]$Args) {
+function Invoke-Pg([string]$Bin, [string[]]$PsqlArgs) {
     $env:PGPASSWORD = $PgPassword
+    $env:PGUSER = $PgUser
     try {
-        & (Join-Path $Bin "psql.exe") @Args
+        & (Join-Path $Bin "psql.exe") @PsqlArgs
         if ($LASTEXITCODE -ne 0) {
             throw "psql failed (exit $LASTEXITCODE)"
         }
     } finally {
         Remove-Item Env:PGPASSWORD -ErrorAction SilentlyContinue
+        Remove-Item Env:PGUSER -ErrorAction SilentlyContinue
     }
 }
 
 function Test-DatabaseExists([string]$Bin) {
     $sql = "SELECT 1 FROM pg_database WHERE datname = '$Database';"
-    $out = & (Join-Path $Bin "psql.exe") -h $PgHost -p $PgPort -U $PgUser -d postgres -tAc $sql 2>$null
-    return ($out -match "^\s*1\s*$")
+    $env:PGPASSWORD = $PgPassword
+    $env:PGUSER = $PgUser
+    try {
+        $out = & (Join-Path $Bin "psql.exe") -h $PgHost -p $PgPort -U $PgUser -d postgres -tAc $sql 2>$null
+        return ($out -match "^\s*1\s*$")
+    } finally {
+        Remove-Item Env:PGPASSWORD -ErrorAction SilentlyContinue
+        Remove-Item Env:PGUSER -ErrorAction SilentlyContinue
+    }
 }
 
 Write-Host "FAMS PostgreSQL setup" -ForegroundColor Green
@@ -134,11 +167,13 @@ if (-not $SkipSchemaImport) {
     }
 
     $env:PGPASSWORD = $PgPassword
+    $env:PGUSER = $PgUser
     try {
         & (Join-Path $PgBin "psql.exe") -h $PgHost -p $PgPort -U $PgUser -d $Database -f $schemaFile
         if ($LASTEXITCODE -ne 0) { throw "Schema import failed (exit $LASTEXITCODE)" }
     } finally {
         Remove-Item Env:PGPASSWORD -ErrorAction SilentlyContinue
+        Remove-Item Env:PGUSER -ErrorAction SilentlyContinue
     }
     Write-Host "Schema imported." -ForegroundColor Green
 }
