@@ -146,6 +146,18 @@ $contractsInPipeline = count(array_filter($recentContracts, static fn($c) => in_
                     <strong class="tabular-nums text-ink"><?= $trends['legal_rate'] ?? 0 ?>%</strong>
                 </div>
             <?php endif; ?>
+            <?php if (can_perm('document.view')): ?>
+                <div class="module-stat-row">
+                    <span class="text-ink/70">Document Active Rate</span>
+                    <strong class="tabular-nums text-ink"><?= $trends['document_rate'] ?? 0 ?>%</strong>
+                </div>
+            <?php endif; ?>
+            <?php if (can_perm('retention.view')): ?>
+                <div class="module-stat-row">
+                    <span class="text-ink/70">Retention Compliance Rate</span>
+                    <strong class="tabular-nums text-ink"><?= $trends['retention_rate'] ?? 0 ?>%</strong>
+                </div>
+            <?php endif; ?>
         </div>
 
         <div class="module-insight-panel">
@@ -174,15 +186,20 @@ $contractsInPipeline = count(array_filter($recentContracts, static fn($c) => in_
     </div>
 
     <!-- Charts -->
+    <div>
+        <h2 class="section-title mb-1">Analytics overview</h2>
+        <p class="type-meta mb-5">Cross-module activity and workload distribution</p>
+    </div>
+
     <div class="grid grid-cols-1 xl:grid-cols-3 gap-5">
         <div class="xl:col-span-2 chart-card is-reveal">
             <div class="flex items-center justify-between mb-4">
                 <div>
                     <h2 class="section-title">Activity (7 days)</h2>
-                    <p class="type-meta">Reservations, visits, and contracts created</p>
+                    <p class="type-meta">Records created across all accessible modules</p>
                 </div>
             </div>
-            <div class="h-64 relative">
+            <div class="h-72 relative">
                 <canvas id="activityChart"></canvas>
             </div>
         </div>
@@ -200,7 +217,13 @@ $contractsInPipeline = count(array_filter($recentContracts, static fn($c) => in_
         </div>
     </div>
 
+    <div>
+        <h2 class="section-title mb-1">Module analytics</h2>
+        <p class="type-meta mb-5">Status breakdowns and distributions from your operational data</p>
+    </div>
+
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <?php if (can_perm('reservation.view')): ?>
         <div class="chart-card is-reveal">
             <div class="mb-3">
                 <h2 class="section-title">Reservation status</h2>
@@ -213,6 +236,9 @@ $contractsInPipeline = count(array_filter($recentContracts, static fn($c) => in_
                 <div class="chart-donut-legend" id="reservationLegend"></div>
             </div>
         </div>
+        <?php endif; ?>
+
+        <?php if (can_perm('visitor.view')): ?>
         <div class="chart-card is-reveal">
             <div class="mb-3">
                 <h2 class="section-title">Visitor status</h2>
@@ -225,7 +251,125 @@ $contractsInPipeline = count(array_filter($recentContracts, static fn($c) => in_
                 <div class="chart-donut-legend" id="visitLegend"></div>
             </div>
         </div>
+        <?php endif; ?>
+
+        <?php if (can_perm('document.view')): ?>
+        <div class="chart-card is-reveal">
+            <div class="mb-3">
+                <h2 class="section-title">Document status</h2>
+                <p class="type-meta">Draft, active, and archived records</p>
+            </div>
+            <div class="chart-donut-layout">
+                <div class="chart-donut-canvas">
+                    <canvas id="documentChart"></canvas>
+                </div>
+                <div class="chart-donut-legend" id="documentLegend"></div>
+            </div>
+        </div>
+        <div class="chart-card is-reveal">
+            <div class="mb-3">
+                <h2 class="section-title">Document confidentiality</h2>
+                <p class="type-meta">Access classification across records</p>
+            </div>
+            <div class="h-56 relative">
+                <canvas id="documentConfChart"></canvas>
+            </div>
+        </div>
+        <div class="chart-card is-reveal">
+            <div class="mb-3">
+                <h2 class="section-title">Documents by category</h2>
+                <p class="type-meta">Top categories in the registry</p>
+            </div>
+            <div class="h-56 relative">
+                <canvas id="documentCategoryChart"></canvas>
+            </div>
+        </div>
+        <?php endif; ?>
+
+        <?php if (can_perm('retention.view')): ?>
+        <div class="chart-card is-reveal">
+            <div class="mb-3">
+                <h2 class="section-title">Retention assignments</h2>
+                <p class="type-meta">Lifecycle status of assigned records</p>
+            </div>
+            <div class="chart-donut-layout">
+                <div class="chart-donut-canvas">
+                    <canvas id="retentionChart"></canvas>
+                </div>
+                <div class="chart-donut-legend" id="retentionLegend"></div>
+            </div>
+        </div>
+        <?php endif; ?>
+
+        <?php if (can_perm('legal.view')): ?>
+        <div class="chart-card is-reveal">
+            <div class="mb-3">
+                <h2 class="section-title">Legal case status</h2>
+                <p class="type-meta">Open through resolved matters</p>
+            </div>
+            <div class="chart-donut-layout">
+                <div class="chart-donut-canvas">
+                    <canvas id="legalChart"></canvas>
+                </div>
+                <div class="chart-donut-legend" id="legalLegend"></div>
+            </div>
+        </div>
+        <div class="chart-card is-reveal">
+            <div class="mb-3">
+                <h2 class="section-title">Legal risk levels</h2>
+                <p class="type-meta">Exposure across active caseload</p>
+            </div>
+            <div class="h-56 relative">
+                <canvas id="legalRiskChart"></canvas>
+            </div>
+        </div>
+        <div class="chart-card is-reveal">
+            <div class="mb-3">
+                <h2 class="section-title">Legal case types</h2>
+                <p class="type-meta">Matters grouped by practice area</p>
+            </div>
+            <div class="h-56 relative">
+                <canvas id="legalTypeChart"></canvas>
+            </div>
+        </div>
+        <?php endif; ?>
+
+        <?php if (can_perm('contract.view')): ?>
+        <div class="chart-card is-reveal">
+            <div class="mb-3">
+                <h2 class="section-title">Contract pipeline</h2>
+                <p class="type-meta">Draft through active agreements</p>
+            </div>
+            <div class="chart-donut-layout">
+                <div class="chart-donut-canvas">
+                    <canvas id="contractChart"></canvas>
+                </div>
+                <div class="chart-donut-legend" id="contractLegend"></div>
+            </div>
+        </div>
+        <div class="chart-card is-reveal">
+            <div class="mb-3">
+                <h2 class="section-title">Contracts by type</h2>
+                <p class="type-meta">Agreement categories in the registry</p>
+            </div>
+            <div class="h-56 relative">
+                <canvas id="contractTypeChart"></canvas>
+            </div>
+        </div>
+        <?php endif; ?>
     </div>
+
+    <?php if (can_perm('audit.view')): ?>
+    <div class="chart-card is-reveal">
+        <div class="mb-3">
+            <h2 class="section-title">Audit activity by module</h2>
+            <p class="type-meta">Recent system actions grouped by module</p>
+        </div>
+        <div class="h-64 relative">
+            <canvas id="auditModuleChart"></canvas>
+        </div>
+    </div>
+    <?php endif; ?>
 
     <!-- Tables -->
     <div class="grid grid-cols-1 xl:grid-cols-2 gap-5 items-stretch">
@@ -635,51 +779,123 @@ html.dark .dash-panel a.hover\:bg-gray-50\/70:hover {
         });
     }
 
+    function paletteColors(count) {
+        var base = [palette.navy, palette.navyMid, palette.slate, palette.peach, palette.brown, palette.gray, palette.muted, '#7B9CB8', '#D4A574', '#8FA68E'];
+        var colors = [];
+        for (var i = 0; i < count; i++) {
+            colors.push(base[i % base.length]);
+        }
+        return colors;
+    }
+
+    function barChart(el, dataMap, horizontal) {
+        if (!el) return;
+        var keys = Object.keys(dataMap || {});
+        var labels = keys.map(function (k) { return k.replace(/_/g, ' '); });
+        var values = keys.map(function (k) { return dataMap[k]; });
+        var wrap = el.parentElement;
+        if (!keys.length || values.every(function (v) { return v === 0; })) {
+            if (wrap) {
+                wrap.innerHTML = '<p class="text-sm text-ink/40 py-8 text-center">No data yet</p>';
+            }
+            return;
+        }
+        var colors = paletteColors(values.length);
+        new Chart(el, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    data: values,
+                    backgroundColor: colors,
+                    borderRadius: 6,
+                    borderSkipped: false,
+                    maxBarThickness: horizontal ? 28 : 42
+                }]
+            },
+            options: {
+                indexAxis: horizontal ? 'y' : 'x',
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: reduceMotion ? false : undefined,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: function (ctx) {
+                                return ' ' + ctx.label + ': ' + ctx.raw;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        beginAtZero: true,
+                        ticks: { precision: 0, color: muted },
+                        grid: { color: 'rgba(20,46,76,0.06)' }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        ticks: { precision: 0, color: muted },
+                        grid: { color: 'rgba(20,46,76,0.06)' }
+                    }
+                }
+            }
+        });
+    }
+
+    var chartAccess = {
+        reservations: <?= can_perm('reservation.view') ? 'true' : 'false' ?>,
+        visits: <?= can_perm('visitor.view') ? 'true' : 'false' ?>,
+        contracts: <?= can_perm('contract.view') ? 'true' : 'false' ?>,
+        documents: <?= can_perm('document.view') ? 'true' : 'false' ?>,
+        legal: <?= can_perm('legal.view') ? 'true' : 'false' ?>,
+        audit: <?= can_perm('audit.view') ? 'true' : 'false' ?>
+    };
+
+    function lineDataset(label, data, color, fillAlpha) {
+        return {
+            label: label,
+            data: data,
+            borderColor: color,
+            backgroundColor: fillAlpha,
+            fill: false,
+            tension: 0.35,
+            pointRadius: 3,
+            pointBackgroundColor: color,
+            pointBorderColor: '#fff',
+            pointBorderWidth: 2,
+            pointHoverRadius: 5
+        };
+    }
+
     var activityEl = document.getElementById('activityChart');
     if (activityEl) {
+        var activityDatasets = [];
+        if (chartAccess.reservations) {
+            activityDatasets.push(lineDataset('Reservations', charts.activity.reservations, palette.navy, 'rgba(20,46,76,0.08)'));
+        }
+        if (chartAccess.visits) {
+            activityDatasets.push(lineDataset('Visits', charts.activity.visits, palette.peach, 'rgba(204,173,159,0.12)'));
+        }
+        if (chartAccess.contracts) {
+            activityDatasets.push(lineDataset('Contracts', charts.activity.contracts, palette.brown, 'rgba(160,106,86,0.1)'));
+        }
+        if (chartAccess.documents) {
+            activityDatasets.push(lineDataset('Documents', charts.activity.documents, palette.slate, 'rgba(94,114,136,0.1)'));
+        }
+        if (chartAccess.legal) {
+            activityDatasets.push(lineDataset('Legal', charts.activity.legal, '#8B5E4B', 'rgba(139,94,75,0.1)'));
+        }
+        if (chartAccess.audit) {
+            activityDatasets.push(lineDataset('Audit', charts.activity.audit, palette.muted, 'rgba(158,158,160,0.1)'));
+        }
+
         new Chart(activityEl, {
             type: 'line',
             data: {
                 labels: charts.activity.labels,
-                datasets: [
-                    {
-                        label: 'Reservations',
-                        data: charts.activity.reservations,
-                        borderColor: palette.navy,
-                        backgroundColor: 'rgba(20,46,76,0.14)',
-                        fill: true,
-                        tension: 0.4,
-                        pointRadius: 4,
-                        pointBackgroundColor: palette.navy,
-                        pointBorderColor: '#fff',
-                        pointBorderWidth: 2,
-                        pointHoverRadius: 6
-                    },
-                    {
-                        label: 'Visits',
-                        data: charts.activity.visits,
-                        borderColor: palette.peach,
-                        backgroundColor: 'rgba(204,173,159,0.22)',
-                        fill: true,
-                        tension: 0.4,
-                        pointRadius: 4,
-                        pointBackgroundColor: palette.brown,
-                        pointBorderColor: '#fff',
-                        pointBorderWidth: 2
-                    },
-                    {
-                        label: 'Contracts',
-                        data: charts.activity.contracts,
-                        borderColor: palette.brown,
-                        backgroundColor: 'rgba(160,106,86,0.12)',
-                        fill: true,
-                        tension: 0.4,
-                        pointRadius: 4,
-                        pointBackgroundColor: palette.brown,
-                        pointBorderColor: '#fff',
-                        pointBorderWidth: 2
-                    }
-                ]
+                datasets: activityDatasets
             },
             options: {
                 responsive: true,
@@ -695,7 +911,7 @@ html.dark .dash-panel a.hover\:bg-gray-50\/70:hover {
                 plugins: {
                     legend: {
                         position: 'bottom',
-                        labels: { boxWidth: 10, usePointStyle: true, pointStyle: 'circle', padding: 18, color: muted }
+                        labels: { boxWidth: 10, usePointStyle: true, pointStyle: 'circle', padding: 14, color: muted }
                     }
                 },
                 scales: {
@@ -736,8 +952,45 @@ html.dark .dash-panel a.hover\:bg-gray-50\/70:hover {
         document.getElementById('visitChart'),
         document.getElementById('visitLegend'),
         charts.visits,
-        [palette.peach, palette.navy, palette.slate, palette.brown]
+        [palette.peach, palette.navy, palette.slate, palette.brown, palette.muted]
     );
+
+    doughnut(
+        document.getElementById('documentChart'),
+        document.getElementById('documentLegend'),
+        charts.documents,
+        [palette.gray, palette.navy, palette.slate]
+    );
+
+    barChart(document.getElementById('documentConfChart'), charts.documents_confidentiality, false);
+    barChart(document.getElementById('documentCategoryChart'), charts.document_categories, true);
+
+    doughnut(
+        document.getElementById('retentionChart'),
+        document.getElementById('retentionLegend'),
+        charts.retention,
+        [palette.navy, palette.peach, palette.brown, palette.muted]
+    );
+
+    doughnut(
+        document.getElementById('legalChart'),
+        document.getElementById('legalLegend'),
+        charts.legal,
+        paletteColors(Object.keys(charts.legal || {}).length)
+    );
+
+    barChart(document.getElementById('legalRiskChart'), charts.legal_risk, false);
+    barChart(document.getElementById('legalTypeChart'), charts.legal_types, true);
+
+    doughnut(
+        document.getElementById('contractChart'),
+        document.getElementById('contractLegend'),
+        charts.contracts,
+        paletteColors(Object.keys(charts.contracts || {}).length)
+    );
+
+    barChart(document.getElementById('contractTypeChart'), charts.contract_types, true);
+    barChart(document.getElementById('auditModuleChart'), charts.audit_modules, true);
 
     document.querySelectorAll('.dash-filter-btn').forEach(function (btn) {
         btn.addEventListener('click', function () {
