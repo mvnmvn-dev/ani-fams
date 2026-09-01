@@ -16,15 +16,12 @@ $navItems = [
 ];
 ?>
 <aside id="app-sidebar" class="app-sidebar h-full shrink-0 text-sand/90 flex flex-col relative z-30 overflow-hidden">
-    <div class="sidebar-brand px-3.5 py-5 border-b border-white/10 flex items-center gap-3.5">
-        <img src="<?= asset('images/system-logo.svg') ?>"
+    <div class="sidebar-brand px-3 py-4 border-b border-white/10 flex items-center gap-3">
+        <img src="<?= asset('images/system-name.png') ?>"
              alt="<?= htmlspecialchars(config('app.name')) ?>"
-             class="sidebar-mark shrink-0 w-14 h-14 rounded-2xl object-cover shadow-lg shadow-black/30"
+             class="sidebar-mark sidebar-brand-logo shrink-0"
              title="<?= htmlspecialchars(config('app.name')) ?>">
-        <div class="sidebar-brand-text sidebar-brand-copy min-w-0">
-            <p class="sidebar-brand-title">FAMS</p>
-            <p class="sidebar-brand-tagline">Facilities &amp; Admin Management</p>
-        </div>
+        <p class="sidebar-brand-copy sidebar-brand-tagline min-w-0 flex-1"><?= htmlspecialchars(config('app.subtitle')) ?></p>
     </div>
 
     <nav class="flex-1 px-2.5 py-4 space-y-1 overflow-y-auto overflow-x-hidden sidebar-nav">

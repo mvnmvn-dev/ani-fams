@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{{ $pageTitle ?? 'Log in' }} · {{ config('app.name') }}</title>
-    <link rel="icon" type="image/svg+xml" href="{{ asset('images/system-logo.svg') }}">
-    <link rel="apple-touch-icon" href="{{ asset('images/system-logo.svg') }}">
+    <link rel="icon" type="image/png" href="{{ asset('images/system-name.png') }}">
+    <link rel="apple-touch-icon" href="{{ asset('images/system-name.png') }}">
 <!-- CDN Tailwind for this phase. Swap for a compiled build (see /tailwind.config.js) before production. -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -923,6 +923,22 @@
             white-space: nowrap;
             transition: opacity 0.2s ease, width 0.25s ease;
         }
+        .sidebar-brand-logo {
+            width: 7.5rem;
+            max-height: 4.5rem;
+            object-fit: contain;
+            object-position: left center;
+        }
+        .sidebar-brand-tagline {
+            font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+            font-size: 0.7rem;
+            font-weight: 500;
+            letter-spacing: 0.01em;
+            text-transform: none;
+            color: rgba(255, 255, 255, 0.72);
+            margin: 0;
+            line-height: 1.4;
+        }
         .sidebar-active-dot {
             margin-left: auto;
             width: 6px;
@@ -995,9 +1011,12 @@
             gap: 0.5rem;
         }
         html.sidebar-collapsed .sidebar-brand-text { width: auto; display: none; }
-        html.sidebar-collapsed .sidebar-mark {
-            width: 3.25rem;
-            height: 3.25rem;
+        html.sidebar-collapsed .sidebar-brand-logo {
+            width: 3.75rem;
+            max-height: 3.75rem;
+            object-fit: cover;
+            object-position: left center;
+            border-radius: 0.75rem;
         }
         html.sidebar-collapsed #sidebar-collapse-btn {
             position: static;

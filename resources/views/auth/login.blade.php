@@ -59,12 +59,11 @@
         gap: 0.9rem;
     }
     .login-brand-logo {
-        width: 4.5rem;
-        height: 4.5rem;
-        border-radius: 0.95rem;
-        object-fit: cover;
+        width: 100%;
+        max-width: 22rem;
+        height: auto;
+        object-fit: contain;
         flex-shrink: 0;
-        box-shadow: 0 12px 28px -14px rgba(0, 0, 0, 0.75);
     }
     .login-brand-text {
         min-width: 0;
@@ -91,11 +90,11 @@
     }
     .login-box-copy {
         margin: 0;
-        font-size: 0.875rem;
-        line-height: 1.5;
+        font-size: 1.05rem;
+        line-height: 1.55;
         font-weight: 500;
         color: rgba(255, 255, 255, 0.92);
-        max-width: 18.5rem;
+        max-width: 22rem;
     }
     .login-box-form {
         padding: clamp(2rem, 4vw, 3.5rem) clamp(1.75rem, 4vw, 3.25rem);
@@ -108,49 +107,49 @@
     }
     .login-form-inner {
         width: 100%;
-        max-width: 24rem;
+        max-width: 30rem;
         margin: 0 auto;
     }
     .login-panel-eyebrow {
-        font-size: 0.6875rem;
+        font-size: 0.8rem;
         font-weight: 800;
         letter-spacing: 0.14em;
         text-transform: uppercase;
         color: #142E4C;
-        margin: 0 0 0.5rem;
+        margin: 0 0 0.65rem;
     }
     .login-panel-title {
         margin: 0;
-        font-size: 1.65rem;
+        font-size: 2.25rem;
         font-weight: 800;
         letter-spacing: -0.03em;
         color: #0B1C30;
     }
     .login-panel-subtitle {
-        margin: 0.4rem 0 0;
-        font-size: 0.875rem;
+        margin: 0.5rem 0 0;
+        font-size: 1.05rem;
         color: #1A2E44;
-        line-height: 1.45;
+        line-height: 1.5;
         font-weight: 500;
     }
     .login-form {
-        margin-top: 1.5rem;
+        margin-top: 2rem;
         display: grid;
-        gap: 1rem;
+        gap: 1.25rem;
     }
     .login-label {
         display: block;
-        font-size: 0.72rem;
+        font-size: 0.85rem;
         font-weight: 700;
         color: #0B1C30;
-        margin-bottom: 0.35rem;
+        margin-bottom: 0.45rem;
     }
     .login-input {
         width: 100%;
         border: 1px solid rgba(11, 28, 48, 0.22);
-        border-radius: 0.7rem;
-        padding: 0.65rem 0.8rem;
-        font-size: 0.875rem;
+        border-radius: 0.75rem;
+        padding: 0.85rem 1rem;
+        font-size: 1rem;
         color: #0B1C30;
         background: rgba(246, 244, 239, 0.45);
         outline: none;
@@ -203,26 +202,26 @@
         user-select: none;
     }
     .login-remember input {
-        width: 1rem;
-        height: 1rem;
+        width: 1.125rem;
+        height: 1.125rem;
         margin: 0;
         accent-color: #142E4C;
         cursor: pointer;
         flex-shrink: 0;
     }
     .login-remember span {
-        font-size: 0.8125rem;
+        font-size: 0.95rem;
         font-weight: 600;
         color: #0B1C30;
     }
     .login-submit {
         width: 100%;
         border: 0;
-        border-radius: 0.7rem;
-        padding: 0.75rem 1rem;
+        border-radius: 0.75rem;
+        padding: 0.95rem 1.15rem;
         background: #142E4C;
         color: #fff;
-        font-size: 0.875rem;
+        font-size: 1rem;
         font-weight: 700;
         transition: background 0.15s ease, transform 0.15s ease;
         box-shadow: 0 10px 22px -14px rgba(13, 61, 102, 0.9);
@@ -236,7 +235,7 @@
         text-align: center;
     }
     .login-forgot a {
-        font-size: 0.85rem;
+        font-size: 0.95rem;
         font-weight: 700;
         color: #020F1C;
         text-decoration: none;
@@ -264,8 +263,8 @@
             min-height: 11rem;
         }
         .login-brand-logo {
-            width: 3.75rem;
-            height: 3.75rem;
+            max-width: 18rem;
+            height: auto;
         }
         .login-brand-name {
             font-size: 1.3rem;
@@ -281,13 +280,9 @@
     <div class="login-box" role="main" aria-labelledby="login-heading">
         <aside class="login-box-brand">
             <div class="login-brand-lockup">
-                <img src="{{ asset('images/system-logo.svg') }}"
+                <img src="{{ asset('images/system-name.png') }}"
                      alt="{{ config('app.name') }} logo"
                      class="login-brand-logo">
-                <div class="login-brand-text">
-                    <p class="login-brand-name">{{ config('app.name') }}</p>
-                    <p class="login-brand-sub">{{ config('app.subtitle') }}</p>
-                </div>
             </div>
             <p class="login-box-copy">Secure facilities operations and administrative workflows.</p>
         </aside>
