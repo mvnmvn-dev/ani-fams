@@ -34,32 +34,47 @@ trait ExportsData
      */
     protected function exportPdf(string $filenamePrefix, string $title, array $headers, array $rows)
     {
-        if (! class_exists(Dompdf::class)) {
-            // Fallback: HTML printable sheet when Dompdf is not installed.
-            $html = view('exports.table_pdf', compact('title', 'headers', 'rows'))->render();
-
-            return response($html, 200, [
-                'Content-Type' => 'text/html; charset=UTF-8',
-                'Content-Disposition' => 'inline; filename="' . $filenamePrefix . '_' . date('Ymd_His') . '.html"',
-            ]);
-        }
-
+        $filename = $filenamePrefix . '_' . date('Ymd_His') . '.pdf';
         $html = view('exports.table_pdf', compact('title', 'headers', 'rows'))->render();
 
-        $options = new Options();
-        $options->set('isRemoteEnabled', false);
-        $options->set('defaultFont', 'DejaVu Sans');
+        if (! class_exists(Dompdf::class)) {
+            return $this->exportPdfFallback($filenamePrefix, $html);
+        }
 
-        $dompdf = new Dompdf($options);
-        $dompdf->loadHtml($html);
-        $dompdf->setPaper('A4', 'landscape');
-        $dompdf->render();
+        try {
+            $options = new Options();
+            $options->set('isRemoteEnabled', false);
+            $options->set('defaultFont', 'DejaVu Sans');
 
-        $filename = $filenamePrefix . '_' . date('Ymd_His') . '.pdf';
+            $dompdf = new Dompdf($options);
+            $dompdf->loadHtml($html);
+            $dompdf->setPaper('A4', 'landscape');
+            $dompdf->render();
 
-        return response($dompdf->output(), 200, [
+            $pdf = $dompdf->output();
+        } catch (\Throwable $e) {
+            report($e);
+
+            return $this->exportPdfFallback($filenamePrefix, $html);
+        }
+
+        return response()->streamDownload(function () use ($pdf) {
+            echo $pdf;
+        }, $filename, [
             'Content-Type' => 'application/pdf',
-            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+            'Cache-Control' => 'no-store, no-cache, must-revalidate',
+        ]);
+    }
+
+    private function exportPdfFallback(string $filenamePrefix, string $html)
+    {
+        $filename = $filenamePrefix . '_' . date('Ymd_His') . '.html';
+
+        return response()->streamDownload(function () use ($html) {
+            echo $html;
+        }, $filename, [
+            'Content-Type' => 'text/html; charset=UTF-8',
+            'Cache-Control' => 'no-store, no-cache, must-revalidate',
         ]);
     }
 }

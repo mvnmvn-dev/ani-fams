@@ -471,6 +471,7 @@
         var link = e.target.closest('a[href]');
         if (!link || link.hasAttribute('download')) return;
         if (link.hasAttribute('data-record-modal')) return;
+        if (link.hasAttribute('data-export-link')) return;
 
         var href = link.getAttribute('href');
         if (!href || href.charAt(0) === '#' || href.indexOf('javascript:') === 0) return;
@@ -479,6 +480,7 @@
         var url;
         try { url = new URL(href, window.location.origin); } catch (err) { return; }
         if (url.origin !== window.location.origin) return;
+        if (url.pathname.indexOf('/export') !== -1) return;
 
         var base = <?= json_encode(rtrim((string) (parse_url(config('app.url'), PHP_URL_PATH) ?: ''), '/')) ?>;
         if (base && url.pathname.indexOf(base) !== 0) return;

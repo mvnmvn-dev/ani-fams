@@ -7,6 +7,7 @@ use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -18,6 +19,15 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        if (! $this->app->runningInConsole() && $request = request()) {
+            $configured = rtrim((string) config('app.url'), '/');
+            $path = parse_url($configured, PHP_URL_PATH) ?: '';
+
+            if ($path && $path !== '/') {
+                URL::forceRootUrl($request->getSchemeAndHttpHost() . $path);
+            }
+        }
+
         Paginator::useTailwind();
         Paginator::defaultView('pagination::tailwind');
         Paginator::defaultSimpleView('pagination::simple-tailwind');
