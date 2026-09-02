@@ -128,17 +128,25 @@ foreach ($ext in $pdfExtensions) {
 }
 
 Write-Step "Installing Composer dependencies"
-$composerPhar = Join-Path $ProjectRoot "composer.phar"
-$composerCmd = Get-Command composer -ErrorAction SilentlyContinue
-if (Test-Path $composerPhar) {
-    & $PhpExe $composerPhar install --no-interaction
-} elseif ($composerCmd) {
-    & composer install --no-interaction
+$fixSslScript = Join-Path $ProjectRoot "scripts\fix-composer-ssl.ps1"
+if (Test-Path $fixSslScript) {
+    & $fixSslScript -ProjectRoot $ProjectRoot -PhpExe $PhpExe
+    if ($LASTEXITCODE -ne 0) {
+        throw "composer install failed. See SSL fix instructions above (Avast/firewall may block HTTPS)."
+    }
 } else {
-    Write-Warning "Composer not found. Run 'composer install' manually or place composer.phar in the project root."
-}
-if ($LASTEXITCODE -ne 0) {
-    throw "composer install failed. PDF export requires dompdf from vendor/."
+    $composerPhar = Join-Path $ProjectRoot "composer.phar"
+    $composerCmd = Get-Command composer -ErrorAction SilentlyContinue
+    if (Test-Path $composerPhar) {
+        & $PhpExe $composerPhar install --no-interaction
+    } elseif ($composerCmd) {
+        & composer install --no-interaction
+    } else {
+        Write-Warning "Composer not found. Run 'composer install' manually or place composer.phar in the project root."
+    }
+    if ($LASTEXITCODE -ne 0) {
+        throw "composer install failed. PDF export requires dompdf from vendor/."
+    }
 }
 
 Write-Step "Checking pdo_pgsql extension"
