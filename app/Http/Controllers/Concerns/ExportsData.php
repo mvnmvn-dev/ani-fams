@@ -37,14 +37,21 @@ trait ExportsData
         $filename = $filenamePrefix . '_' . date('Ymd_His') . '.pdf';
         $html = view('exports.table_pdf', compact('title', 'headers', 'rows'))->render();
 
-        if (! class_exists(Dompdf::class)) {
-            return $this->exportPdfFallback($filenamePrefix, $html);
+        if ($reason = $this->pdfExportUnavailableReason()) {
+            return $this->exportPdfFailureResponse($reason);
         }
 
         try {
+            $tempDir = storage_path('app/dompdf');
+            if (! is_dir($tempDir)) {
+                mkdir($tempDir, 0755, true);
+            }
+
             $options = new Options();
             $options->set('isRemoteEnabled', false);
             $options->set('defaultFont', 'DejaVu Sans');
+            $options->set('tempDir', $tempDir);
+            $options->set('chroot', base_path());
 
             $dompdf = new Dompdf($options);
             $dompdf->loadHtml($html);
@@ -52,10 +59,15 @@ trait ExportsData
             $dompdf->render();
 
             $pdf = $dompdf->output();
+            if ($pdf === '' || ! str_starts_with($pdf, '%PDF')) {
+                throw new \RuntimeException('Dompdf did not produce a valid PDF file.');
+            }
         } catch (\Throwable $e) {
             report($e);
 
-            return $this->exportPdfFallback($filenamePrefix, $html);
+            return $this->exportPdfFailureResponse(
+                'PDF generation failed: ' . $e->getMessage()
+            );
         }
 
         return response()->streamDownload(function () use ($pdf) {
@@ -66,15 +78,30 @@ trait ExportsData
         ]);
     }
 
-    private function exportPdfFallback(string $filenamePrefix, string $html)
+    private function pdfExportUnavailableReason(): ?string
     {
-        $filename = $filenamePrefix . '_' . date('Ymd_His') . '.html';
+        if (! class_exists(Dompdf::class)) {
+            return 'Dompdf is not installed. In the project folder run: composer install';
+        }
 
-        return response()->streamDownload(function () use ($html) {
-            echo $html;
-        }, $filename, [
-            'Content-Type' => 'text/html; charset=UTF-8',
-            'Cache-Control' => 'no-store, no-cache, must-revalidate',
-        ]);
+        $missing = array_values(array_filter([
+            ! extension_loaded('dom') ? 'dom' : null,
+            ! extension_loaded('mbstring') ? 'mbstring' : null,
+        ]));
+
+        if ($missing !== []) {
+            return 'Enable PHP extensions in php.ini, then restart Apache: extension='
+                . implode(', extension=', $missing);
+        }
+
+        return null;
+    }
+
+    private function exportPdfFailureResponse(string $message)
+    {
+        return redirect()->back()->with(
+            'flash_error',
+            $message . ' (Contact your admin if this persists.)'
+        );
     }
 }

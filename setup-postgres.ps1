@@ -108,12 +108,38 @@ function Test-DatabaseExists([string]$Bin) {
 
 Write-Host "FAMS PostgreSQL setup" -ForegroundColor Green
 Set-Location $ProjectRoot
+$folderName = Split-Path $ProjectRoot -Leaf
 
 Write-Step "Checking PHP"
 if (-not (Test-Path $PhpExe)) {
     throw "PHP not found at $PhpExe. Pass -PhpExe with your XAMPP php.exe path."
 }
 & $PhpExe -v | Select-Object -First 1
+
+Write-Step "Checking PHP extensions (PDF export)"
+$modules = & $PhpExe -m
+$pdfExtensions = @("dom", "mbstring")
+foreach ($ext in $pdfExtensions) {
+    if ($modules -notcontains $ext) {
+        Write-Warning "PHP extension '$ext' is not loaded. PDF export will fail until you enable it in C:\xampp\php\php.ini and restart Apache."
+    } else {
+        Write-Host "$ext OK" -ForegroundColor Green
+    }
+}
+
+Write-Step "Installing Composer dependencies"
+$composerPhar = Join-Path $ProjectRoot "composer.phar"
+$composerCmd = Get-Command composer -ErrorAction SilentlyContinue
+if (Test-Path $composerPhar) {
+    & $PhpExe $composerPhar install --no-interaction
+} elseif ($composerCmd) {
+    & composer install --no-interaction
+} else {
+    Write-Warning "Composer not found. Run 'composer install' manually or place composer.phar in the project root."
+}
+if ($LASTEXITCODE -ne 0) {
+    throw "composer install failed. PDF export requires dompdf from vendor/."
+}
 
 Write-Step "Checking pdo_pgsql extension"
 $modules = & $PhpExe -m
@@ -192,7 +218,9 @@ if (-not $SkipEnv) {
     }
 
     $content = Get-Content $envFile -Raw
+    $appUrl = "http://localhost/$folderName/public"
     $replacements = @{
+        'APP_URL\s*=\s*[^\r\n]+' = "APP_URL=$appUrl"
         'DB_CONNECTION\s*=\s*\w+' = "DB_CONNECTION=pgsql"
         'DB_HOST\s*=\s*[^\r\n]+' = "DB_HOST=$PgHost"
         'DB_PORT\s*=\s*\d+' = "DB_PORT=$PgPort"
@@ -219,9 +247,11 @@ Write-Host @"
 
 Setup complete.
 
-App URL:  http://localhost/ani-fams/public
+App URL:  http://localhost/$folderName/public
 Login:    admin@facilitiesadmin.local
 Password: Password123!
+
+PDF export: requires composer install (done above) and PHP extensions dom + mbstring.
 
 Run tests:  $PhpExe artisan test
 "@ -ForegroundColor Green
