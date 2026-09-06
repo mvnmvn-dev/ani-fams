@@ -54,7 +54,7 @@ $contractsInPipeline = count(array_filter($recentContracts, static fn($c) => in_
     <?php
     render_page_header([
         'title'    => 'Welcome back, ' . explode(' ', $user->full_name)[0],
-        'subtitle' => 'Signed in as ' . $user->role->name ?? $user->role_name ?? '' . ' — here is your facilities and admin snapshot.',
+        'subtitle' => 'Signed in as ' . ($user->role->name ?? $user->role_name ?? '') . ' — ANI facilities, plant, and admin snapshot.',
         'badge'    => '<span class="inline-flex items-center px-2.5 py-0.5 rounded-md bg-brand-50 text-brand-700 text-[11px] font-semibold capitalize border border-brand-200">'
             . htmlspecialchars($user->role->name ?? $user->role_name ?? '') . '</span>',
     ]);

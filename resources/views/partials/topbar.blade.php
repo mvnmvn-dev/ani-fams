@@ -10,7 +10,7 @@ $redirectPath = request()->path() ?: '/dashboard';
 
 $allSearchTargets = [
     ['label' => 'Dashboard', 'path' => '/dashboard', 'keywords' => 'home overview', 'permission' => null],
-    ['label' => 'Facilities Reservation', 'path' => '/reservations', 'keywords' => 'facility room booking schedule', 'permission' => 'reservation.view'],
+    ['label' => 'Facilities Reservation', 'path' => '/reservations', 'keywords' => 'facility room booking schedule plant warehouse marikina blending', 'permission' => 'reservation.view'],
     ['label' => 'Visitor Management', 'path' => '/visitors', 'keywords' => 'guest check-in on site', 'permission' => 'visitor.view'],
     ['label' => 'Document Management', 'path' => '/documents', 'keywords' => 'files upload records', 'permission' => 'document.view'],
     ['label' => 'Records Retention', 'path' => '/retention', 'keywords' => 'disposal policy hold compliance', 'permission' => 'retention.view'],

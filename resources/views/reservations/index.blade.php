@@ -42,8 +42,8 @@ $upcomingApproved = array_slice($upcomingApproved, 0, 5);
     render_page_header([
         'title' => 'Facilities Reservation',
         'subtitle' => $canApprove
-            ? 'All reservation requests across the organization.'
-            : 'Your reservation requests.',
+            ? 'Book and approve ANI HQ, blending plant, warehouse, and field assets.'
+            : 'Request meeting rooms, plant bays, warehouse staging, or field vehicles.',
         'actions' => function () {
             ?>
             <a href="<?= route('reservations.export') ?>" class="btn-secondary mr-2 inline-flex items-center gap-1.5" style="text-decoration: none; display: inline-flex; align-items: center; padding: 0.5rem 1rem; border-radius: 0.75rem;">
@@ -87,7 +87,7 @@ $upcomingApproved = array_slice($upcomingApproved, 0, 5);
     <div class="module-info-grid">
         @include('partials.module_feed_list', [
             'title' => "Today's schedule",
-            'subtitle' => 'All bookings starting today across facilities',
+            'subtitle' => 'All bookings starting today across HQ, plant, and warehouse',
             'items' => array_map(static fn($r) => [
                 'label' => $r['facility_name'],
                 'meta'  => ($r['purpose'] ?? '') . ' · ' . ($r['requester_name'] ?? ''),
@@ -98,7 +98,7 @@ $upcomingApproved = array_slice($upcomingApproved, 0, 5);
         ])
         @include('partials.module_feed_list', [
             'title' => 'Upcoming approved bookings',
-            'subtitle' => 'Next confirmed facility reservations',
+            'subtitle' => 'Next confirmed HQ, plant, and field reservations',
             'items' => array_map(static fn($r) => [
                 'label' => $r['facility_name'],
                 'meta'  => ($r['requester_name'] ?? '') . ' · ' . ($r['purpose'] ?? ''),
@@ -415,7 +415,7 @@ $upcomingApproved = array_slice($upcomingApproved, 0, 5);
                 <label class="block text-xs font-bold uppercase tracking-wider text-ink/60">Purpose of Booking</label>
                 <input type="text" name="purpose" required maxlength="255"
                        class="w-full rounded-xl border border-ink/15 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-sand/10"
-                       placeholder="e.g. Board Meeting, Client Presentation">
+                       placeholder="e.g. Client technical briefing, plant shift handover, warehouse staging">
             </div>
             <div class="grid grid-cols-2 gap-4">
                 <div class="space-y-1.5">
@@ -495,7 +495,7 @@ $upcomingApproved = array_slice($upcomingApproved, 0, 5);
             </div>
             <div class="space-y-1.5">
                 <label class="block text-xs font-bold uppercase tracking-wider text-ink/60">Notes</label>
-                <input type="text" name="purpose" maxlength="255" placeholder="e.g. HVAC servicing"
+                <input type="text" name="purpose" maxlength="255" placeholder="e.g. Blending line service, warehouse dock repair"
                        class="w-full rounded-xl border border-ink/15 px-4 py-3 text-sm bg-sand/10">
             </div>
             <div class="grid grid-cols-2 gap-4">

@@ -1,6 +1,8 @@
-# VerdeMart FAMS (Laravel)
+# Archon Nell Incorporated — FAMS (Laravel)
 
-Facilities & Administrative Management System, migrated from a custom PHP app to **Laravel 12**.
+Facilities & Administrative Management System for **Archon Nell Incorporated (ANI)**, a Filipino-owned industrial engineering solutions provider based in Marikina City. Migrated from a custom PHP app to **Laravel 12**.
+
+Use FAMS to book HQ meeting rooms, blending plant bays, warehouse staging areas, and field vehicles, and to manage visitors, documents, retention, legal, and contracts.
 
 ## Requirements
 

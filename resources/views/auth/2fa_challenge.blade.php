@@ -230,7 +230,7 @@
                      alt="{{ config('app.name') }} logo"
                      class="login-brand-logo">
             </div>
-            <p class="login-box-copy">Secure facilities operations and administrative workflows.</p>
+            <p class="login-box-copy">Secure facilities, plant, and administrative operations for Archon Nell Incorporated.</p>
         </aside>
 
         <section class="login-box-form">

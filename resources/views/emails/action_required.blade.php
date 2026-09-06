@@ -19,7 +19,7 @@
         @endif
         
         <p style="margin-top: 40px; font-size: 12px; color: #7f8c8d; text-align: center;">
-            This is an automated message from the Facilities & Administrative Management System.
+            This is an automated message from Archon Nell Incorporated — Facilities & Administrative Management System.
         </p>
     </div>
 </body>

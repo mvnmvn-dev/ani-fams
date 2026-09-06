@@ -225,25 +225,25 @@ ON DUPLICATE KEY UPDATE role_id = role_id;
 -- Demo password for all 3 accounts below is:  Password123!
 -- (bcrypt hash generated with PHP password_hash(); change immediately in a real deployment)
 
-INSERT INTO departments (name) VALUES ('General Administration')
+INSERT INTO departments (name) VALUES ('Head Office Administration')
 ON DUPLICATE KEY UPDATE name = VALUES(name);
 
 INSERT INTO users (department_id, full_name, email, password_hash, role_id, status)
 SELECT d.id, 'System Administrator', 'admin@facilitiesadmin.local',
        '$2b$10$hZKzeKDRqM3tEoDxyubENe//aA0lipM6wk7nfH02mpJtdO.oDIeea', r.id, 'active'
-FROM departments d, roles r WHERE d.name = 'General Administration' AND r.code = 'admin'
+FROM departments d, roles r WHERE d.name = 'Head Office Administration' AND r.code = 'admin'
 ON DUPLICATE KEY UPDATE full_name = VALUES(full_name);
 
 INSERT INTO users (department_id, full_name, email, password_hash, role_id, status)
 SELECT d.id, 'Facilities Staff', 'staff@facilitiesadmin.local',
        '$2b$10$hZKzeKDRqM3tEoDxyubENe//aA0lipM6wk7nfH02mpJtdO.oDIeea', r.id, 'active'
-FROM departments d, roles r WHERE d.name = 'General Administration' AND r.code = 'staff'
+FROM departments d, roles r WHERE d.name = 'Head Office Administration' AND r.code = 'staff'
 ON DUPLICATE KEY UPDATE full_name = VALUES(full_name);
 
 INSERT INTO users (department_id, full_name, email, password_hash, role_id, status)
 SELECT d.id, 'Sample Employee', 'employee@facilitiesadmin.local',
        '$2b$10$hZKzeKDRqM3tEoDxyubENe//aA0lipM6wk7nfH02mpJtdO.oDIeea', r.id, 'active'
-FROM departments d, roles r WHERE d.name = 'General Administration' AND r.code = 'employee'
+FROM departments d, roles r WHERE d.name = 'Head Office Administration' AND r.code = 'employee'
 ON DUPLICATE KEY UPDATE full_name = VALUES(full_name);
 
 -- ===================== MODULE TABLES =====================
@@ -340,17 +340,21 @@ CREATE TABLE IF NOT EXISTS reservation_waitlist (
 );
 
 INSERT INTO facilities (name, type, location, capacity, status) VALUES
-('Conference Room A', 'room', '2nd Floor - Main Building', 12, 'available'),
-('Conference Room B', 'room', '2nd Floor - Main Building', 6, 'available'),
-('Company Van 1', 'vehicle', 'Motor Pool', 8, 'available'),
-('Auditorium', 'venue', 'Ground Floor', 150, 'available')
+('HQ Engineering Conference Room', 'room', 'Marikina City Headquarters — 2nd Floor', 12, 'available'),
+('Sales & Technical Briefing Room', 'room', 'Marikina City Headquarters — 2nd Floor', 8, 'available'),
+('Blending Plant Coordination Bay', 'room', 'Production & Blending Facility', 10, 'available'),
+('Warehouse Staging Area', 'venue', 'Warehouse & Loading Dock', 25, 'available'),
+('Training & Safety Hall', 'venue', 'Marikina City Headquarters — Ground Floor', 80, 'available'),
+('Field Service Van', 'vehicle', 'Site Operations / Motor Pool', 8, 'available')
 ON DUPLICATE KEY UPDATE name = VALUES(name);
 
 INSERT INTO equipment_items (name, category, quantity_available, status) VALUES
 ('Projector Kit', 'AV', 4, 'available'),
 ('Laptop Cart', 'IT', 2, 'available'),
-('Whiteboard Set', 'Office', 6, 'available'),
-('Conference Phone', 'AV', 3, 'available')
+('Safety Briefing Whiteboard', 'Safety', 6, 'available'),
+('Conference Phone', 'AV', 3, 'available'),
+('Refractory Sample Display Kit', 'Technical', 2, 'available'),
+('Admixture Sampling Kit', 'Lab', 3, 'available')
 ON DUPLICATE KEY UPDATE name = VALUES(name);
 
 -- ===================== EMPLOYEES =====================
@@ -371,7 +375,7 @@ INSERT INTO employees (user_id, department_id, full_name, position, email, phone
 SELECT u.id, u.department_id, u.full_name, 
        CASE 
            WHEN r.code = 'admin' THEN 'System Administrator'
-           WHEN r.code = 'staff' THEN 'Facilities Manager'
+           WHEN r.code = 'staff' THEN 'Plant & Facilities Manager'
            ELSE 'Staff Employee'
        END,
        u.email, '555-010'
@@ -448,9 +452,14 @@ CREATE TABLE IF NOT EXISTS visit_area_access (
     FOREIGN KEY (visit_area_id) REFERENCES visit_areas(id) ON DELETE CASCADE
 );
 
--- Seed visit areas
+-- Seed visit areas (ANI Marikina HQ, plant, and warehouse)
 INSERT INTO visit_areas (name) VALUES 
-('Lobby'), ('1st Floor Offices'), ('2nd Floor Conference Rooms'), ('Warehouse'), ('Executive Suite')
+('HQ Lobby / Reception'),
+('Head Office Support Area'),
+('Sales & Technical Offices'),
+('Blending Plant Floor'),
+('Warehouse & Loading Dock'),
+('Executive Suite')
 ON DUPLICATE KEY UPDATE name = name;
 
 -- ===================== MODULE 3: DOCUMENT MANAGEMENT =====================
@@ -970,7 +979,7 @@ CREATE TABLE IF NOT EXISTS contract_vendor_scores (
 -- Seed a starter contract template (optional demo content)
 INSERT INTO contract_templates (name, contract_type_id, body_text, default_value, is_active, created_by)
 SELECT 'Standard NDA Template', ct.id,
-       'This Non-Disclosure Agreement ("Agreement") is entered into between the Company and the Counterparty.\n\n1. Confidential Information\n2. Obligations of Receiving Party\n3. Term and Termination\n4. Governing Law',
+       'This Non-Disclosure Agreement ("Agreement") is entered into between Archon Nell Incorporated ("the Company") and the Counterparty.\n\n1. Confidential Information\n2. Obligations of Receiving Party\n3. Term and Termination\n4. Governing Law',
        NULL, 1, u.id
 FROM contract_types ct
 CROSS JOIN users u

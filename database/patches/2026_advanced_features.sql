@@ -35,8 +35,10 @@ INSERT INTO equipment_items (name, category, quantity_available, status)
 SELECT * FROM (
     SELECT 'Projector Kit' AS name, 'AV' AS category, 4 AS quantity_available, 'available' AS status
     UNION ALL SELECT 'Laptop Cart', 'IT', 2, 'available'
-    UNION ALL SELECT 'Whiteboard Set', 'Office', 6, 'available'
+    UNION ALL SELECT 'Safety Briefing Whiteboard', 'Safety', 6, 'available'
     UNION ALL SELECT 'Conference Phone', 'AV', 3, 'available'
+    UNION ALL SELECT 'Refractory Sample Display Kit', 'Technical', 2, 'available'
+    UNION ALL SELECT 'Admixture Sampling Kit', 'Lab', 3, 'available'
 ) AS seed
 WHERE NOT EXISTS (SELECT 1 FROM equipment_items LIMIT 1);
 
