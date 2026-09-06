@@ -65,10 +65,10 @@ if (!function_exists('audit_pretty_json')) {
         'actions' => function () use ($filters) {
             $qs = http_build_query(array_filter($filters));
             ?>
-            <a href="<?= route('audit.export') . ($qs ? '?' . $qs : '') ?>" class="btn-secondary mr-2 inline-flex items-center gap-1.5" style="text-decoration: none; display: inline-flex; align-items: center; padding: 0.5rem 1rem; border-radius: 0.75rem;">
+            <a href="<?= route('audit.export') . ($qs ? '?' . $qs : '') ?>" download data-export-link class="btn-secondary mr-2 inline-flex items-center gap-1.5" style="text-decoration: none; display: inline-flex; align-items: center; padding: 0.5rem 1rem; border-radius: 0.75rem;">
                 Export CSV
             </a>
-            <a href="<?= route('audit.export.pdf') . ($qs ? '?' . $qs : '') ?>" class="btn-secondary mr-2 inline-flex items-center gap-1.5" style="text-decoration: none; display: inline-flex; align-items: center; padding: 0.5rem 1rem; border-radius: 0.75rem;">
+            <a href="<?= route('audit.export.pdf') . ($qs ? '?' . $qs : '') ?>" download data-export-link class="btn-secondary mr-2 inline-flex items-center gap-1.5" style="text-decoration: none; display: inline-flex; align-items: center; padding: 0.5rem 1rem; border-radius: 0.75rem;">
                 Export PDF
             </a>
             <?php

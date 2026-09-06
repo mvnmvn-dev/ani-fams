@@ -144,14 +144,6 @@
             searchResults.hidden = true;
             if (typeof openModal === 'function') openModal('sessionsModal');
         });
-        document.addEventListener('keydown', function (e) {
-            if ((e.ctrlKey || e.metaKey) && String(e.key).toLowerCase() === 'k') {
-                e.preventDefault();
-                closeAllTopbarMenus(null);
-                searchInput.focus();
-                searchInput.select();
-            }
-        });
     }
 
     /* ---------- Modals ---------- */
@@ -480,7 +472,9 @@
         var url;
         try { url = new URL(href, window.location.origin); } catch (err) { return; }
         if (url.origin !== window.location.origin) return;
+        // Never intercept file downloads (CSV/PDF export, attachments).
         if (url.pathname.indexOf('/export') !== -1) return;
+        if (/\.(pdf|csv|xlsx|ics)(\?|$)/i.test(url.pathname + url.search)) return;
 
         var base = <?= json_encode(rtrim((string) (parse_url(config('app.url'), PHP_URL_PATH) ?: ''), '/')) ?>;
         if (base && url.pathname.indexOf(base) !== 0) return;

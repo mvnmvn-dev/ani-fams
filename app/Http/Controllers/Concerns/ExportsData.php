@@ -4,7 +4,7 @@ namespace App\Http\Controllers\Concerns;
 
 use Dompdf\Dompdf;
 use Dompdf\Options;
-use Symfony\Component\HttpFoundation\StreamedResponse;
+use Symfony\Component\HttpFoundation\Response;
 
 trait ExportsData
 {
@@ -12,19 +12,17 @@ trait ExportsData
      * @param  list<string>  $headers
      * @param  list<array<int|string, mixed>>  $rows
      */
-    protected function exportCsv(string $filenamePrefix, array $headers, array $rows): StreamedResponse
+    protected function exportCsv(string $filenamePrefix, array $headers, array $rows): Response
     {
         $filename = $filenamePrefix . '_' . date('Ymd_His') . '.csv';
+        $csv = $this->buildCsvString($headers, $rows);
 
-        return response()->streamDownload(function () use ($headers, $rows) {
-            $file = fopen('php://output', 'w');
-            fputcsv($file, $headers);
-            foreach ($rows as $row) {
-                fputcsv($file, array_values($row));
-            }
-            fclose($file);
-        }, $filename, [
-            'Content-Type' => 'text/csv',
+        return response($csv, 200, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+            'Content-Length' => (string) strlen($csv),
+            'Cache-Control' => 'no-store, no-cache, must-revalidate',
+            'X-Content-Type-Options' => 'nosniff',
         ]);
     }
 
@@ -32,7 +30,7 @@ trait ExportsData
      * @param  list<string>  $headers
      * @param  list<array<int|string, mixed>>  $rows
      */
-    protected function exportPdf(string $filenamePrefix, string $title, array $headers, array $rows)
+    protected function exportPdf(string $filenamePrefix, string $title, array $headers, array $rows): Response
     {
         $filename = $filenamePrefix . '_' . date('Ymd_His') . '.pdf';
         $html = view('exports.table_pdf', compact('title', 'headers', 'rows'))->render();
@@ -43,18 +41,23 @@ trait ExportsData
 
         try {
             $tempDir = storage_path('app/dompdf');
-            if (! is_dir($tempDir)) {
-                mkdir($tempDir, 0755, true);
+            if (! is_dir($tempDir) && ! mkdir($tempDir, 0755, true) && ! is_dir($tempDir)) {
+                throw new \RuntimeException('Cannot create Dompdf temp directory: ' . $tempDir);
+            }
+            if (! is_writable($tempDir)) {
+                throw new \RuntimeException('Dompdf temp directory is not writable: ' . $tempDir);
             }
 
             $options = new Options();
             $options->set('isRemoteEnabled', false);
+            $options->set('isHtml5ParserEnabled', true);
             $options->set('defaultFont', 'DejaVu Sans');
             $options->set('tempDir', $tempDir);
             $options->set('chroot', base_path());
+            $options->set('fontCache', $tempDir);
 
             $dompdf = new Dompdf($options);
-            $dompdf->loadHtml($html);
+            $dompdf->loadHtml($html, 'UTF-8');
             $dompdf->setPaper('A4', 'landscape');
             $dompdf->render();
 
@@ -70,12 +73,33 @@ trait ExportsData
             );
         }
 
-        return response()->streamDownload(function () use ($pdf) {
-            echo $pdf;
-        }, $filename, [
+        // Never fall back to HTML — browsers must receive binary PDF bytes.
+        return response($pdf, 200, [
             'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+            'Content-Length' => (string) strlen($pdf),
             'Cache-Control' => 'no-store, no-cache, must-revalidate',
+            'Pragma' => 'no-cache',
+            'X-Content-Type-Options' => 'nosniff',
         ]);
+    }
+
+    /**
+     * @param  list<string>  $headers
+     * @param  list<array<int|string, mixed>>  $rows
+     */
+    private function buildCsvString(array $headers, array $rows): string
+    {
+        $handle = fopen('php://temp', 'r+');
+        fputcsv($handle, $headers);
+        foreach ($rows as $row) {
+            fputcsv($handle, array_values($row));
+        }
+        rewind($handle);
+        $csv = stream_get_contents($handle) ?: '';
+        fclose($handle);
+
+        return $csv;
     }
 
     private function pdfExportUnavailableReason(): ?string
@@ -87,10 +111,11 @@ trait ExportsData
         $missing = array_values(array_filter([
             ! extension_loaded('dom') ? 'dom' : null,
             ! extension_loaded('mbstring') ? 'mbstring' : null,
+            ! extension_loaded('gd') ? 'gd' : null,
         ]));
 
         if ($missing !== []) {
-            return 'Enable PHP extensions in php.ini, then restart Apache: extension='
+            return 'Enable PHP extensions in C:\\xampp\\php\\php.ini, then restart Apache: extension='
                 . implode(', extension=', $missing);
         }
 

@@ -53,7 +53,6 @@ $notifIcons = [
                     </svg>
                     <input id="global-search" type="search" autocomplete="off" placeholder="Search modules…"
                            class="app-search-input">
-                    <kbd class="app-search-kbd" title="Press Ctrl+K">Ctrl K</kbd>
                 </div>
                 <div id="global-search-results" class="app-search-results" hidden></div>
             </div>
