@@ -48,9 +48,15 @@ class UserService
             return ['success' => false, 'error' => 'A user with that email already exists.'];
         }
 
+        $otpEmail = trim($input['otp_email'] ?? '');
+        if ($otpEmail !== '' && ! filter_var($otpEmail, FILTER_VALIDATE_EMAIL)) {
+            return ['success' => false, 'error' => 'Please enter a valid OTP Gmail address.'];
+        }
+
         $userId = $this->repo->create([
             'full_name' => $fullName,
             'email' => $email,
+            'otp_email' => $otpEmail !== '' ? $otpEmail : null,
             'password' => $password,
             'role_id' => $roleId,
             'department_id' => $departmentId,
@@ -217,5 +223,27 @@ class UserService
         ]);
 
         return ['success' => true, 'updated' => $updated];
+    }
+
+    /** @return array{success: bool, error?: string} */
+    public function updateOtpEmail(int $id, ?string $otpEmail): array
+    {
+        $otpEmail = $otpEmail !== null ? trim($otpEmail) : null;
+
+        if ($otpEmail === '') {
+            $otpEmail = null;
+        }
+
+        if ($otpEmail !== null && ! filter_var($otpEmail, FILTER_VALIDATE_EMAIL)) {
+            return ['success' => false, 'error' => 'Please enter a valid Gmail address.'];
+        }
+
+        $this->repo->updateOtpEmail($id, $otpEmail);
+
+        AuditLogger::log('users', 'update_otp_email', 'user', $id, null, [
+            'otp_email' => $otpEmail,
+        ]);
+
+        return ['success' => true];
     }
 }

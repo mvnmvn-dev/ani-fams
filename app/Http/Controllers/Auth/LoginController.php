@@ -4,10 +4,12 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
-use App\Services\SessionAnomalyService;
+use App\Services\AuthLoginService;
+use App\Services\EmailOtpService;
 use App\Support\AuditLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 
 class LoginController extends Controller
 {
@@ -20,7 +22,7 @@ class LoginController extends Controller
         return view('auth.login');
     }
 
-    public function login(Request $request)
+    public function login(Request $request, AuthLoginService $authLogin, EmailOtpService $otpService)
     {
         $credentials = $request->validate([
             'email' => ['required', 'email'],
@@ -59,25 +61,48 @@ class LoginController extends Controller
             report($e);
         }
 
-        if ($user->two_factor_enabled && !empty($user->two_factor_secret)) {
+        if ($user->two_factor_enabled && ! empty($user->two_factor_secret)) {
             $request->session()->put('2fa:user:id', $user->id);
             $request->session()->put('2fa:remember', $remember);
+
             return redirect()->route('2fa.challenge');
         }
 
-        Auth::login($user, $remember);
-        $request->session()->regenerate();
-        Auth::user()->load('role.permissions');
+        if (! $authLogin->requiresEmailOtp($user)) {
+            $authLogin->completeLogin($user, $request, $remember);
 
-        try {
-            app(SessionAnomalyService::class)->checkAndAlert($user, $request);
-        } catch (\Throwable $e) {
-            report($e);
+            return redirect()->intended(route('dashboard'));
         }
 
-        AuditLogger::log('auth', 'login', 'user', Auth::id(), null, ['email' => Auth::user()->email]);
+        $otpEmail = $authLogin->otpDeliveryEmail($user);
+        if (! $otpEmail) {
+            return back()->with('flash_error', 'No valid OTP destination is configured for this account.')->onlyInput('email', 'remember');
+        }
 
-        return redirect()->intended(route('dashboard'));
+        try {
+            $otpService->send((int) $user->id, $otpEmail, $user->full_name);
+            Log::info('Email OTP accepted for delivery.', [
+                'user_id' => $user->id,
+                'destination' => $this->maskEmail($otpEmail),
+            ]);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return back()->with('flash_error', 'Could not send verification code. Please try again.')->onlyInput('email', 'remember');
+        }
+
+        $request->session()->put('email_otp:user:id', $user->id);
+        $request->session()->put('email_otp:remember', $remember);
+        $request->session()->put('email_otp:destination', $this->maskEmail($otpEmail));
+
+        return redirect()->route('email-otp.challenge');
+    }
+
+    private function maskEmail(string $email): string
+    {
+        [$local, $domain] = array_pad(explode('@', $email, 2), 2, '');
+
+        return substr($local, 0, 2).'***@'.$domain;
     }
 
     public function logout(Request $request)

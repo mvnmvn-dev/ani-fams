@@ -49,6 +49,7 @@ CREATE TABLE IF NOT EXISTS users (
     department_id INTEGER NULL,
     full_name VARCHAR(150) NOT NULL,
     email VARCHAR(150) NOT NULL UNIQUE,
+    otp_email VARCHAR(150) NULL,
     password_hash VARCHAR(255) NOT NULL,
     two_factor_secret TEXT NULL,
     two_factor_enabled BOOLEAN DEFAULT FALSE,

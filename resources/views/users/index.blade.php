@@ -131,6 +131,13 @@ arsort($deptCounts);
                                 <?php endif; ?>
                             </h3>
                             <p class="text-xs text-ink/50 mt-1 break-all"><?= htmlspecialchars($u['email']) ?></p>
+                            <?php if (($u['role_code'] ?? '') === 'admin'): ?>
+                                <p class="text-[11px] text-brand-700 mt-1 font-semibold">OTP bypassed (admin)</p>
+                            <?php elseif (!empty($u['otp_email'])): ?>
+                                <p class="text-[11px] text-ink/45 mt-1 break-all">OTP: <?= htmlspecialchars($u['otp_email']) ?></p>
+                            <?php else: ?>
+                                <p class="text-[11px] text-accent-700 mt-1 break-all">OTP: account email (fallback)</p>
+                            <?php endif; ?>
                         </div>
                         <div class="flex flex-wrap justify-center gap-2">
                             <span class="px-2.5 py-1 rounded-md text-xs border font-semibold <?= $roleColors[$u['role_code']] ?? '' ?>">
@@ -140,7 +147,14 @@ arsort($deptCounts);
                                 <?= ucfirst($u['status']) ?>
                             </span>
                         </div>
-                        <div>
+                        <div class="flex flex-col items-center gap-2">
+                            <?php if (($u['role_code'] ?? '') !== 'admin'): ?>
+                                <button type="button"
+                                        class="text-xs font-bold px-3 py-2 rounded-lg text-brand-700 hover:bg-brand-50 transition"
+                                        onclick="openOtpEmailModal(<?= (int) $u['id'] ?>, <?= htmlspecialchars(json_encode($u['full_name']), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode($u['otp_email'] ?? ''), ENT_QUOTES) ?>)">
+                                    OTP Email
+                                </button>
+                            <?php endif; ?>
                             <?php if (!$isSelf): ?>
                                 <button type="button"
                                         data-user-toggle
@@ -240,6 +254,13 @@ arsort($deptCounts);
                     <?php endforeach; ?>
                 </select>
             </div>
+            <div class="space-y-1.5">
+                <label class="block text-xs font-bold uppercase tracking-wider text-ink/60">OTP Gmail <span class="normal-case font-normal text-ink/40">(optional)</span></label>
+                <input type="email" name="otp_email"
+                       class="w-full rounded-xl border border-ink/15 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-sand/10"
+                       placeholder="user@gmail.com">
+                <p class="text-[11px] text-ink/45">Login codes are sent here. Admins skip OTP. Leave blank for staff/employee until assigned.</p>
+            </div>
             <div class="pt-6 border-t border-ink/10 flex justify-end gap-3.5">
                 <button type="button" onclick="closeModal('createUserModal')"
                         class="px-5 py-3 rounded-xl border border-ink/10 hover:bg-gray-50 text-ink/70 font-semibold text-sm transition">
@@ -306,6 +327,41 @@ arsort($deptCounts);
     </div>
 </div>
 
+<!-- Modal: OTP Gmail -->
+<div id="otpEmailModal" class="modal-overlay hidden">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full border border-ink/10 overflow-hidden animate-fade-in-up" onclick="event.stopPropagation()">
+        <div class="px-8 py-5 border-b border-ink/10 flex justify-between items-center bg-gray-50/50">
+            <h3 class="font-sans text-xl font-bold text-ink">OTP Gmail</h3>
+            <button type="button" onclick="closeModal('otpEmailModal')" class="text-ink/40 hover:text-ink/60 transition">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+        <form id="otpEmailForm" method="POST" class="p-8 space-y-5">
+            @csrf
+            <p id="otpEmailModalBody" class="text-sm text-ink/70 leading-relaxed"></p>
+            <div class="space-y-1.5">
+                <label class="block text-xs font-bold uppercase tracking-wider text-ink/60">Gmail for login OTP</label>
+                <input type="email" name="otp_email" id="otpEmailInput"
+                       class="w-full rounded-xl border border-ink/15 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-sand/10"
+                       placeholder="user@gmail.com">
+                <p class="text-[11px] text-ink/45">Clear the field and save to remove OTP for this account.</p>
+            </div>
+            <div class="pt-4 border-t border-ink/10 flex justify-end gap-3.5">
+                <button type="button" onclick="closeModal('otpEmailModal')"
+                        class="px-5 py-3 rounded-xl border border-ink/10 hover:bg-gray-50 text-ink/70 font-semibold text-sm transition">
+                    Cancel
+                </button>
+                <button type="submit"
+                        class="px-6 py-3 rounded-xl bg-brand-700 hover:bg-brand-600 text-white font-semibold text-sm transition shadow-sm">
+                    Save
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <!-- Modal: Bulk role reassignment -->
 <div id="bulkRoleModal" class="modal-overlay hidden">
     <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full border border-ink/10 overflow-hidden animate-fade-in-up" onclick="event.stopPropagation()">
@@ -362,6 +418,16 @@ function prepareBulkRoleForm() {
         wrap.appendChild(input);
     });
     return true;
+}
+function openOtpEmailModal(id, name, otpEmail) {
+    var form = document.getElementById('otpEmailForm');
+    form.action = (typeof window.appUrl === 'function')
+        ? window.appUrl('users/' + id + '/otp-email')
+        : (window.location.pathname.replace(/\/+$/, '') + '/' + id + '/otp-email');
+    document.getElementById('otpEmailModalBody').textContent =
+        'Set the Gmail address where login verification codes are sent for "' + name + '".';
+    document.getElementById('otpEmailInput').value = otpEmail || '';
+    openModal('otpEmailModal');
 }
 function openStatusModal(id, name, status) {
     var next = status === 'active' ? 'Suspend' : 'Reactivate';

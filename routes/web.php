@@ -16,6 +16,7 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\VisitorController;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Auth\EmailOtpController;
 use App\Http\Controllers\Auth\TwoFactorController;
 
 Route::get('/', function () {
@@ -30,6 +31,10 @@ Route::middleware('guest')->group(function () {
 
     Route::get('/2fa', [TwoFactorController::class, 'challenge'])->name('2fa.challenge');
     Route::post('/2fa', [TwoFactorController::class, 'verify'])->name('2fa.verify');
+
+    Route::get('/email-otp', [EmailOtpController::class, 'challenge'])->name('email-otp.challenge');
+    Route::post('/email-otp', [EmailOtpController::class, 'verify'])->name('email-otp.verify');
+    Route::post('/email-otp/resend', [EmailOtpController::class, 'resend'])->name('email-otp.resend');
 
     Route::get('/forgot-password', [PasswordResetController::class, 'showForgotForm'])->name('password.request');
     Route::post('/forgot-password', [PasswordResetController::class, 'sendResetLink'])->name('password.email');
@@ -222,6 +227,7 @@ Route::middleware('auth')->group(function () {
         Route::post('/users/import', [UserController::class, 'import'])->name('users.import');
         Route::post('/users/bulk-role', [UserController::class, 'bulkRole'])->name('users.bulk-role');
         Route::post('/users/{id}/toggle-status', [UserController::class, 'toggleStatus'])->name('users.toggle');
+        Route::post('/users/{id}/otp-email', [UserController::class, 'updateOtpEmail'])->name('users.otp-email');
         Route::post('/users/{id}/destroy', [UserController::class, 'destroy'])->name('users.destroy');
 
         Route::get('/settings/roles', [\App\Http\Controllers\RoleController::class, 'index'])->name('roles.index');

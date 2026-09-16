@@ -77,6 +77,21 @@ class UserController extends Controller
         );
     }
 
+    public function updateOtpEmail(Request $request, string $id, UserService $service)
+    {
+        $otpEmail = $request->input('otp_email');
+        if (is_string($otpEmail)) {
+            $otpEmail = trim($otpEmail);
+        }
+
+        $result = $service->updateOtpEmail((int) $id, $otpEmail === '' ? null : $otpEmail);
+
+        return redirect()->route('users.index')->with(
+            $result['success'] ? 'flash_success' : 'flash_error',
+            $result['success'] ? 'OTP email updated.' : ($result['error'] ?? 'Unable to update OTP email.')
+        );
+    }
+
     public function bulkRole(Request $request, UserService $service)
     {
         $result = $service->bulkReassignRole(

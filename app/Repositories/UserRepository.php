@@ -10,7 +10,7 @@ class UserRepository
 
     public function all(): array
     {
-        $sql = "SELECT u.id, u.full_name, u.email, u.status, u.created_at, u.department_id,
+        $sql = "SELECT u.id, u.full_name, u.email, u.otp_email, u.status, u.created_at, u.department_id,
                        r.code AS role_code, r.name AS role_name,
                        d.name AS department_name
                 FROM users u
@@ -49,12 +49,13 @@ class UserRepository
     public function create(array $data): int
     {
         $stmt = $this->pdo()->prepare(
-            "INSERT INTO users (full_name, email, password_hash, role_id, department_id, status)
-             VALUES (:full_name, :email, :password_hash, :role_id, :department_id, 'active')"
+            "INSERT INTO users (full_name, email, otp_email, password_hash, role_id, department_id, status)
+             VALUES (:full_name, :email, :otp_email, :password_hash, :role_id, :department_id, 'active')"
         );
         $stmt->execute([
             'full_name' => $data['full_name'],
             'email' => $data['email'],
+            'otp_email' => ! empty($data['otp_email']) ? $data['otp_email'] : null,
             'password_hash' => password_hash($data['password'], PASSWORD_DEFAULT),
             'role_id' => $data['role_id'],
             'department_id' => ! empty($data['department_id']) ? (int) $data['department_id'] : null,
@@ -176,5 +177,16 @@ class UserRepository
         $stmt->execute($bindings);
 
         return $stmt->rowCount();
+    }
+
+    public function updateOtpEmail(int $id, ?string $otpEmail): void
+    {
+        $stmt = $this->pdo()->prepare(
+            'UPDATE users SET otp_email = :otp_email WHERE id = :id AND deleted_at IS NULL'
+        );
+        $stmt->execute([
+            'otp_email' => $otpEmail,
+            'id' => $id,
+        ]);
     }
 }
