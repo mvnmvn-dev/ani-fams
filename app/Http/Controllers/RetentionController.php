@@ -28,7 +28,7 @@ class RetentionController extends Controller
             'holds' => $service->listHolds(),
             'availDocs' => $service->listAvailableDocuments(),
             'allDocs' => $allDocs,
-            'aiInsights' => $arnel->retentionInsights($assignments, $allDocs),
+            'aiInsights' => $arnel->cachedRetentionInsights($assignments, $allDocs),
             'legalCases' => $service->listLegalCases(),
             'canManage' => Auth::user()->canPermission('retention.manage'),
             'templates' => $service->getPolicyTemplates(),

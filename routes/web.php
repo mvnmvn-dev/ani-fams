@@ -54,13 +54,14 @@ Route::middleware('auth')->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
     // ARNEL AI service layer: all writes are validated and permission-gated in the controller.
-    Route::prefix('api/arnel')->name('api.arnel.')->group(function () {
+    Route::prefix('api/arnel')->middleware('throttle:30,1')->name('api.arnel.')->group(function () {
         Route::post('/documents/analyze', [ArnelController::class, 'analyzeDocument'])->name('documents.analyze');
         Route::post('/reservations/analyze', [ArnelController::class, 'analyzeReservation'])->name('reservations.analyze');
         Route::post('/contracts/analyze', [ArnelController::class, 'analyzeContract'])->name('contracts.analyze');
         Route::post('/legal-cases/analyze', [ArnelController::class, 'analyzeLegalCase'])->name('legal-cases.analyze');
         Route::post('/retention/analyze', [ArnelController::class, 'analyzeRetention'])->name('retention.analyze');
         Route::post('/chat', [ArnelController::class, 'chat'])->name('chat');
+        Route::post('/documents/{id}/classification-feedback', [ArnelController::class, 'correctDocumentClassification'])->name('documents.feedback');
     });
 
     Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');

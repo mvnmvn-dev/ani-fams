@@ -77,7 +77,7 @@ class DocumentRepository
     public function updateAiAnalysis(int $documentId, array $analysis): void
     {
         $stmt = $this->pdo()->prepare(
-            'UPDATE documents SET ai_classification = :classification, ai_summary = :summary, ai_keywords = :keywords, ai_metadata = :metadata, ai_confidence = :confidence, ai_processed_at = CURRENT_TIMESTAMP WHERE id = :id'
+            'UPDATE documents SET ai_category = :classification, ai_classification = :classification, ai_summary = :summary, ai_keywords = :keywords, ai_metadata = :metadata, ai_confidence = :confidence, ai_processed_at = CURRENT_TIMESTAMP WHERE id = :id'
         );
         $stmt->execute([
             'classification' => $analysis['classification'] ?? null,

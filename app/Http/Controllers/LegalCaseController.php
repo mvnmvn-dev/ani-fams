@@ -26,7 +26,7 @@ class LegalCaseController extends Controller
         return view('legal.index', [
             'pageTitle' => 'Legal Management',
             'cases' => $cases,
-            'aiInsights' => $arnel->legalCaseInsights($cases),
+            'aiInsights' => $arnel->cachedLegalCaseInsights($cases),
             'counsels' => $counsels,
             'vendors' => $service->allVendors(),
             'budgetRollup' => $service->budgetRollup(),

@@ -73,7 +73,7 @@ class DashboardService
         ];
 
         $attentionItems = $this->attentionItems($reservations, $visits, $assignments, $cases, $contracts);
-        $aiInsights = $arnel->dashboardInsights($stats, [
+        $aiInsights = $arnel->cachedDashboardInsights($stats, [
             'document_categories' => $this->topCountsBy($documents, 'category_name', 5),
             'reservation_status' => $this->countBy($reservations, 'status', ['pending', 'approved', 'rejected', 'cancelled']),
             'contract_status' => $this->countBy($contracts, 'status', ['draft', 'in_review', 'pending_signature', 'active', 'expired', 'terminated', 'renewed']),

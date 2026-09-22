@@ -88,9 +88,41 @@ class ArnelController extends Controller
         if (($data['action'] ?? null) === 'contract') return $this->analyzeContract($request, $arnel);
         if (($data['action'] ?? null) === 'legal') return $this->analyzeLegalCase($request, $arnel);
         if (($data['action'] ?? null) === 'retention') return $this->analyzeRetention($request, $arnel);
-        $user = Auth::user(); $context = ['pending_reservations' => $user?->canPermission('reservation.view') ? DB::table('reservations')->where('status', 'pending')->count() : 0, 'active_contracts' => $user?->canPermission('contract.view') ? DB::table('contracts')->whereIn('status', ['active', 'renewed'])->count() : 0, 'active_documents' => $user?->canPermission('document.view') ? DB::table('documents')->where('status', 'active')->whereNull('deleted_at')->count() : 0, 'active_legal_cases' => $user?->canPermission('legal.view') ? DB::table('legal_cases')->whereIn('status', ['open', 'in_progress', 'on_hold'])->count() : 0];
-        $reply = $arnel->assistantReply($data['message'], $context);
+        $user = Auth::user();
+        $context = ['pending_reservations' => 0, 'active_contracts' => 0, 'active_documents' => 0, 'active_legal_cases' => 0, 'records' => []];
+        if ($user?->canPermission('reservation.view')) {
+            $context['pending_reservations'] = DB::table('reservations')->where('status', 'pending')->count();
+            $context['records']['reservations'] = DB::table('reservations')->where('status', 'pending')->select('id', 'purpose', 'facility_id', 'start_datetime', 'end_datetime', 'status')->orderBy('start_datetime')->limit(12)->get()->map(fn ($r) => ['title' => $r->purpose ?? 'Reservation', 'facility_id' => $r->facility_id, 'start' => $r->start_datetime, 'end' => $r->end_datetime, 'status' => $r->status, 'url' => url('/reservations/' . $r->id)])->all();
+        }
+        if ($user?->canPermission('contract.view')) {
+            $context['active_contracts'] = DB::table('contracts')->whereIn('status', ['active', 'renewed'])->count();
+            $context['records']['contracts'] = DB::table('contracts')->whereIn('status', ['active', 'renewed'])->select('id', 'title', 'counterparty_name', 'end_date', 'status')->orderBy('end_date')->limit(12)->get()->map(fn ($r) => ['title' => $r->title, 'counterparty' => $r->counterparty_name, 'end_date' => $r->end_date, 'status' => $r->status, 'url' => url('/contracts/' . $r->id)])->all();
+        }
+        if ($user?->canPermission('document.view')) {
+            $context['active_documents'] = DB::table('documents')->where('status', 'active')->whereNull('deleted_at')->count();
+            $context['records']['documents'] = DB::table('documents')->where('status', 'active')->whereNull('deleted_at')->select('id', 'title', 'document_number', 'ai_classification', 'ai_summary')->orderByDesc('created_at')->limit(12)->get()->map(fn ($r) => ['title' => $r->title, 'number' => $r->document_number, 'classification' => $r->ai_classification, 'summary' => $r->ai_summary, 'url' => url('/documents/' . $r->id)])->all();
+        }
+        if ($user?->canPermission('legal.view')) {
+            $context['active_legal_cases'] = DB::table('legal_cases')->whereIn('status', ['open', 'in_progress', 'on_hold'])->count();
+            $context['records']['legal_cases'] = DB::table('legal_cases')->whereIn('status', ['open', 'in_progress', 'on_hold'])->select('id', 'title', 'case_number', 'next_deadline', 'status')->orderBy('next_deadline')->limit(12)->get()->map(fn ($r) => ['title' => $r->title, 'case_number' => $r->case_number, 'next_deadline' => $r->next_deadline, 'status' => $r->status, 'url' => url('/legal/' . $r->id)])->all();
+        }
+        $history = session('arnel.chat_history', []);
+        $reply = $arnel->assistantReply($data['message'], $context, $history);
+        $history[] = ['role' => 'user', 'content' => $data['message']];
+        $history[] = ['role' => 'assistant', 'content' => $reply['answer'] ?? ''];
+        session(['arnel.chat_history' => array_slice($history, -8)]);
         AuditLogger::log('arnel', 'assistant_chat', 'assistant', 0, null, ['message_length' => strlen($data['message']), 'source_count' => count($reply['sources'] ?? [])]);
         return response()->json(['success' => true] + $reply);
+    }
+
+    public function correctDocumentClassification(Request $request, int $id): JsonResponse
+    {
+        if (! Auth::user()?->canPermission('document.manage')) return response()->json(['message' => 'Document management permission required.'], 403);
+        $data = $request->validate(['correct' => ['required', 'boolean'], 'corrected_classification' => ['nullable', 'string', 'max:150']]);
+        $document = DB::table('documents')->whereNull('deleted_at')->find($id);
+        if (! $document) return response()->json(['message' => 'Document not found.'], 404);
+        AuditLogger::log('arnel', 'document_classification_feedback', 'document', $id, null, ['correct' => $data['correct'], 'original_classification' => $document->ai_classification, 'corrected_classification' => $data['corrected_classification'] ?? null]);
+        if (! $data['correct'] && ! empty($data['corrected_classification'])) DB::table('documents')->where('id', $id)->update(['ai_classification' => $data['corrected_classification'], 'ai_category' => $data['corrected_classification']]);
+        return response()->json(['success' => true]);
     }
 }

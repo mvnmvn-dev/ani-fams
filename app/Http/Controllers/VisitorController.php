@@ -23,7 +23,7 @@ class VisitorController extends Controller
         return view('visitors.index', [
             'pageTitle' => 'Visitor Management',
             'visits' => $visits,
-            'aiInsights' => $arnel->visitorInsights($visits),
+            'aiInsights' => $arnel->cachedVisitorInsights($visits),
             'visitors' => $service->visitors(),
             'employees' => $service->employees(),
             'areas' => $service->areas(),

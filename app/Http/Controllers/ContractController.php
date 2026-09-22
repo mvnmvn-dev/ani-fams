@@ -27,7 +27,7 @@ class ContractController extends Controller
         return view('contracts.index', [
             'pageTitle' => 'Contract Management',
             'contracts' => $contracts,
-            'aiInsights' => $arnel->contractInsights($contracts),
+            'aiInsights' => $arnel->cachedContractInsights($contracts),
             'types' => $service->types(),
             'templates' => $service->templates(),
             'chains' => $service->approvalChains(),

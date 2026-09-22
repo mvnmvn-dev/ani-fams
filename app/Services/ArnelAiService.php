@@ -3,6 +3,8 @@
 namespace App\Services;
 
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class ArnelAiService
@@ -10,6 +12,31 @@ class ArnelAiService
     public function isConfigured(): bool
     {
         return (bool) (config('services.arnel.api_key') ?: env('OPENAI_API_KEY'));
+    }
+
+    public function cachedDashboardInsights(array $stats, array $charts, array $attentionItems): array
+    {
+        return Cache::remember('arnel:dashboard:insights:' . sha1(json_encode([$stats, $charts, $attentionItems])), now()->addMinutes(15), fn () => $this->dashboardInsights($stats, $charts, $attentionItems));
+    }
+
+    public function cachedContractInsights(array $contracts): array
+    {
+        return Cache::remember('arnel:contracts:insights:' . sha1(json_encode($contracts)), now()->addMinutes(15), fn () => $this->contractInsights($contracts));
+    }
+
+    public function cachedLegalCaseInsights(array $cases): array
+    {
+        return Cache::remember('arnel:legal:insights:' . sha1(json_encode($cases)), now()->addMinutes(15), fn () => $this->legalCaseInsights($cases));
+    }
+
+    public function cachedRetentionInsights(array $assignments, array $documents = []): array
+    {
+        return Cache::remember('arnel:retention:insights:' . sha1(json_encode([$assignments, $documents])), now()->addMinutes(15), fn () => $this->retentionInsights($assignments, $documents));
+    }
+
+    public function cachedVisitorInsights(array $visits): array
+    {
+        return Cache::remember('arnel:visitors:insights:' . sha1(json_encode($visits)), now()->addMinutes(15), fn () => $this->visitorInsights($visits));
     }
 
     /** @return array{summary:string,notifications:list<array>,insights:list<string>} */
@@ -173,7 +200,7 @@ class ArnelAiService
         return $groups;
     }
 
-    public function assistantReply(string $question, array $context): array
+    public function assistantReply(string $question, array $context, array $history = []): array
     {
         $fallback = ['answer' => 'I could not find enough matching ANI-FAMS records to answer that yet.', 'sources' => []];
         $q = strtolower($question);
@@ -182,7 +209,7 @@ class ArnelAiService
         elseif (str_contains($q, 'document')) $fallback = ['answer' => sprintf('There are %d active document record(s) in the current accessible snapshot.', $context['active_documents'] ?? 0), 'sources' => ['/documents']];
         elseif (str_contains($q, 'legal') || str_contains($q, 'case')) $fallback = ['answer' => sprintf('There are %d active legal case(s) in the current accessible snapshot.', $context['active_legal_cases'] ?? 0), 'sources' => ['/legal']];
 
-        $result = $this->jsonRequest('You are ARNEL AI, an administrative assistant. Answer only from the supplied ANI-FAMS context. Do not invent records, dates, or legal conclusions.', "Question: {$question}\nContext: " . json_encode($context, JSON_UNESCAPED_SLASHES), ['answer' => ['type' => 'string'], 'sources' => ['type' => 'array', 'items' => ['type' => 'string']]], 'arnel_chat');
+        $result = $this->jsonRequest('You are ARNEL AI, an administrative assistant. Answer only from the supplied ANI-FAMS context. Do not invent records, dates, or legal conclusions.', "Recent conversation:\n" . json_encode(array_slice($history, -8), JSON_UNESCAPED_SLASHES) . "\nQuestion: {$question}\nContext: " . json_encode($context, JSON_UNESCAPED_SLASHES), ['answer' => ['type' => 'string'], 'sources' => ['type' => 'array', 'items' => ['type' => 'string']]], 'arnel_chat');
         return is_array($result) ? array_replace($fallback, $result) : $fallback;
     }
 
@@ -199,11 +226,15 @@ class ArnelAiService
                 'response_format' => ['type' => 'json_schema', 'json_schema' => ['name' => $schemaName, 'strict' => true, 'schema' => ['type' => 'object', 'properties' => $properties, 'required' => array_keys($properties), 'additionalProperties' => false]]],
                 'max_completion_tokens' => 1200,
             ]);
-            if (! $response->successful()) return null;
+            if (! $response->successful()) {
+                Log::warning('arnel.request_failed', ['schema' => $schemaName, 'status' => $response->status(), 'body' => Str::limit($response->body(), 500)]);
+                return null;
+            }
             $content = data_get($response->json(), 'choices.0.message.content');
             $decoded = is_string($content) ? json_decode($content, true) : null;
             return is_array($decoded) ? $decoded : null;
-        } catch (\Throwable) {
+        } catch (\Throwable $e) {
+            Log::warning('arnel.request_failed', ['schema' => $schemaName, 'exception' => $e::class, 'message' => $e->getMessage()]);
             return null;
         }
     }

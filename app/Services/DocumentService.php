@@ -178,6 +178,15 @@ class DocumentService
         ]);
 
         $this->repo->updateCurrentVersion($documentId, $versionId);
+        $analysis = app(ArnelAiService::class)->analyzeDocument(
+            (string) ($this->repo->findVersion($documentId, $nextVersionNo)['content_text'] ?? ''),
+            (string) ($fileInput['name'] ?? ''),
+            (string) ($doc['title'] ?? ''),
+            (string) ($doc['description'] ?? '')
+        );
+        if ($analysis) {
+            $this->repo->updateAiAnalysis($documentId, $analysis);
+        }
         $this->recordAttachment($fileInput, $filePath, $versionId, $uploadResult);
 
         AuditLogger::log('documents', 'version', 'document', $documentId, null, [
@@ -293,6 +302,42 @@ class DocumentService
             return $raw === false ? null : substr($raw, 0, 500000);
         }
 
+        if ($ext === 'docx' && class_exists(\PhpOffice\PhpWord\IOFactory::class)) {
+            try {
+                $document = \PhpOffice\PhpWord\IOFactory::load($fullPath);
+                $parts = [];
+                foreach ($document->getSections() as $section) foreach ($section->getElements() as $element) {
+                    if (method_exists($element, 'getText')) $parts[] = $element->getText();
+                    elseif (method_exists($element, 'getElements')) foreach ($element->getElements() as $child) if (method_exists($child, 'getText')) $parts[] = $child->getText();
+                }
+                return trim(substr(implode("\n", $parts), 0, 500000)) ?: null;
+            } catch (\Throwable $e) { report($e); }
+        }
+        if ($ext === 'xlsx' && class_exists(\PhpOffice\PhpSpreadsheet\IOFactory::class)) {
+            try {
+                $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($fullPath);
+                $parts = [];
+                foreach ($spreadsheet->getAllSheets() as $sheet) foreach ($sheet->toArray(null, true, true, true) as $row) $parts[] = implode(' | ', array_map('strval', $row));
+                return trim(substr(implode("\n", $parts), 0, 500000)) ?: null;
+            } catch (\Throwable $e) { report($e); }
+        }
+        if ($ext === 'pptx' && class_exists(\ZipArchive::class)) {
+            try {
+                $zip = new \ZipArchive();
+                if ($zip->open($fullPath) === true) {
+                    $parts = [];
+                    for ($i = 1; $i <= $zip->numFiles; $i++) {
+                        $name = $zip->getNameIndex($i - 1);
+                        if (is_string($name) && preg_match('#^ppt/slides/slide\d+\.xml$#', $name)) $parts[] = strip_tags(str_replace(['</a:p>', '</a:r>'], "\n", $zip->getFromName($name)));
+                    }
+                    $zip->close();
+                    return trim(substr(implode("\n", $parts), 0, 500000)) ?: null;
+                }
+            } catch (\Throwable $e) { report($e); }
+        }
+        if ($ext === 'pdf' && class_exists(\Smalot\PdfParser\Parser::class)) {
+            try { return trim(substr((new \Smalot\PdfParser\Parser())->parseFile($fullPath)->getText(), 0, 500000)) ?: null; } catch (\Throwable $e) { report($e); }
+        }
         $quoted = escapeshellarg($fullPath);
         if ($ext === 'pdf' && function_exists('shell_exec')) {
             $raw = @shell_exec('pdftotext -layout ' . $quoted . ' - 2>/dev/null');

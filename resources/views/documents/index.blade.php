@@ -123,11 +123,98 @@ $recentFeed = array_map(static fn($d) => [
                         <?php $aiKeywords = json_decode((string) ($aiDoc['ai_keywords'] ?? '[]'), true) ?: []; ?>
                         <p class="mt-1 text-xs leading-5 text-ink/60"><?= htmlspecialchars(mb_strimwidth((string) ($aiDoc['ai_summary'] ?? ''), 0, 170, '…')) ?></p>
                         <?php if ($aiKeywords): ?><p class="mt-2 text-[10px] uppercase tracking-wide text-ink/45"><?= htmlspecialchars(implode(' · ', array_slice($aiKeywords, 0, 5))) ?></p><?php endif; ?>
+                        <div class="mt-3 flex items-center gap-2 text-[11px]">
+                            <button type="button" class="font-semibold text-brand-700 hover:text-brand-900" onclick="arnelReanalyze(<?= (int) $aiDoc['id'] ?>, this)">Re-analyze</button>
+                            <span class="text-ink/35">·</span>
+                            <?php if ($canManage): ?>
+                                <button type="button" class="text-ink/55 hover:text-ink" onclick="arnelClassificationFeedback(<?= (int) $aiDoc['id'] ?>, true)">Classification correct</button>
+                                <button type="button" class="text-ink/55 hover:text-ink" onclick="openClassificationCorrectionModal(<?= (int) $aiDoc['id'] ?>)">Not correct</button>
+                            <?php endif; ?>
+                        </div>
                     </div>
                 <?php endforeach; ?>
             </div>
-        <?php else: ?><p class="mt-4 text-sm text-ink/50">AI analysis will appear here after the first document upload.</p><?php endif; ?>
+    <?php else: ?><p class="mt-4 text-sm text-ink/50">AI analysis will appear here after the first document upload.</p><?php endif; ?>
     </section>
+
+    <?php if ($canManage): ?>
+    <div id="classificationCorrectionModal" class="modal-overlay hidden" hidden role="dialog" aria-modal="true" aria-labelledby="classificationCorrectionTitle" onclick="if (event.target === this) closeModal('classificationCorrectionModal')">
+        <div class="modal-panel w-full max-w-md mx-4 overflow-hidden rounded-2xl border border-ink/10 bg-white shadow-2xl" onclick="event.stopPropagation()">
+            <div class="flex items-start justify-between border-b border-ink/10 bg-gray-50/70 px-6 py-5">
+                <div>
+                    <div class="mb-1 flex items-center gap-2">
+                        <span class="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-brand-700 text-xs font-bold text-white">AI</span>
+                        <h2 id="classificationCorrectionTitle" class="text-lg font-bold text-ink">Correct classification</h2>
+                    </div>
+                    <p class="text-sm leading-5 text-ink/60">Tell ARNEL the classification this document should use.</p>
+                </div>
+                <button type="button" onclick="closeModal('classificationCorrectionModal')" class="text-ink/40 transition hover:text-ink" aria-label="Close correction modal">&times;</button>
+            </div>
+            <form id="classificationCorrectionForm" class="space-y-5 px-6 py-5" onsubmit="submitClassificationCorrection(event)">
+                <input type="hidden" id="classificationCorrectionDocumentId" value="">
+                <div class="space-y-2">
+                    <label for="correctedClassification" class="block text-xs font-bold uppercase tracking-wider text-ink/60">Correct classification</label>
+                    <input id="correctedClassification" name="corrected_classification" type="text" maxlength="150" required autocomplete="off" placeholder="e.g. Contract, Invoice, Memorandum" class="w-full rounded-xl border border-ink/15 bg-sand/10 px-4 py-3 text-sm text-ink outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100">
+                    <p class="text-xs text-ink/50">This correction will be recorded for audit and applied to the document.</p>
+                </div>
+                <div id="classificationCorrectionError" class="hidden rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700"></div>
+                <div class="flex justify-end gap-3 border-t border-ink/10 pt-4">
+                    <button type="button" onclick="closeModal('classificationCorrectionModal')" class="rounded-xl border border-ink/10 px-4 py-2.5 text-sm font-semibold text-ink/70 transition hover:bg-ink/5">Cancel</button>
+                    <button id="classificationCorrectionSubmit" type="submit" class="btn-primary">Save correction</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <?php endif; ?>
+
+    <script>
+        async function arnelReanalyze(id, button) {
+            button.disabled = true;
+            button.textContent = 'Analyzing…';
+            try {
+                const response = await fetch('<?= route('api.arnel.documents.analyze') ?>', { method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRF-TOKEN': '<?= csrf_token() ?>', 'Accept': 'application/json'}, body: JSON.stringify({document_id: id}) });
+                const data = await response.json();
+                alert(data.success ? 'Document re-analyzed successfully.' : (data.message || 'Unable to analyze document.'));
+                if (data.success) window.location.reload();
+            } catch (error) { alert('Unable to analyze document.'); }
+            button.disabled = false;
+            button.textContent = 'Re-analyze';
+        }
+        function openClassificationCorrectionModal(id) {
+            document.getElementById('classificationCorrectionDocumentId').value = id;
+            document.getElementById('correctedClassification').value = '';
+            document.getElementById('classificationCorrectionError').classList.add('hidden');
+            openModal('classificationCorrectionModal');
+            setTimeout(() => document.getElementById('correctedClassification').focus(), 50);
+        }
+        async function arnelClassificationFeedback(id, correct, corrected = null) {
+            const response = await fetch('<?= url('/api/arnel/documents') ?>/' + id + '/classification-feedback', { method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRF-TOKEN': '<?= csrf_token() ?>', 'Accept': 'application/json'}, body: JSON.stringify({correct: correct, corrected_classification: corrected}) });
+            const data = await response.json();
+            if (!response.ok || !data.success) throw new Error(data.message || 'Unable to record feedback.');
+            return data;
+        }
+        async function submitClassificationCorrection(event) {
+            event.preventDefault();
+            const documentId = document.getElementById('classificationCorrectionDocumentId').value;
+            const corrected = document.getElementById('correctedClassification').value.trim();
+            const submit = document.getElementById('classificationCorrectionSubmit');
+            const error = document.getElementById('classificationCorrectionError');
+            submit.disabled = true;
+            submit.textContent = 'Saving…';
+            error.classList.add('hidden');
+            try {
+                await arnelClassificationFeedback(documentId, false, corrected);
+                closeModal('classificationCorrectionModal');
+                window.location.reload();
+            } catch (exception) {
+                error.textContent = exception.message;
+                error.classList.remove('hidden');
+            } finally {
+                submit.disabled = false;
+                submit.textContent = 'Save correction';
+            }
+        }
+    </script>
 
     @include('partials.stat_kpi_grid', ['cards' => [
         ['label' => 'Total archive', 'value' => $totalDocs, 'hint' => 'Active records in library', 'tone' => 'navy', 'icon' => 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z'],
