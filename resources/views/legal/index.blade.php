@@ -76,6 +76,13 @@ $onHoldCases = array_slice($onHoldCases, 0, 5);
     ]);
     ?>
 
+    <?php $ai = $aiInsights ?? ['summary' => '', 'deadlines' => [], 'related_documents' => []]; ?>
+    <section class="rounded-2xl border border-brand-200 bg-brand-50/30 p-5 shadow-sm">
+        <div class="flex items-center gap-2"><span class="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-brand-700 text-white text-xs font-bold">AI</span><div><h2 class="section-title">ARNEL case brief</h2><p class="type-meta">Operational summary, deadline detection, and document linkage suggestions</p></div></div>
+        <p class="mt-3 text-sm text-ink/70"><?= htmlspecialchars($ai['summary'] ?? '') ?></p>
+        <?php if (!empty($ai['deadlines'])): ?><div class="mt-4 grid gap-2 md:grid-cols-3"><?php foreach (array_slice($ai['deadlines'], 0, 6) as $deadline): ?><div class="rounded-xl bg-white/75 p-3"><div class="flex justify-between gap-2"><strong class="truncate text-sm"><?= htmlspecialchars($deadline['case']) ?></strong><span class="text-[10px] font-bold uppercase <?= ($deadline['priority'] ?? '') === 'high' ? 'text-accent-700' : 'text-brand-700' ?>"><?= htmlspecialchars($deadline['priority']) ?></span></div><p class="mt-1 text-xs text-ink/55"><?= htmlspecialchars($deadline['type']) ?> · <?= htmlspecialchars($deadline['date']) ?></p></div><?php endforeach; ?></div><?php endif; ?>
+    </section>
+
     <?php $budgetRollup = $budgetRollup ?? []; ?>
     <?php if (!empty($budgetRollup)): ?>
     <div class="module-insight-panel">

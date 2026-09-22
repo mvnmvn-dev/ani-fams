@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Concerns\ExportsData;
 use App\Http\Controllers\Concerns\RespondsWithFlashOrJson;
 use App\Services\VisitorService;
+use App\Services\ArnelAiService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -16,11 +17,13 @@ class VisitorController extends Controller
         exportPdf as streamExportPdf;
     }
 
-    public function index(VisitorService $service)
+    public function index(VisitorService $service, ArnelAiService $arnel)
     {
+        $visits = $service->listVisits();
         return view('visitors.index', [
             'pageTitle' => 'Visitor Management',
-            'visits' => $service->listVisits(),
+            'visits' => $visits,
+            'aiInsights' => $arnel->visitorInsights($visits),
             'visitors' => $service->visitors(),
             'employees' => $service->employees(),
             'areas' => $service->areas(),

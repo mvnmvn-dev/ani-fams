@@ -3,12 +3,14 @@
 namespace App\Services;
 
 use App\Support\TopbarData;
+use App\Support\AuditLogger;
 use Illuminate\Support\Facades\Auth;
 
 class DashboardService
 {
-    public function data(): array
+    public function data(?ArnelAiService $arnel = null): array
     {
+        $arnel ??= app(ArnelAiService::class);
         $resService   = app(ReservationService::class);
         $visService   = app(VisitorService::class);
         $docService   = app(DocumentService::class);
@@ -70,6 +72,18 @@ class DashboardService
             'retention_rate'   => $retRate,
         ];
 
+        $attentionItems = $this->attentionItems($reservations, $visits, $assignments, $cases, $contracts);
+        $aiInsights = $arnel->dashboardInsights($stats, [
+            'document_categories' => $this->topCountsBy($documents, 'category_name', 5),
+            'reservation_status' => $this->countBy($reservations, 'status', ['pending', 'approved', 'rejected', 'cancelled']),
+            'contract_status' => $this->countBy($contracts, 'status', ['draft', 'in_review', 'pending_signature', 'active', 'expired', 'terminated', 'renewed']),
+        ], $attentionItems);
+        AuditLogger::log('arnel', 'dashboard_insights', 'dashboard', Auth::id() ?? 0, null, [
+            'summary_generated' => true,
+            'attention_count' => count($attentionItems),
+            'ai_configured' => $arnel->isConfigured(),
+        ]);
+
         return [
             'pageTitle' => 'Dashboard',
             'stats'     => $stats,
@@ -92,7 +106,8 @@ class DashboardService
             'recentReservations' => array_slice($reservations, 0, 6),
             'recentVisits'       => array_slice($visits, 0, 6),
             'recentContracts'    => array_slice($contracts, 0, 5),
-            'attentionItems'     => $this->attentionItems($reservations, $visits, $assignments, $cases, $contracts),
+            'attentionItems'     => $attentionItems,
+            'aiInsights'         => $aiInsights,
             'quickActions'       => TopbarData::quickActions(),
         ];
     }

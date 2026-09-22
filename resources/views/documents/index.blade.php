@@ -109,6 +109,26 @@ $recentFeed = array_map(static fn($d) => [
     <div class="module-empty">No documents matched that content search.</div>
     <?php endif; ?>
 
+    <section class="rounded-2xl border border-brand-200 bg-brand-50/30 p-5 shadow-sm">
+        <div class="flex items-start gap-3">
+            <span class="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-brand-700 text-white text-xs font-bold">AI</span>
+            <div><h2 class="section-title">ARNEL document intelligence</h2><p class="type-meta">OCR text extraction, classification, metadata, summaries, keyword tags, and duplicate-ready checks run at upload.</p></div>
+        </div>
+        <?php $aiDocs = array_values(array_filter($documents, static fn ($doc) => !empty($doc['ai_classification']) || !empty($doc['ai_summary']))); ?>
+        <?php if (!empty($aiDocs)): ?>
+            <div class="mt-4 grid gap-3 md:grid-cols-2">
+                <?php foreach (array_slice($aiDocs, 0, 4) as $aiDoc): ?>
+                    <div class="rounded-xl bg-white/75 p-3">
+                        <div class="flex items-center justify-between gap-3"><strong class="truncate text-sm text-ink"><?= htmlspecialchars($aiDoc['title'] ?? '') ?></strong><span class="shrink-0 rounded-full bg-brand-100 px-2 py-0.5 text-[10px] font-semibold text-brand-700"><?= htmlspecialchars($aiDoc['ai_classification'] ?? 'Analyzed') ?></span></div>
+                        <?php $aiKeywords = json_decode((string) ($aiDoc['ai_keywords'] ?? '[]'), true) ?: []; ?>
+                        <p class="mt-1 text-xs leading-5 text-ink/60"><?= htmlspecialchars(mb_strimwidth((string) ($aiDoc['ai_summary'] ?? ''), 0, 170, '…')) ?></p>
+                        <?php if ($aiKeywords): ?><p class="mt-2 text-[10px] uppercase tracking-wide text-ink/45"><?= htmlspecialchars(implode(' · ', array_slice($aiKeywords, 0, 5))) ?></p><?php endif; ?>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+        <?php else: ?><p class="mt-4 text-sm text-ink/50">AI analysis will appear here after the first document upload.</p><?php endif; ?>
+    </section>
+
     @include('partials.stat_kpi_grid', ['cards' => [
         ['label' => 'Total archive', 'value' => $totalDocs, 'hint' => 'Active records in library', 'tone' => 'navy', 'icon' => 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z'],
         ['label' => 'Sensitive files', 'value' => $sensitive, 'hint' => 'Confidential + restricted', 'tone' => 'terracotta', 'icon' => 'M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z'],

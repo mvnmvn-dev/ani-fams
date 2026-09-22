@@ -32,6 +32,12 @@ class Document extends Model
         'checked_out_by',
         'checked_out_at',
         'checked_out_notes',
+        'ai_classification',
+        'ai_summary',
+        'ai_keywords',
+        'ai_metadata',
+        'ai_confidence',
+        'ai_processed_at',
     ];
 
     public function category(): BelongsTo
@@ -79,6 +85,10 @@ class Document extends Model
         'review_reminder_sent_at' => 'datetime',
         'last_reviewed_at' => 'datetime',
         'checked_out_at' => 'datetime',
+        'ai_metadata' => 'array',
+        'ai_keywords' => 'array',
+        'ai_confidence' => 'decimal:2',
+        'ai_processed_at' => 'datetime',
     ];
 
     public function scopeNeedsReview($query)

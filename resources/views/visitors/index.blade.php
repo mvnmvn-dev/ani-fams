@@ -69,6 +69,14 @@ $recentCheckIns = array_slice($recentCheckIns, 0, 5);
     ]);
     ?>
 
+    <?php $ai = $aiInsights ?? ['summary' => '', 'frequent_visitors' => [], 'anomalies' => []]; ?>
+    <section class="rounded-2xl border border-brand-200 bg-brand-50/30 p-5 shadow-sm">
+        <div class="flex items-center gap-2"><span class="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-brand-700 text-white text-xs font-bold">AI</span><div><h2 class="section-title">ARNEL visitor brief</h2><p class="type-meta">Daily log summary, recurring visitors, and anomaly review</p></div></div>
+        <p class="mt-3 text-sm text-ink/70"><?= htmlspecialchars($ai['summary'] ?? '') ?></p>
+        <?php if (!empty($ai['frequent_visitors'])): ?><div class="mt-4 flex flex-wrap gap-2"><?php foreach (array_slice($ai['frequent_visitors'], 0, 6) as $item): ?><span class="rounded-full border border-brand-200 bg-white/75 px-3 py-1.5 text-xs text-ink/70"><?= htmlspecialchars($item['name']) ?> · <?= (int) $item['visits'] ?> visit(s)</span><?php endforeach; ?></div><?php endif; ?>
+        <?php if (!empty($ai['anomalies'])): ?><p class="mt-3 text-xs font-semibold text-accent-700">Review unusual frequency: <?php foreach ($ai['anomalies'] as $item): ?><?= htmlspecialchars($item['name']) ?> (<?= (int) $item['visits'] ?>)<?php if ($item !== end($ai['anomalies'])): ?>, <?php endif; ?><?php endforeach; ?></p><?php endif; ?>
+    </section>
+
     @include('partials.stat_kpi_grid', ['cards' => [
         ['label' => 'On site now', 'value' => count($onSite), 'hint' => 'Checked in and present', 'tone' => 'navy', 'icon' => 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z'],
         ['label' => 'Scheduled', 'value' => count($scheduled), 'hint' => 'Awaiting arrival', 'tone' => 'navy', 'icon' => 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z'],

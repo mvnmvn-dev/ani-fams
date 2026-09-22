@@ -5,10 +5,11 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use App\Models\Notification;
+use App\Services\ArnelAiService;
 
 class NotificationController extends Controller
 {
-    public function index()
+    public function index(ArnelAiService $arnel)
     {
         $notifications = Notification::where('user_id', Auth::id())
             ->orderBy('created_at', 'desc')
@@ -17,6 +18,7 @@ class NotificationController extends Controller
         return view('notifications.index', [
             'pageTitle' => 'My Notifications',
             'notifications' => $notifications,
+            'priorityGroups' => $arnel->groupNotifications($notifications->getCollection()),
         ]);
     }
 

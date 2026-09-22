@@ -2760,18 +2760,63 @@
             padding-right: 2rem;
         }
 
-        /* Full-page blur + lock scroll while a modal is open */
+        .arnel-global-root { position: fixed; right: 1.25rem; bottom: 1.25rem; z-index: 900; font-size: 14px; }
+        .arnel-global-launcher { display: inline-flex; align-items: center; gap: .55rem; border: 1px solid rgba(255,255,255,.16); border-radius: 999px; padding: .55rem .85rem .55rem .55rem; color: #fff; background: linear-gradient(135deg,#334963,#142e4c); box-shadow: 0 12px 30px rgba(2,15,28,.25); font-size: .75rem; font-weight: 700; transition: transform .18s ease, box-shadow .18s ease; }
+        .arnel-global-launcher:hover { transform: translateY(-2px); box-shadow: 0 16px 35px rgba(2,15,28,.32); }
+        .arnel-global-launcher-orb, .arnel-global-orb { display: grid; place-items: center; border-radius: .65rem; color: #fff; background: radial-gradient(circle at 35% 25%,#b7d8ec,#5e7288 45%,#142e4c 75%); }
+        .arnel-global-launcher-orb { width: 1.75rem; height: 1.75rem; font-size: .9rem; }
+        .arnel-global-panel { position: absolute; right: 0; bottom: 3.65rem; width: min(24rem, calc(100vw - 2rem)); overflow: hidden; border: 1px solid rgba(20,46,76,.15); border-radius: 1.15rem; background: #fff; box-shadow: 0 24px 70px rgba(2,15,28,.25); animation: arnelGlobalIn .2s ease both; }
+        .arnel-global-head { display: flex; align-items: center; justify-content: space-between; padding: .95rem 1rem; color: #fff; background: linear-gradient(135deg,#020f1c,#334963); }
+        .arnel-global-orb { width: 2rem; height: 2rem; font-size: .9rem; }
+        .arnel-global-head strong { display: block; font-size: .8rem; }
+        .arnel-global-head span:not(.arnel-global-orb):not(.arnel-global-online) { display: block; color: rgba(255,255,255,.58); font-size: .64rem; }
+        .arnel-global-online { display: inline-flex !important; align-items: center; gap: .25rem; color: #b7e7c8 !important; font-size: .58rem !important; }
+        .arnel-global-online i { width: .3rem; height: .3rem; border-radius: 99px; background: #8fd6aa; }
+        .arnel-global-close { color: rgba(255,255,255,.65); font-size: 1.35rem; line-height: 1; }
+        .arnel-global-log { display: flex; flex-direction: column; gap: .55rem; height: 15rem; overflow-y: auto; padding: .9rem; background: #fbfcfd; }
+        .arnel-global-msg { display: flex; align-items: flex-start; gap: .4rem; max-width: 92%; font-size: .72rem; line-height: 1.45; }
+        .arnel-global-msg p { margin: 0; padding: .55rem .65rem; border-radius: .75rem; }
+        .arnel-global-msg.is-ai p { color: #334963; border: 1px solid #e3e9ee; background: #f0f4f7; }
+        .arnel-global-msg.is-user { align-self: flex-end; flex-direction: row-reverse; }
+        .arnel-global-msg.is-user p { color: #fff; background: #142e4c; }
+        .arnel-global-mini { display: grid; place-items: center; width: 1.35rem; height: 1.35rem; flex: 0 0 auto; border-radius: .45rem; color: #fff; background: #334963; font-size: .65rem; }
+        .arnel-global-prompts { display: flex; flex-wrap: wrap; gap: .3rem; padding: .55rem .9rem 0; background: #fbfcfd; }
+        .arnel-global-prompts button { border: 1px solid rgba(20,46,76,.14); border-radius: 99px; padding: .28rem .5rem; color: #334963; background: #fff; font-size: .62rem; font-weight: 600; }
+        .arnel-global-prompts button:hover { color: #fff; background: #142e4c; }
+        .arnel-global-tools { display: flex; flex-wrap: wrap; gap: .35rem; padding: .55rem .9rem 0; background: #fbfcfd; }
+        .arnel-global-tools button { flex: 1 1 30%; border: 1px solid rgba(20,46,76,.16); border-radius: .65rem; padding: .42rem .35rem; color: #142e4c; background: #eef3f6; font-size: .62rem; font-weight: 700; }
+        .arnel-global-tools button:hover { color: #fff; background: #334963; }
+        .arnel-global-tool-panel { display: grid; gap: .4rem; margin: .55rem .9rem 0; padding: .6rem; border: 1px solid rgba(20,46,76,.12); border-radius: .75rem; background: #f3f7f9; }
+        .arnel-global-tool-panel strong { color: #142e4c; font-size: .68rem; }
+        .arnel-global-tool-panel small { color: rgba(15,23,42,.58); font-size: .61rem; }
+        .arnel-global-tool-panel .arnel-tool-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .35rem; }
+        .arnel-global-tool-panel input { min-width: 0; border: 1px solid rgba(20,46,76,.15); border-radius: .55rem; padding: .45rem; color: #142e4c; background: #fff; font-size: .65rem; }
+        .arnel-global-tool-panel button { border: 0; border-radius: .55rem; padding: .48rem; color: #fff; background: #142e4c; font-size: .65rem; font-weight: 700; }
+        .arnel-global-form { display: flex; gap: .45rem; padding: .7rem .9rem .35rem; background: #fbfcfd; }
+        .arnel-global-form input { min-width: 0; flex: 1; border: 1px solid rgba(20,46,76,.16); border-radius: .7rem; padding: .6rem .65rem; outline: none; color: #142e4c; font-size: .72rem; }
+        .arnel-global-form input:focus { border-color: #5e7288; box-shadow: 0 0 0 3px rgba(94,114,136,.12); }
+        .arnel-global-form button { display: grid; place-items: center; width: 2.25rem; border-radius: .65rem; color: #fff; background: #142e4c; }
+        .arnel-global-form button:disabled { opacity: .5; }
+        .arnel-global-note { margin: 0; padding: 0 .9rem .75rem; color: rgba(15,23,42,.48); background: #fbfcfd; font-size: .58rem; }
+        @keyframes arnelGlobalIn { from { opacity: 0; transform: translateY(8px) scale(.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+        html.dark .arnel-global-panel { border-color: rgba(123,168,204,.2); background: #122033; }
+        html.dark .arnel-global-log, html.dark .arnel-global-prompts, html.dark .arnel-global-form, html.dark .arnel-global-note { background: #122033; }
+        html.dark .arnel-global-msg.is-ai p { color: #e8eef6; border-color: rgba(123,168,204,.16); background: rgba(123,168,204,.1); }
+        html.dark .arnel-global-prompts button, html.dark .arnel-global-form input { color: #e8eef6; border-color: rgba(123,168,204,.22); background: #172a40; }
+        html.dark .arnel-global-tools, html.dark .arnel-global-tool-panel { background: #172a40; }
+        html.dark .arnel-global-tools button, html.dark .arnel-global-tool-panel input { color: #e8eef6; border-color: rgba(123,168,204,.22); background: #122033; }
+        html.dark .arnel-global-tool-panel strong { color: #e8eef6; }
+        html.dark .arnel-global-note { color: rgba(232,238,246,.5); }
+        @media (max-width: 640px) { .arnel-global-root { right: .75rem; bottom: .75rem; } .arnel-global-launcher-label { display: none; } .arnel-global-launcher { padding: .45rem; } .arnel-global-panel { right: -.15rem; bottom: 3.25rem; } }
+
+        /* Lock the page while preserving viewport-level modal visibility and interaction. */
         body.modal-open { overflow: hidden; }
-        body.modal-open #app-shell {
-            filter: blur(8px);
-            pointer-events: none;
-            user-select: none;
-            transition: filter 0.2s ease;
-        }
+        body.modal-open #app-main { overflow: hidden !important; }
+        body.modal-open #app-shell { user-select: none; }
         .modal-overlay {
             position: fixed;
             inset: 0;
-            z-index: 100;
+            z-index: 1000;
             display: none;
             align-items: center;
             justify-content: center;
@@ -2790,8 +2835,8 @@
             max-height: min(90vh, 44rem);
             overflow-y: auto;
         }
-        .modal-overlay.confirm-modal-overlay { z-index: 140; }
-        .modal-overlay.record-modal-overlay { z-index: 110; }
+        .modal-overlay.confirm-modal-overlay { z-index: 1040; }
+        .modal-overlay.record-modal-overlay { z-index: 1010; }
         .record-modal-panel {
             width: min(56rem, 100%);
             max-height: min(92vh, 52rem);
@@ -3124,8 +3169,33 @@
         @include('partials.app_footer')
     </div>
 </div>
+<div id="arnelGlobalAssistant" class="arnel-global-root" aria-live="polite">
+    <section id="arnelGlobalPanel" class="arnel-global-panel" hidden>
+        <header class="arnel-global-head"><div class="flex items-center gap-2.5"><span class="arnel-global-orb">✦</span><div><div class="flex items-center gap-2"><strong>ARNEL Copilot</strong><span class="arnel-global-online"><i></i> Online</span></div><span>Ask across your authorized modules</span></div></div><button type="button" id="arnelGlobalClose" class="arnel-global-close" aria-label="Close ARNEL">×</button></header>
+        <div id="arnelGlobalLog" class="arnel-global-log"><div class="arnel-global-msg is-ai"><span class="arnel-global-mini">✦</span><p>How can I help with your facilities, documents, contracts, or records?</p></div></div>
+        <div class="arnel-global-prompts"><button type="button" data-global-prompt="Summarize today's reservations.">Reservations</button><button type="button" data-global-prompt="Find contracts expiring this month.">Contracts</button><button type="button" data-global-prompt="Show pending administrative documents.">Documents</button></div>
+        <div class="arnel-global-tools"><button type="button" data-global-tool="reservation">✦ Reserve</button><button type="button" data-global-tool="document">▣ Document</button><button type="button" data-global-tool="contract">⌁ Contract</button><button type="button" data-global-tool="legal">⚖ Legal</button><button type="button" data-global-tool="retention">◷ Records</button></div>
+        <div id="arnelGlobalToolPanel" class="arnel-global-tool-panel" hidden></div>
+        <form id="arnelGlobalForm" class="arnel-global-form"><input id="arnelGlobalInput" placeholder="Ask ARNEL anything…" maxlength="2000" autocomplete="off"><button type="submit" aria-label="Send"><svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14m-6-6 6 6-6 6"/></svg></button></form><p class="arnel-global-note">Recommendations only · verify important outputs</p>
+    </section>
+    <button type="button" id="arnelGlobalLauncher" class="arnel-global-launcher" aria-expanded="false"><span class="arnel-global-launcher-orb">✦</span><span class="arnel-global-launcher-label">Ask ARNEL</span></button>
+</div>
 @include('partials.confirm_modal')
 @include('partials.record_modal')
 @include('partials.footer_scripts')
+<script>
+(function () {
+    var launcher = document.getElementById('arnelGlobalLauncher'), panel = document.getElementById('arnelGlobalPanel'), close = document.getElementById('arnelGlobalClose'), form = document.getElementById('arnelGlobalForm'), input = document.getElementById('arnelGlobalInput'), log = document.getElementById('arnelGlobalLog'), toolPanel = document.getElementById('arnelGlobalToolPanel');
+    if (!launcher || !panel || !form) return;
+    var csrf = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+    function safe(value) { var el = document.createElement('div'); el.textContent = value == null ? '' : String(value); return el.innerHTML; }
+    function add(text, kind) { var row = document.createElement('div'); row.className = 'arnel-global-msg ' + (kind === 'ai' ? 'is-ai' : 'is-user'); row.innerHTML = (kind === 'ai' ? '<span class="arnel-global-mini">✦</span>' : '') + '<p>' + safe(text) + '</p>'; log.appendChild(row); log.scrollTop = log.scrollHeight; return row; }
+    function toggle(open) { var shouldOpen = open === undefined ? panel.hasAttribute('hidden') : open; if (shouldOpen) { panel.removeAttribute('hidden'); launcher.setAttribute('aria-expanded', 'true'); setTimeout(function () { input.focus(); }, 50); } else { panel.setAttribute('hidden', 'hidden'); launcher.setAttribute('aria-expanded', 'false'); } }
+    function request(payload, label) { add(label, 'user'); var pending = add('ARNEL is processing that request…', 'ai'); fetch(window.appUrl('api/arnel/chat'), {method:'POST', headers:{'Content-Type':'application/json','Accept':'application/json','X-CSRF-TOKEN':csrf,'X-Requested-With':'XMLHttpRequest'}, body:JSON.stringify(payload)}).then(function (r) { return r.json().then(function (b) { if (!r.ok) throw new Error(b.message || 'Unable to reach ARNEL.'); return b; }); }).then(function (b) { pending.remove(); var data = b.data || {}; if (payload.action === 'reservation') add((data.conflict_status === 'conflict_detected' ? 'Conflict detected. ' : 'No conflict detected. ') + (data.ai_suggestion || '') + (data.suggested_facility ? ' Suggested facility: ' + data.suggested_facility : ''), 'ai'); else if (payload.action === 'document') add('Document analysis complete. ' + (data.summary || 'Review the returned classification and tags.'), 'ai'); else add(b.answer || 'I could not find a matching answer.', 'ai'); }).catch(function (e) { pending.remove(); add(e.message || 'ARNEL is temporarily unavailable.', 'ai'); }); }
+    function showTool(type) { toggle(true); toolPanel.removeAttribute('hidden'); if (type === 'reservation') { toolPanel.innerHTML = '<strong>✦ Smart Reserve</strong><small>Check a facility and time before submitting a request.</small><input id="arnelToolFacility" placeholder="Facility name (exact name)"><div class="arnel-tool-grid"><input id="arnelToolStart" type="datetime-local"><input id="arnelToolEnd" type="datetime-local"></div><button type="button" id="arnelRunTool">Check availability</button>'; document.getElementById('arnelRunTool').onclick = function () { request({action:'reservation',message:'Smart reserve availability check',facility_name:document.getElementById('arnelToolFacility').value,start_datetime:document.getElementById('arnelToolStart').value,end_datetime:document.getElementById('arnelToolEnd').value}, 'Smart Reserve check'); }; } else { var labels = {document:['▣ Analyze Document','Document ID','Analyze document'],contract:['⌁ Analyze Contract','Contract ID','Analyze contract'],legal:['⚖ Analyze Legal Case','Legal case ID','Analyze case'],retention:['◷ Review Retention','Assignment ID','Review retention']}; var config = labels[type] || labels.document; var field = type === 'document' ? 'document_id' : (type === 'contract' ? 'contract_id' : (type === 'legal' ? 'legal_case_id' : 'assignment_id')); toolPanel.innerHTML = '<strong>' + config[0] + '</strong><small>Run ARNEL analysis and return a grounded recommendation for this record.</small><input id="arnelToolRecord" type="number" placeholder="' + config[1] + '"><button type="button" id="arnelRunTool">' + config[2] + '</button>'; document.getElementById('arnelRunTool').onclick = function () { var payload = {action:type,message:config[2],document_id:null,contract_id:null,legal_case_id:null,assignment_id:null}; payload[field] = document.getElementById('arnelToolRecord').value; request(payload, config[2] + ' request'); }; } }
+    function ask(message) { message = String(message || '').trim(); if (!message) return; add(message, 'user'); input.value = ''; input.disabled = true; var send = form.querySelector('button'); if (send) send.disabled = true; var pending = add('Reviewing your authorized records…', 'ai'); fetch(window.appUrl('api/arnel/chat'), {method:'POST', headers:{'Content-Type':'application/json','Accept':'application/json','X-CSRF-TOKEN':csrf,'X-Requested-With':'XMLHttpRequest'}, body:JSON.stringify({message:message})}).then(function (r) { return r.json().then(function (b) { if (!r.ok) throw new Error(b.message || 'Unable to reach ARNEL.'); return b; }); }).then(function (b) { pending.remove(); add(b.answer || 'I could not find a matching answer.', 'ai'); }).catch(function (e) { pending.remove(); add(e.message || 'ARNEL is temporarily unavailable.', 'ai'); }).finally(function () { input.disabled = false; if (send) send.disabled = false; input.focus(); }); }
+    launcher.addEventListener('click', function () { toggle(); }); close.addEventListener('click', function () { toggle(false); }); form.addEventListener('submit', function (e) { e.preventDefault(); ask(input.value); }); document.querySelectorAll('[data-global-prompt]').forEach(function (button) { button.addEventListener('click', function () { toggle(true); ask(button.getAttribute('data-global-prompt')); }); }); document.querySelectorAll('[data-global-tool]').forEach(function (button) { button.addEventListener('click', function () { showTool(button.getAttribute('data-global-tool')); }); }); document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !panel.hasAttribute('hidden')) toggle(false); });
+})();
+</script>
 </body>
 </html>

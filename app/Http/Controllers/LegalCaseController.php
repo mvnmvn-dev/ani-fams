@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Concerns\ExportsData;
 use App\Http\Controllers\Concerns\RespondsWithFlashOrJson;
 use App\Services\LegalCaseService;
+use App\Services\ArnelAiService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -17,13 +18,15 @@ class LegalCaseController extends Controller
         exportPdf as streamExportPdf;
     }
 
-    public function index(LegalCaseService $service)
+    public function index(LegalCaseService $service, ArnelAiService $arnel)
     {
         $counsels = DB::table('employees')->select('id', 'full_name', 'position')->orderBy('full_name')->get()->map(fn ($r) => (array) $r)->all();
+        $cases = $service->listCases();
 
         return view('legal.index', [
             'pageTitle' => 'Legal Management',
-            'cases' => $service->listCases(),
+            'cases' => $cases,
+            'aiInsights' => $arnel->legalCaseInsights($cases),
             'counsels' => $counsels,
             'vendors' => $service->allVendors(),
             'budgetRollup' => $service->budgetRollup(),

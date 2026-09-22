@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Concerns\ExportsData;
 use App\Http\Controllers\Concerns\RespondsWithFlashOrJson;
 use App\Services\RetentionService;
+use App\Services\ArnelAiService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -16,15 +17,18 @@ class RetentionController extends Controller
         exportPdf as streamExportPdf;
     }
 
-    public function index(RetentionService $service)
+    public function index(RetentionService $service, ArnelAiService $arnel)
     {
+        $assignments = $service->listAssignments();
+        $allDocs = $service->listAllDocuments();
         return view('retention.index', [
             'pageTitle' => 'Records Retention & Compliance',
             'policies' => $service->listPolicies(),
-            'assignments' => $service->listAssignments(),
+            'assignments' => $assignments,
             'holds' => $service->listHolds(),
             'availDocs' => $service->listAvailableDocuments(),
-            'allDocs' => $service->listAllDocuments(),
+            'allDocs' => $allDocs,
+            'aiInsights' => $arnel->retentionInsights($assignments, $allDocs),
             'legalCases' => $service->listLegalCases(),
             'canManage' => Auth::user()->canPermission('retention.manage'),
             'templates' => $service->getPolicyTemplates(),

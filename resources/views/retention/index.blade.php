@@ -64,6 +64,14 @@ $dueReviewList = array_slice($dueReviewList, 0, 5);
     ]);
     ?>
 
+    <?php $ai = $aiInsights ?? ['summary' => '', 'suggestions' => [], 'archive_candidates' => []]; ?>
+    <section class="rounded-2xl border border-brand-200 bg-brand-50/30 p-5 shadow-sm">
+        <div class="flex items-center gap-2"><span class="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-brand-700 text-white text-xs font-bold">AI</span><div><h2 class="section-title">ARNEL retention advisor</h2><p class="type-meta">Suggested categories and records approaching archival review</p></div></div>
+        <p class="mt-3 text-sm text-ink/70"><?= htmlspecialchars($ai['summary'] ?? '') ?></p>
+        <?php if (!empty($ai['suggestions'])): ?><div class="mt-4 flex flex-wrap gap-2"><?php foreach (array_slice($ai['suggestions'], 0, 8) as $item): ?><span class="rounded-full border border-brand-200 bg-white/75 px-3 py-1.5 text-xs text-ink/70"><strong><?= htmlspecialchars($item['document']) ?></strong> · <?= htmlspecialchars($item['category']) ?></span><?php endforeach; ?></div><?php endif; ?>
+        <?php if (!empty($ai['archive_candidates'])): ?><p class="mt-3 text-xs text-ink/55"><strong>Archive candidates:</strong> <?= htmlspecialchars(implode(' · ', $ai['archive_candidates'])) ?></p><?php endif; ?>
+    </section>
+
     @include('partials.stat_kpi_grid', ['cards' => [
         ['label' => 'Active schedules', 'value' => $activeAsg, 'hint' => 'Retention clocks running', 'tone' => 'navy', 'icon' => 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4'],
         ['label' => 'Due for review', 'value' => $dueReview, 'hint' => 'Ready for assessment', 'tone' => 'peach', 'icon' => 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z'],

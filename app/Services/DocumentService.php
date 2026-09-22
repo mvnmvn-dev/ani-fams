@@ -78,6 +78,12 @@ class DocumentService
         $filePath = $uploadResult['filePath'];
         $checksum = $uploadResult['checksum'];
 
+        $duplicate = $this->repo->findDocumentByChecksum($checksum);
+        if ($duplicate) {
+            @unlink(public_path(ltrim($filePath, '/')));
+            return ['success' => false, 'error' => 'Possible duplicate detected: this file matches "' . ($duplicate['title'] ?? 'an existing document') . '" (' . ($duplicate['document_number'] ?? 'existing record') . ').'];
+        }
+
         $documentId = $this->repo->createDocument([
             'category_id' => $categoryId,
             'title' => $title,
@@ -98,6 +104,19 @@ class DocumentService
         ]);
 
         $this->repo->updateCurrentVersion($documentId, $versionId);
+        $analysis = app(ArnelAiService::class)->analyzeDocument(
+            (string) ($this->repo->findVersion($documentId, 1)['content_text'] ?? ''),
+            (string) ($fileInput['name'] ?? ''),
+            $title,
+            $description
+        );
+        if ($analysis) {
+            $this->repo->updateAiAnalysis($documentId, $analysis);
+            foreach (array_slice($analysis['keywords'] ?? [], 0, 10) as $tagName) {
+                $tagId = $this->repo->findOrCreateTag((string) $tagName);
+                $this->repo->addTagToDocument($documentId, $tagId);
+            }
+        }
         $this->recordAttachment($fileInput, $filePath, $versionId, $uploadResult);
 
         if ($tagsString !== '') {
@@ -266,23 +285,24 @@ class DocumentService
     private function extractTextContent(string $filePath): ?string
     {
         $fullPath = public_path(ltrim($filePath, '/'));
-        if (! is_file($fullPath)) {
-            return null;
-        }
+        if (! is_file($fullPath)) return null;
         $ext = strtolower(pathinfo($fullPath, PATHINFO_EXTENSION));
         $textExts = ['txt', 'md', 'csv', 'json', 'log', 'xml', 'html', 'htm', 'css', 'js', 'php'];
-        if (! in_array($ext, $textExts, true)) {
-            return null;
-        }
-        $raw = @file_get_contents($fullPath);
-        if ($raw === false) {
-            return null;
-        }
-        if (strlen($raw) > 500000) {
-            $raw = substr($raw, 0, 500000);
+        if (in_array($ext, $textExts, true)) {
+            $raw = @file_get_contents($fullPath);
+            return $raw === false ? null : substr($raw, 0, 500000);
         }
 
-        return $raw;
+        $quoted = escapeshellarg($fullPath);
+        if ($ext === 'pdf' && function_exists('shell_exec')) {
+            $raw = @shell_exec('pdftotext -layout ' . $quoted . ' - 2>/dev/null');
+            return is_string($raw) && trim($raw) !== '' ? substr($raw, 0, 500000) : null;
+        }
+        if (in_array($ext, ['png', 'jpg', 'jpeg', 'gif', 'webp', 'tif', 'tiff'], true) && function_exists('shell_exec')) {
+            $raw = @shell_exec('tesseract ' . $quoted . ' stdout 2>/dev/null');
+            return is_string($raw) && trim($raw) !== '' ? substr($raw, 0, 500000) : null;
+        }
+        return null;
     }
 
     public function preview(int $documentId): array

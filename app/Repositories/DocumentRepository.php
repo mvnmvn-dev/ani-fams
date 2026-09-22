@@ -74,6 +74,21 @@ class DocumentRepository
         return $row ?: null;
     }
 
+    public function updateAiAnalysis(int $documentId, array $analysis): void
+    {
+        $stmt = $this->pdo()->prepare(
+            'UPDATE documents SET ai_classification = :classification, ai_summary = :summary, ai_keywords = :keywords, ai_metadata = :metadata, ai_confidence = :confidence, ai_processed_at = CURRENT_TIMESTAMP WHERE id = :id'
+        );
+        $stmt->execute([
+            'classification' => $analysis['classification'] ?? null,
+            'summary' => $analysis['summary'] ?? null,
+            'keywords' => json_encode(array_values($analysis['keywords'] ?? []), JSON_UNESCAPED_UNICODE),
+            'metadata' => json_encode($analysis['metadata'] ?? [], JSON_UNESCAPED_UNICODE),
+            'confidence' => $analysis['confidence'] ?? null,
+            'id' => $documentId,
+        ]);
+    }
+
     public function softDelete(int $id): void
     {
         $stmt = $this->pdo()->prepare('UPDATE documents SET deleted_at = CURRENT_TIMESTAMP WHERE id = :id AND deleted_at IS NULL');
@@ -120,6 +135,16 @@ class DocumentRepository
         ]);
 
         return $this->insertId('documents');
+    }
+
+    public function findDocumentByChecksum(string $checksum): ?array
+    {
+        $stmt = $this->pdo()->prepare(
+            'SELECT d.id, d.title, d.document_number FROM document_versions dv JOIN documents d ON d.id = dv.document_id WHERE dv.checksum = :checksum AND d.deleted_at IS NULL LIMIT 1'
+        );
+        $stmt->execute(['checksum' => $checksum]);
+        $row = $stmt->fetch();
+        return $row ?: null;
     }
 
     public function createDocumentVersion(array $data): int

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Concerns\ExportsData;
 use App\Http\Controllers\Concerns\RespondsWithFlashOrJson;
 use App\Services\ContractService;
+use App\Services\ArnelAiService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -17,14 +18,16 @@ class ContractController extends Controller
         exportPdf as streamExportPdf;
     }
 
-    public function index(ContractService $service)
+    public function index(ContractService $service, ArnelAiService $arnel)
     {
+        $contracts = $service->listContracts();
         $users = DB::table('users')->where('status', 'active')->select('id', 'full_name', 'email')->orderBy('full_name')->get()->map(fn ($r) => (array) $r)->all();
         $cases = DB::table('legal_cases')->whereIn('status', ['open', 'in_progress', 'on_hold'])->select('id', 'title', 'case_number')->orderBy('title')->get()->map(fn ($r) => (array) $r)->all();
 
         return view('contracts.index', [
             'pageTitle' => 'Contract Management',
-            'contracts' => $service->listContracts(),
+            'contracts' => $contracts,
+            'aiInsights' => $arnel->contractInsights($contracts),
             'types' => $service->types(),
             'templates' => $service->templates(),
             'chains' => $service->approvalChains(),

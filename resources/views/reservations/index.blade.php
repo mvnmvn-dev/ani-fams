@@ -391,7 +391,7 @@ $upcomingApproved = array_slice($upcomingApproved, 0, 5);
 <!-- Reservation Form Modal (Outside of transform container) -->
 <?php if (can_perm('reservation.create')): ?>
 <div id="reservationModal" class="modal-overlay hidden">
-    <div class="bg-white rounded-2xl shadow-2xl max-w-xl w-full overflow-hidden border border-ink/10 animate-fade-in-up" onclick="event.stopPropagation()">
+    <div class="reservation-modal-panel bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[calc(100vh-2rem)] overflow-y-auto border border-ink/10 animate-fade-in-up" onclick="event.stopPropagation()">
         <div class="px-8 py-5 border-b border-ink/10 flex justify-between items-center bg-gray-50/50">
             <h3 class="font-sans text-xl font-bold text-ink">New Reservation Request</h3>
             <button onclick="closeModal('reservationModal')" class="text-ink/40 hover:text-ink/60 transition">
@@ -458,6 +458,14 @@ $upcomingApproved = array_slice($upcomingApproved, 0, 5);
                 </div>
             </div>
             <?php endif; ?>
+            <div class="rounded-2xl border border-brand-200 bg-gradient-to-br from-brand-50 to-white p-4">
+                <div class="flex items-start gap-3">
+                    <span class="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-brand-700 text-sm font-bold text-white shadow-sm">✦</span>
+                    <div class="min-w-0 flex-1"><p class="text-sm font-bold text-ink">ARNEL Smart Check</p><p class="mt-0.5 text-xs leading-5 text-ink/55">Check conflicts and get a facility suggestion before sending your request.</p></div>
+                    <button type="button" id="arnelReservationCheck" class="rounded-xl border border-brand-300 bg-white px-3 py-2 text-xs font-bold text-brand-700 transition hover:bg-brand-700 hover:text-white">Check availability</button>
+                </div>
+                <div id="arnelReservationResult" class="mt-3 hidden rounded-xl bg-white/80 px-3 py-2.5 text-xs" aria-live="polite"></div>
+            </div>
             <div class="pt-6 border-t border-ink/10 flex justify-end gap-3.5">
                 <button type="button" onclick="closeModal('reservationModal')" class="px-5 py-3 rounded-xl border border-ink/10 hover:bg-gray-50 text-ink/70 font-semibold text-sm transition">
                     Cancel
@@ -470,6 +478,11 @@ $upcomingApproved = array_slice($upcomingApproved, 0, 5);
     </div>
 </div>
 <?php endif; ?>
+
+<style>
+.reservation-modal-panel { width: min(32rem, calc(100vw - 1.5rem)) !important; max-height: calc(100vh - 1.5rem) !important; overflow-y: auto !important; overscroll-behavior: contain; }
+@media (max-width: 640px) { .reservation-modal-panel { width: calc(100vw - 1rem) !important; max-height: calc(100vh - 1rem) !important; } .reservation-modal-panel form { padding: 1.15rem !important; } }
+</style>
 
 <?php if (!empty($canManage)): ?>
 <div id="maintenanceModal" class="modal-overlay hidden">
@@ -516,5 +529,27 @@ $upcomingApproved = array_slice($upcomingApproved, 0, 5);
     </div>
 </div>
 <?php endif; ?>
+
+<script>
+(function () {
+    var button = document.getElementById('arnelReservationCheck');
+    var result = document.getElementById('arnelReservationResult');
+    var form = button ? button.closest('form') : null;
+    if (!button || !result || !form) return;
+    var csrf = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+    function field(name) { var el = form.querySelector('[name="' + name + '"]'); return el ? el.value : ''; }
+    function safe(value) { var div = document.createElement('div'); div.textContent = value == null ? '' : String(value); return div.innerHTML; }
+    button.addEventListener('click', function () {
+        var facility = field('facility_id'), start = field('start_datetime'), end = field('end_datetime');
+        if (!facility || !start || !end) { result.className = 'mt-3 rounded-xl bg-accent-50 px-3 py-2.5 text-xs text-accent-700'; result.textContent = 'Select a facility, start time, and end time first.'; return; }
+        button.disabled = true; button.textContent = 'Checking…'; result.className = 'mt-3 rounded-xl bg-brand-50 px-3 py-2.5 text-xs text-brand-700'; result.textContent = 'ARNEL is checking facility conflicts…'; result.classList.remove('hidden');
+        fetch(window.appUrl('api/arnel/reservations/analyze'), { method: 'POST', headers: {'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf, 'X-Requested-With': 'XMLHttpRequest'}, body: JSON.stringify({facility_id: facility, start_datetime: start, end_datetime: end}) })
+            .then(function (response) { return response.json().then(function (body) { if (!response.ok) throw new Error(body.message || 'Unable to check availability.'); return body; }); })
+            .then(function (body) { var data = body.data || {}; var conflict = data.conflict_status === 'conflict_detected'; result.className = 'mt-3 rounded-xl px-3 py-2.5 text-xs ' + (conflict ? 'bg-accent-50 text-accent-700' : 'bg-brand-50 text-brand-700'); result.innerHTML = '<strong>' + (conflict ? 'Conflict detected' : 'No conflict detected') + '</strong><span class="block mt-1">' + safe(data.ai_suggestion || '') + (data.suggested_facility ? '<br><strong>Suggested facility:</strong> ' + safe(data.suggested_facility) : '') + '</span>'; })
+            .catch(function (error) { result.className = 'mt-3 rounded-xl bg-accent-50 px-3 py-2.5 text-xs text-accent-700'; result.textContent = error.message; })
+            .finally(function () { button.disabled = false; button.textContent = 'Check availability'; });
+    });
+})();
+</script>
 
 @endsection

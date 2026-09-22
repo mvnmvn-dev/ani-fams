@@ -35,4 +35,10 @@ return [
         ],
     ],
 
+    'arnel' => [
+        'api_key' => env('AI_API_KEY', env('OPENAI_API_KEY')),
+        'api_base' => env('AI_API_BASE', env('OPENAI_API_BASE', 'https://api.openai.com/v1')),
+        'model' => env('AI_MODEL', 'gpt-5-mini'),
+    ],
+
 ];

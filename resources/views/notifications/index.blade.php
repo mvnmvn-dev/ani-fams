@@ -10,6 +10,14 @@
         </form>
     </div>
 
+    <?php $priorityGroups = $priorityGroups ?? ['high' => [], 'medium' => [], 'informational' => []]; ?>
+    <section class="mb-6 rounded-2xl border border-brand-200 bg-brand-50/30 p-5 shadow-sm">
+        <div class="flex items-center gap-2"><span class="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-brand-700 text-white text-xs font-bold">AI</span><div><h2 class="text-base font-bold text-ink">ARNEL priority grouping</h2><p class="text-xs text-ink/50">Notifications grouped by operational urgency</p></div></div>
+        <div class="mt-4 grid gap-3 md:grid-cols-3">
+            <?php foreach (['high' => 'High Priority', 'medium' => 'Medium Priority', 'informational' => 'Informational'] as $key => $label): ?><div class="rounded-xl bg-white/75 p-3"><div class="flex justify-between"><strong class="text-sm <?= $key === 'high' ? 'text-accent-700' : 'text-ink' ?>"><?= $label ?></strong><span class="text-xs text-ink/45"><?= count($priorityGroups[$key] ?? []) ?></span></div><p class="mt-1 text-xs text-ink/55"><?= $key === 'high' ? 'Deadlines, expirations, and required actions.' : ($key === 'medium' ? 'Reviews, approvals, and reminders.' : 'General system updates.') ?></p></div><?php endforeach; ?>
+        </div>
+    </section>
+
     <div class="bg-white rounded-xl shadow-sm border border-ink/10 overflow-hidden">
         @if($notifications->isEmpty())
             <div class="p-8 text-center text-ink/50">

@@ -48,13 +48,15 @@ class CheckContractExpirations extends Command
         $count = 0;
         foreach ($expiringContracts as $contract) {
             if ($contract->owner) {
+                $days = Carbon::today()->diffInDays(Carbon::parse($contract->end_date), false);
+                $priority = $days <= 7 ? 'HIGH PRIORITY' : 'Renewal reminder';
                 // Ensure we don't spam. In a real app we'd track if we already sent this, 
                 // but for now, we just notify.
                 $notificationService->send(
                     $contract->owner,
                     'contracts',
-                    "Contract Expiring Soon: {$contract->contract_number}",
-                    "The contract '{$contract->title}' with {$contract->counterparty_name} is expiring on {$contract->end_date}.",
+                    "{$priority}: Contract {$contract->contract_number}",
+                    "The contract '{$contract->title}' with {$contract->counterparty_name} expires in {$days} day(s) on {$contract->end_date}. Please review renewal options.",
                     "/contracts", 
                     true
                 );

@@ -77,6 +77,32 @@ $contractsInPipeline = count(array_filter($recentContracts, static fn($c) => in_
         @include('partials.dashboard_quick_access', ['quickActions' => $quickActions ?? []])
     </div>
 
+    <?php $arnel = $aiInsights ?? ['summary' => 'AI insights are not available yet.', 'notifications' => [], 'insights' => []]; ?>
+    <section class="arnel-copilot overflow-hidden rounded-[1.35rem] border border-brand-200 shadow-[0_18px_55px_rgba(20,46,76,0.12)]">
+        <div class="arnel-copilot-glow"></div>
+        <div class="relative grid gap-0 xl:grid-cols-[1.1fr_0.9fr]">
+            <div class="p-6 sm:p-8">
+                <div class="flex items-center justify-between gap-4">
+                    <div class="flex items-center gap-3">
+                        <div class="arnel-orb"><span>✦</span></div>
+                        <div><div class="flex items-center gap-2"><h2 class="text-lg font-bold tracking-tight text-white">ARNEL Copilot</h2><span class="arnel-live"><i></i> Online</span></div><p class="mt-0.5 text-xs text-white/60">Archon Neural Executive Logic · administrative intelligence</p></div>
+                    </div>
+                    <span class="hidden rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-white/60 sm:inline-flex">Grounded AI</span>
+                </div>
+                <div class="mt-8 max-w-xl"><p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/50">Daily intelligence brief</p><p class="mt-2 text-xl font-semibold leading-8 text-white sm:text-2xl"><?= htmlspecialchars($arnel['summary'] ?? '') ?></p></div>
+                <div class="mt-6 flex flex-wrap gap-2"><?php foreach (array_slice($arnel['insights'] ?? [], 0, 3) as $insight): ?><span class="arnel-signal"><span>↗</span><?= htmlspecialchars($insight) ?></span><?php endforeach; ?><?php if (empty($arnel['insights'])): ?><span class="arnel-signal">↗ Insights will appear as records change</span><?php endif; ?></div>
+                <div class="mt-8 grid grid-cols-3 gap-2 border-t border-white/10 pt-4"><div><p class="text-[10px] uppercase tracking-wider text-white/45">Accessible modules</p><p class="mt-1 text-lg font-bold text-white">6</p></div><div><p class="text-[10px] uppercase tracking-wider text-white/45">Signals today</p><p class="mt-1 text-lg font-bold text-white"><?= count($arnel['notifications'] ?? []) ?></p></div><div><p class="text-[10px] uppercase tracking-wider text-white/45">Human review</p><p class="mt-1 text-lg font-bold text-[#CCAD9F]">Required</p></div></div>
+            </div>
+            <div class="arnel-chat-pane p-5 sm:p-6">
+                <div class="flex items-center justify-between"><div><p class="text-sm font-bold text-ink">Ask ARNEL</p><p class="text-xs text-ink/50">Search your authorized records with natural language</p></div><span class="rounded-lg bg-brand-50 px-2 py-1 text-[10px] font-bold text-brand-700">BETA</span></div>
+                <div id="arnelChatLog" class="arnel-chat-log mt-4"><div class="arnel-message arnel-message-ai"><span class="arnel-mini-orb">✦</span><p>Hi <?= htmlspecialchars(explode(' ', $user->full_name)[0]) ?>. What would you like to know about today’s operations?</p></div></div>
+                <div class="mt-3 flex flex-wrap gap-1.5"><button type="button" class="arnel-prompt" data-prompt="Summarize today's reservations.">Today's reservations</button><button type="button" class="arnel-prompt" data-prompt="Find contracts expiring this month.">Expiring contracts</button><button type="button" class="arnel-prompt" data-prompt="Show pending administrative documents.">Pending documents</button></div>
+                <form id="arnelChatForm" class="mt-3 flex items-center gap-2"><label class="sr-only" for="arnelChatInput">Ask ARNEL a question</label><input id="arnelChatInput" autocomplete="off" class="arnel-chat-input" placeholder="Ask about your records…" maxlength="2000"><button class="arnel-send" type="submit" aria-label="Send question"><svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14m-6-6 6 6-6 6"/></svg></button></form>
+                <p id="arnelChatStatus" class="mt-2 text-[10px] text-ink/40">ARNEL provides recommendations only. Verify important outputs.</p>
+            </div>
+        </div>
+    </section>
+
     <div class="module-info-grid lg:!grid-cols-3">
         <div class="module-insight-panel">
             <h3 class="module-insight-title">Operational snapshot</h3>
@@ -566,6 +592,33 @@ $contractsInPipeline = count(array_filter($recentContracts, static fn($c) => in_
 </div>
 
 <style>
+.arnel-copilot { position: relative; isolation: isolate; background: linear-gradient(135deg, #020f1c 0%, #142e4c 55%, #334963 100%); }
+.arnel-copilot-glow { position: absolute; inset: -35%; z-index: -1; pointer-events: none; background: radial-gradient(circle at 16% 40%, rgba(123,156,184,.32), transparent 26%), radial-gradient(circle at 86% 10%, rgba(204,173,159,.18), transparent 25%); filter: blur(8px); }
+.arnel-orb { width: 2.65rem; height: 2.65rem; display: grid; place-items: center; border-radius: .95rem; color: #fff; font-size: 1.25rem; background: radial-gradient(circle at 35% 25%, #b7d8ec, #5e7288 42%, #142e4c 72%); box-shadow: 0 0 0 5px rgba(255,255,255,.06), 0 8px 22px rgba(0,0,0,.25); animation: arnelFloat 4s ease-in-out infinite; }
+.arnel-live { display: inline-flex; align-items: center; gap: .3rem; border: 1px solid rgba(155,220,183,.25); border-radius: 999px; padding: .18rem .45rem; color: #b7e7c8; font-size: .62rem; font-weight: 700; letter-spacing: .04em; }
+.arnel-live i { width: .35rem; height: .35rem; border-radius: 99px; background: #8fd6aa; box-shadow: 0 0 0 3px rgba(143,214,170,.14); }
+.arnel-signal { display: inline-flex; align-items: center; gap: .35rem; max-width: 100%; border: 1px solid rgba(255,255,255,.12); border-radius: 999px; padding: .42rem .65rem; background: rgba(255,255,255,.08); color: rgba(255,255,255,.78); font-size: .7rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.arnel-signal span { color: #b7d8ec; font-weight: 700; }
+.arnel-chat-pane { background: rgba(255,255,255,.96); border-left: 1px solid rgba(255,255,255,.13); }
+.arnel-chat-log { min-height: 6.75rem; max-height: 11rem; overflow-y: auto; display: flex; flex-direction: column; gap: .55rem; padding-right: .15rem; }
+.arnel-message { display: flex; align-items: flex-start; gap: .45rem; max-width: 92%; font-size: .75rem; line-height: 1.45; }
+.arnel-message p { margin: 0; border-radius: .85rem; padding: .6rem .7rem; }
+.arnel-message-ai p { color: #334963; background: #f1f5f8; border: 1px solid #e2e9ee; }
+.arnel-message-user { align-self: flex-end; flex-direction: row-reverse; }
+.arnel-message-user p { color: #fff; background: #142e4c; }
+.arnel-mini-orb { display: grid; place-items: center; width: 1.45rem; height: 1.45rem; flex: 0 0 auto; border-radius: .5rem; color: #fff; background: #334963; font-size: .7rem; }
+.arnel-prompt { border: 1px solid rgba(20,46,76,.14); border-radius: 999px; padding: .3rem .55rem; color: #334963; background: #fff; font-size: .65rem; font-weight: 600; transition: all .15s ease; }
+.arnel-prompt:hover { color: #fff; border-color: #142e4c; background: #142e4c; transform: translateY(-1px); }
+.arnel-chat-input { min-width: 0; flex: 1; border: 1px solid rgba(20,46,76,.18); border-radius: .8rem; padding: .68rem .8rem; outline: none; color: #142e4c; background: #fff; font-size: .75rem; box-shadow: inset 0 1px 2px rgba(20,46,76,.04); }
+.arnel-chat-input:focus { border-color: #5e7288; box-shadow: 0 0 0 3px rgba(94,114,136,.14); }
+.arnel-send { display: grid; place-items: center; width: 2.4rem; height: 2.4rem; flex: 0 0 auto; border: 0; border-radius: .75rem; color: #fff; background: linear-gradient(135deg, #334963, #142e4c); cursor: pointer; transition: transform .15s ease, box-shadow .15s ease; }
+.arnel-send:hover { transform: translateY(-1px); box-shadow: 0 5px 12px rgba(20,46,76,.25); }
+.arnel-send:disabled { opacity: .55; cursor: wait; }
+@keyframes arnelFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+@media (max-width: 1279px) { .arnel-chat-pane { border-left: 0; border-top: 1px solid rgba(255,255,255,.13); } }
+html.dark .arnel-chat-pane { background: #122033; }
+html.dark .arnel-chat-input, html.dark .arnel-prompt { background: #172a40; color: #e8eef6; border-color: rgba(123,168,204,.25); }
+html.dark .arnel-message-ai p { color: #e8eef6; background: rgba(123,168,204,.1); border-color: rgba(123,168,204,.15); }
 .dash-panel {
     display: flex;
     flex-direction: column;
@@ -1019,6 +1072,33 @@ html.dark .dash-panel a.hover\:bg-gray-50\/70:hover {
             if (empty) empty.classList.toggle('hidden', visible > 0);
         });
     });
+})();
+</script>
+
+<script>
+(function () {
+    var form = document.getElementById('arnelChatForm');
+    var input = document.getElementById('arnelChatInput');
+    var log = document.getElementById('arnelChatLog');
+    var status = document.getElementById('arnelChatStatus');
+    if (!form || !input || !log) return;
+    var csrf = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+    function safe(value) { var div = document.createElement('div'); div.textContent = value == null ? '' : String(value); return div.innerHTML; }
+    function addMessage(text, kind) { var row = document.createElement('div'); row.className = 'arnel-message arnel-message-' + kind; row.innerHTML = (kind === 'ai' ? '<span class="arnel-mini-orb">✦</span>' : '') + '<p>' + safe(text) + '</p>'; log.appendChild(row); log.scrollTop = log.scrollHeight; return row; }
+    function ask(message) {
+        message = String(message || '').trim(); if (!message) return;
+        addMessage(message, 'user'); input.value = ''; input.disabled = true;
+        var send = form.querySelector('button'); if (send) send.disabled = true;
+        status.textContent = 'ARNEL is checking your authorized records…';
+        var pending = addMessage('Reviewing the current operational snapshot…', 'ai'); pending.classList.add('arnel-pending');
+        fetch(window.appUrl('api/arnel/chat'), { method: 'POST', headers: {'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf, 'X-Requested-With': 'XMLHttpRequest'}, body: JSON.stringify({message: message}) })
+            .then(function (response) { return response.json().then(function (body) { if (!response.ok) throw new Error(body.message || 'Unable to reach ARNEL.'); return body; }); })
+            .then(function (body) { pending.remove(); addMessage(body.answer || 'I could not find a matching answer.', 'ai'); status.textContent = (body.sources && body.sources.length) ? 'Answer grounded in your authorized module data.' : 'No matching records were found.'; })
+            .catch(function (error) { pending.remove(); addMessage(error.message || 'ARNEL is temporarily unavailable.', 'ai'); status.textContent = 'Check your connection and try again.'; })
+            .finally(function () { input.disabled = false; if (send) send.disabled = false; input.focus(); });
+    }
+    form.addEventListener('submit', function (event) { event.preventDefault(); ask(input.value); });
+    document.querySelectorAll('.arnel-prompt').forEach(function (button) { button.addEventListener('click', function () { ask(button.getAttribute('data-prompt')); }); });
 })();
 </script>
 

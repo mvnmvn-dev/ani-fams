@@ -97,6 +97,13 @@ render_page_header([
 ]);
 ?>
 
+<?php $ai = $aiInsights ?? ['summary' => '', 'expiring' => []]; ?>
+<section class="rounded-2xl border border-brand-200 bg-brand-50/30 p-5 shadow-sm">
+    <div class="flex items-center gap-2"><span class="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-brand-700 text-white text-xs font-bold">AI</span><div><h2 class="section-title">ARNEL contract monitor</h2><p class="type-meta">Summary, key information, and renewal reminders</p></div></div>
+    <p class="mt-3 text-sm text-ink/70"><?= htmlspecialchars($ai['summary'] ?? '') ?></p>
+    <?php if (!empty($ai['expiring'])): ?><div class="mt-4 grid gap-2 md:grid-cols-3"><?php foreach (array_slice($ai['expiring'], 0, 6) as $item): ?><div class="rounded-xl bg-white/75 p-3"><div class="flex justify-between gap-2"><strong class="truncate text-sm"><?= htmlspecialchars($item['title']) ?></strong><span class="text-[10px] font-bold uppercase <?= ($item['priority'] ?? '') === 'high' ? 'text-accent-700' : 'text-brand-700' ?>"><?= htmlspecialchars($item['priority']) ?></span></div><p class="mt-1 text-xs text-ink/55"><?= htmlspecialchars($item['counterparty']) ?> · expires <?= htmlspecialchars($item['end_date']) ?></p><p class="mt-2 text-xs font-semibold text-ink/70"><?= (int) $item['days'] ?> day(s) remaining</p></div><?php endforeach; ?></div><?php else: ?><p class="mt-3 text-xs text-ink/50">No active contracts are currently within the 90-day renewal window.</p><?php endif; ?>
+</section>
+
 <?php if (!empty($spendRollup)): ?>
 <div class="module-insight-panel">
     <h3 class="module-insight-title">Spend rollup by type</h3>
