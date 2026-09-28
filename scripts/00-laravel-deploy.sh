@@ -21,5 +21,9 @@ php artisan config:cache
 echo "Caching Laravel routes..."
 php artisan route:cache
 
-echo "Running database migrations..."
-php artisan migrate --force
+if [ "${RUN_MIGRATIONS:-false}" = "true" ]; then
+  echo "Running database migrations..."
+  php artisan migrate --force
+else
+  echo "Skipping Laravel migrations; using the imported PostgreSQL schema."
+fi
