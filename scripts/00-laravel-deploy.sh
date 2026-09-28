@@ -8,7 +8,12 @@ mkdir -p storage/framework/cache \
          storage/framework/sessions \
          storage/framework/views \
          storage/logs
+
+touch storage/logs/laravel.log
+
 chown -R www-data:www-data storage bootstrap/cache || true
+chmod -R ug+rwX storage bootstrap/cache || true
+
 
 if [ -z "${APP_KEY:-}" ]; then
   echo "APP_KEY is not set; skipping Laravel cache and migration tasks."
