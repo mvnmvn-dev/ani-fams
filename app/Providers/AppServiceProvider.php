@@ -17,9 +17,13 @@ class AppServiceProvider extends ServiceProvider
         //
     }
 
-    public function boot(): void
-    {
-        if (! $this->app->runningInConsole() && $request = request()) {
+  public function boot(): void
+{
+    if ($this->app->environment('production')) {
+        URL::forceScheme('https' );
+    }
+
+    if (! $this->app->runningInConsole() && $request = request()) {
             $configured = rtrim((string) config('app.url'), '/');
             $path = parse_url($configured, PHP_URL_PATH) ?: '';
 
