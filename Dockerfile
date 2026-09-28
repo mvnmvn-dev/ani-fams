@@ -1,4 +1,10 @@
-# Build Vite assets first, then serve Laravel with Nginx + PHP-FPM.
+# Build PHP dependencies first.
+FROM composer:2 AS php-dependencies
+WORKDIR /app
+COPY composer.json composer.lock ./
+RUN composer install --no-dev --prefer-dist --optimize-autoloader --no-interaction --no-progress --no-scripts
+
+# Build Vite assets.
 FROM node:22-alpine AS frontend
 WORKDIR /app
 COPY package.json ./
@@ -7,9 +13,10 @@ COPY resources ./resources
 COPY vite.config.js ./
 RUN npm run build
 
-# Render's maintained Nginx + PHP-FPM image for Laravel/PHP applications.
+# Render's Nginx + PHP-FPM image for Laravel/PHP applications.
 FROM richarvey/nginx-php-fpm:3.1.6
 COPY . /var/www/html
+COPY --from=php-dependencies /app/vendor /var/www/html/vendor
 COPY --from=frontend /app/public/build /var/www/html/public/build
 
 ENV SKIP_COMPOSER=1 \
