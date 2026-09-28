@@ -2,6 +2,18 @@
 FROM composer:2 AS php-dependencies
 WORKDIR /app
 COPY composer.json composer.lock ./
+# Match the extensions required by the locked production packages.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        libfreetype6-dev \
+        libjpeg62-turbo-dev \
+        libpng-dev \
+        libicu-dev \
+        libxml2-dev \
+        libonig-dev \
+    && docker-php-ext-configure gd --with-freetype --with-jpeg \
+    && docker-php-ext-install -j"$(nproc)" gd intl mbstring dom \
+    && rm -rf /var/lib/apt/lists/*
 RUN composer install --no-dev --prefer-dist --optimize-autoloader --no-interaction --no-progress --no-scripts
 
 # Build Vite assets.
