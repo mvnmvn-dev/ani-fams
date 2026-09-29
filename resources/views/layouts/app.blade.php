@@ -3021,7 +3021,7 @@
             position: fixed;
             top: 1.1rem;
             right: 1.1rem;
-            z-index: 200;
+            z-index: 1100;
             display: flex;
             flex-direction: column;
             gap: 0.65rem;
