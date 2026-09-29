@@ -99,6 +99,14 @@ Route::middleware('auth')->group(function () {
     Route::post('/reservations/{id}/feedback', [ReservationController::class, 'submitFeedback'])->name('reservations.feedback');
     Route::middleware('permission:reservation.view')->get('/reservations/feedback-summary', [ReservationController::class, 'feedbackSummary'])->name('reservations.feedback.summary');
     
+    // Defense Ready: QR check-in + lifecycle + analytics (non-{id} routes first)
+    Route::middleware('permission:reservation.view')->post('/reservations/check-in', [ReservationController::class, 'checkIn'])->name('reservations.checkin');
+    Route::middleware('permission:reservation.view')->get('/reservations/analytics/summary', [ReservationController::class, 'analytics'])->name('reservations.analytics');
+    Route::middleware('permission:reservation.create')->get('/reservations/alternatives', [ReservationController::class, 'alternatives'])->name('reservations.alternatives');
+    Route::middleware('permission:reservation.manage')->post('/reservations/{id}/lifecycle', [ReservationController::class, 'lifecycle'])->name('reservations.lifecycle');
+    Route::middleware('permission:reservation.view')->get('/reservations/{id}/history', [ReservationController::class, 'history'])->name('reservations.history');
+    Route::middleware('permission:reservation.view')->get('/reservations/{id}/qr', [ReservationController::class, 'qrBadge'])->name('reservations.qr');
+
     // iCal export route
     Route::middleware('permission:reservation.view')->get('/reservations/{id}/ical', [ReservationController::class, 'exportIcal'])->name('reservations.ical');
 
@@ -108,6 +116,7 @@ Route::middleware('auth')->group(function () {
     Route::middleware('permission:visitor.register')->post('/visitors', [VisitorController::class, 'store'])->name('visitors.store');
     Route::middleware('permission:visitor.checkin')->post('/visitors/{id}/check-in', [VisitorController::class, 'checkIn'])->name('visitors.checkin');
     Route::middleware('permission:visitor.checkin')->post('/visitors/{id}/check-out', [VisitorController::class, 'checkOut'])->name('visitors.checkout');
+    Route::post('/visitors/{id}/approve', [VisitorController::class, 'approve'])->name('visitors.approve');
     Route::middleware('permission:visitor.manage')->post('/visitors/{id}/toggle-watchlist', [VisitorController::class, 'toggleWatchlist'])->name('visitors.watchlist');
     Route::middleware('permission:visitor.view')->get('/visitors/{id}/badge', [VisitorController::class, 'badge'])->name('visitors.badge');
     
@@ -134,6 +143,8 @@ Route::middleware('auth')->group(function () {
     Route::middleware('permission:document.view')->get('/documents/{id}/preview', [DocumentController::class, 'preview'])->name('documents.preview');
     Route::middleware('permission:document.view')->get('/documents/{id}', [DocumentController::class, 'show'])->name('documents.show');
     Route::middleware('permission:document.upload')->post('/documents/{id}/version', [DocumentController::class, 'addVersion'])->name('documents.version');
+    Route::middleware('permission:document.upload')->post('/documents/{id}/restore/{version}', [DocumentController::class, 'restoreVersion'])->name('documents.restore');
+    Route::middleware('permission:document.view')->get('/documents/{id}/download', [DocumentController::class, 'download'])->name('documents.download');
     Route::post('/documents/{id}/access', [DocumentController::class, 'updateAccess'])->middleware('auth')->name('documents.access');
     Route::middleware('permission:document.manage')->post('/documents/{id}/destroy', [DocumentController::class, 'destroy'])->name('documents.destroy');
     
@@ -212,6 +223,7 @@ Route::middleware('auth')->group(function () {
     Route::middleware('permission:legal.manage')->post('/legal/{id}/conflicts/scan', [LegalCaseController::class, 'runConflictScan'])->name('legal.conflicts.scan');
     Route::middleware('permission:legal.manage')->post('/legal/{caseId}/conflicts/party/{conflictId}/resolve', [LegalCaseController::class, 'resolvePartyConflict'])->name('legal.conflicts.party.resolve');
     Route::middleware('permission:legal.manage')->post('/legal/{caseId}/conflicts/counsel/{conflictId}/verify', [LegalCaseController::class, 'verifyCounselConflict'])->name('legal.conflicts.counsel.verify');
+    Route::middleware('permission:legal.manage')->post('/legal/{id}/workflow', [LegalCaseController::class, 'advanceWorkflow'])->name('legal.workflow');
     Route::middleware('permission:legal.manage')->post('/legal/{id}/destroy', [LegalCaseController::class, 'destroy'])->name('legal.destroy');
 
     Route::middleware('permission:contract.view')->get('/contracts/export', [ContractController::class, 'exportCsv'])->name('contracts.export');

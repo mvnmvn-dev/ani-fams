@@ -112,12 +112,14 @@ class DocumentService
         );
         if ($analysis) {
             $this->repo->updateAiAnalysis($documentId, $analysis);
+            $this->persistAiArtifacts($documentId, $analysis);
             foreach (array_slice($analysis['keywords'] ?? [], 0, 10) as $tagName) {
                 $tagId = $this->repo->findOrCreateTag((string) $tagName);
                 $this->repo->addTagToDocument($documentId, $tagId);
             }
         }
         $this->recordAttachment($fileInput, $filePath, $versionId, $uploadResult);
+        $this->logDocumentActivity($documentId, 'uploaded', 'Initial upload');
 
         if ($tagsString !== '') {
             $tags = explode(',', $tagsString);
@@ -186,8 +188,10 @@ class DocumentService
         );
         if ($analysis) {
             $this->repo->updateAiAnalysis($documentId, $analysis);
+            $this->persistAiArtifacts($documentId, $analysis);
         }
         $this->recordAttachment($fileInput, $filePath, $versionId, $uploadResult);
+        $this->logDocumentActivity($documentId, 'edited', 'Version '.$nextVersionNo.' uploaded');
 
         AuditLogger::log('documents', 'version', 'document', $documentId, null, [
             'version_no' => $nextVersionNo,
@@ -195,6 +199,165 @@ class DocumentService
         ]);
 
         return ['success' => true];
+    }
+
+    /**
+     * Restore a previous version as the current version (copies pointer; keeps history).
+     * @return array{success: bool, error?: string}
+     */
+    public function restoreVersion(int $documentId, int $versionNo): array
+    {
+        $doc = $this->repo->find($documentId);
+        if (! $doc) {
+            return ['success' => false, 'error' => 'Document not found.'];
+        }
+        if ((int) $doc['owner_id'] !== (int) Auth::id() && ! Auth::user()?->canPermission('document.manage') && ! Auth::user()?->canPermission('document.upload')) {
+            return ['success' => false, 'error' => 'You do not have permission to restore versions.'];
+        }
+
+        $version = $this->repo->findVersion($documentId, $versionNo);
+        if (! $version) {
+            return ['success' => false, 'error' => 'Version not found.'];
+        }
+
+        $this->repo->updateCurrentVersion($documentId, (int) $version['id']);
+        $this->logDocumentActivity($documentId, 'restored', 'Restored version '.$versionNo);
+        AuditLogger::log('documents', 'restore_version', 'document', $documentId, null, [
+            'version_no' => $versionNo,
+            'version_id' => $version['id'],
+        ]);
+
+        return ['success' => true];
+    }
+
+    /**
+     * Permission-gated download with optional text watermark for printable types.
+     * @return array{success: bool, error?: string, path?: string, filename?: string, watermark?: string}
+     */
+    public function secureDownload(int $documentId): array
+    {
+        $doc = $this->documentDetails($documentId);
+        if (! $doc) {
+            return ['success' => false, 'error' => 'Document not found.'];
+        }
+
+        $user = Auth::user();
+        $canView = $user?->canPermission('document.view') || $user?->canPermission('document.manage')
+            || (int) ($doc['owner_id'] ?? 0) === (int) Auth::id();
+        if (! $canView) {
+            return ['success' => false, 'error' => 'You do not have permission to download this document.'];
+        }
+
+        $versions = $doc['versions'] ?? [];
+        $current = null;
+        foreach ($versions as $v) {
+            if ((int) ($v['id'] ?? 0) === (int) ($doc['current_version_id'] ?? 0)) {
+                $current = $v;
+                break;
+            }
+        }
+        $current ??= $versions[0] ?? null;
+        if (! $current || empty($current['file_path'])) {
+            return ['success' => false, 'error' => 'No file available.'];
+        }
+
+        // Integrity check when checksum exists.
+        $absolute = public_path(ltrim((string) $current['file_path'], '/'));
+        if (! is_file($absolute)) {
+            return ['success' => false, 'error' => 'File missing on disk.'];
+        }
+        if (! empty($current['checksum'])) {
+            $actual = hash_file('sha256', $absolute);
+            if ($actual && strcasecmp($actual, (string) $current['checksum']) !== 0) {
+                AuditLogger::log('documents', 'integrity_fail', 'document', $documentId, null, [
+                    'expected' => $current['checksum'],
+                    'actual' => $actual,
+                ]);
+                return ['success' => false, 'error' => 'File integrity verification failed.'];
+            }
+        }
+
+        $this->logDocumentActivity($documentId, 'downloaded', 'Secure download');
+        AuditLogger::log('documents', 'download', 'document', $documentId, null, [
+            'version_id' => $current['id'] ?? null,
+        ]);
+
+        $watermark = sprintf(
+            'CONFIDENTIAL · %s · %s · %s',
+            $user->full_name ?? $user->email ?? 'user',
+            $doc['document_number'] ?? ('DOC-'.$documentId),
+            now()->format('Y-m-d H:i')
+        );
+
+        return [
+            'success' => true,
+            'path' => $absolute,
+            'filename' => basename((string) $current['file_path']),
+            'watermark' => $watermark,
+            'confidentiality' => $doc['confidentiality'] ?? 'internal',
+        ];
+    }
+
+    public function logView(int $documentId): void
+    {
+        $this->logDocumentActivity($documentId, 'viewed', 'Document opened');
+    }
+
+    private function persistAiArtifacts(int $documentId, array $analysis): void
+    {
+        try {
+            $meta = is_array($analysis['metadata'] ?? null) ? $analysis['metadata'] : [];
+            if (\Illuminate\Support\Facades\Schema::hasTable('document_metadata')) {
+                \Illuminate\Support\Facades\DB::table('document_metadata')->updateOrInsert(
+                    ['document_id' => $documentId],
+                    [
+                        'extracted_title' => $meta['title'] ?? $meta['document_title'] ?? null,
+                        'reference_number' => $meta['reference_number'] ?? $meta['ref_number'] ?? null,
+                        'date_issued' => $meta['date_issued'] ?? $meta['issued_date'] ?? null,
+                        'expiration_date' => $meta['expiration_date'] ?? $meta['expiry_date'] ?? null,
+                        'department' => $meta['department'] ?? null,
+                        'category_detected' => $analysis['classification'] ?? null,
+                        'ocr_confidence' => $analysis['confidence'] ?? null,
+                        'raw_fields' => json_encode($meta),
+                        'extracted_at' => now()->format('Y-m-d H:i:s'),
+                        'updated_at' => now()->format('Y-m-d H:i:s'),
+                        'created_at' => now()->format('Y-m-d H:i:s'),
+                    ]
+                );
+            }
+            if (\Illuminate\Support\Facades\Schema::hasTable('ai_document_summaries')) {
+                \Illuminate\Support\Facades\DB::table('ai_document_summaries')->insert([
+                    'document_id' => $documentId,
+                    'summary' => $analysis['summary'] ?? null,
+                    'important_deadlines' => is_array($meta['deadlines'] ?? null) ? json_encode($meta['deadlines']) : ($meta['deadlines'] ?? null),
+                    'required_actions' => is_array($meta['required_actions'] ?? null) ? json_encode($meta['required_actions']) : ($meta['actions'] ?? null),
+                    'key_information' => is_array($meta['key_information'] ?? null) ? json_encode($meta['key_information']) : ($analysis['summary'] ?? null),
+                    'classification' => $analysis['classification'] ?? null,
+                    'confidence' => $analysis['confidence'] ?? null,
+                    'generated_by' => Auth::id(),
+                    'generated_at' => now()->format('Y-m-d H:i:s'),
+                ]);
+            }
+        } catch (\Throwable) {
+        }
+    }
+
+    private function logDocumentActivity(int $documentId, string $action, ?string $details = null): void
+    {
+        try {
+            if (! \Illuminate\Support\Facades\Schema::hasTable('document_activity_logs')) {
+                return;
+            }
+            \Illuminate\Support\Facades\DB::table('document_activity_logs')->insert([
+                'document_id' => $documentId,
+                'user_id' => Auth::id(),
+                'action' => $action,
+                'details' => $details,
+                'ip_address' => request()?->ip(),
+                'created_at' => now()->format('Y-m-d H:i:s'),
+            ]);
+        } catch (\Throwable) {
+        }
     }
 
     /**

@@ -22,6 +22,39 @@ class ArnelController extends Controller
         if (! $analysis) return response()->json(['message' => 'No analyzable document content supplied.'], 422);
         if ($document && Auth::user()?->canPermission('document.manage')) {
             DB::table('documents')->where('id', $document->id)->update(['ai_category' => $analysis['classification'], 'ai_classification' => $analysis['classification'], 'ai_summary' => $analysis['summary'], 'ai_tags' => json_encode($analysis['keywords']), 'ai_keywords' => json_encode($analysis['keywords']), 'ai_metadata' => json_encode($analysis['metadata']), 'ai_confidence' => $analysis['confidence'], 'ai_processed_at' => now()]);
+            try {
+                app(\App\Services\DocumentService::class);
+                $meta = is_array($analysis['metadata'] ?? null) ? $analysis['metadata'] : [];
+                if (\Illuminate\Support\Facades\Schema::hasTable('document_metadata')) {
+                    DB::table('document_metadata')->updateOrInsert(['document_id' => $document->id], [
+                        'extracted_title' => $meta['title'] ?? null,
+                        'reference_number' => $meta['reference_number'] ?? $meta['ref_number'] ?? null,
+                        'date_issued' => $meta['date_issued'] ?? null,
+                        'expiration_date' => $meta['expiration_date'] ?? null,
+                        'department' => $meta['department'] ?? null,
+                        'category_detected' => $analysis['classification'],
+                        'ocr_confidence' => $analysis['confidence'],
+                        'raw_fields' => json_encode($meta),
+                        'extracted_at' => now(),
+                        'updated_at' => now(),
+                        'created_at' => now(),
+                    ]);
+                }
+                if (\Illuminate\Support\Facades\Schema::hasTable('ai_document_summaries')) {
+                    DB::table('ai_document_summaries')->insert([
+                        'document_id' => $document->id,
+                        'summary' => $analysis['summary'],
+                        'important_deadlines' => isset($meta['deadlines']) ? json_encode($meta['deadlines']) : null,
+                        'required_actions' => isset($meta['required_actions']) ? json_encode($meta['required_actions']) : null,
+                        'key_information' => $analysis['summary'],
+                        'classification' => $analysis['classification'],
+                        'confidence' => $analysis['confidence'],
+                        'generated_by' => Auth::id(),
+                        'generated_at' => now(),
+                    ]);
+                }
+            } catch (\Throwable) {
+            }
         }
         AuditLogger::log('arnel', 'document_analysis', 'document', $document->id ?? 0, null, ['persisted' => (bool) ($document && Auth::user()?->canPermission('document.manage')), 'category' => $analysis['classification'], 'confidence' => $analysis['confidence']]);
         return response()->json(['success' => true, 'persisted' => (bool) ($document && Auth::user()?->canPermission('document.manage')), 'data' => ['summary' => $analysis['summary'], 'category' => $analysis['classification'], 'tags' => $analysis['keywords'], 'metadata' => $analysis['metadata'], 'confidence' => $analysis['confidence']]]);
@@ -53,9 +86,37 @@ class ArnelController extends Controller
         if (! $contract) return response()->json(['message' => 'Contract not found.'], 404);
         $insights = $arnel->contractInsights([(array) $contract]); $item = $insights['expiring'][0] ?? null; $alert = $item ? $item['priority'] : 'none';
         $summary = $insights['summary'] . ' Contract: ' . $contract->title . ' between ANI and ' . $contract->counterparty_name . '.';
-        if (Auth::user()?->canPermission('contract.manage')) DB::table('contracts')->where('id', $contract->id)->update(['ai_summary' => $summary, 'expiration_alert' => $alert]);
+        $docIds = DB::table('contract_documents')->where('contract_id', $contract->id)->pluck('document_id');
+        $text = '';
+        if ($docIds->isNotEmpty()) {
+            $version = DB::table('document_versions')->whereIn('document_id', $docIds)->orderByDesc('id')->first();
+            $text = (string) ($version->content_text ?? '');
+        }
+        $clauses = $arnel->extractContractClauses($text, (string) $contract->title);
+        if (Auth::user()?->canPermission('contract.manage')) {
+            DB::table('contracts')->where('id', $contract->id)->update([
+                'ai_summary' => $summary,
+                'expiration_alert' => $alert,
+                'ai_clauses' => json_encode($clauses),
+            ]);
+            try {
+                if (\Illuminate\Support\Facades\Schema::hasTable('contract_versions')) {
+                    $next = (int) DB::table('contract_versions')->where('contract_id', $contract->id)->max('version_no') + 1;
+                    DB::table('contract_versions')->insert([
+                        'contract_id' => $contract->id,
+                        'version_no' => max(1, $next),
+                        'label' => 'AI clause snapshot',
+                        'change_summary' => 'Clause extraction refresh',
+                        'ai_clauses' => json_encode($clauses),
+                        'created_by' => Auth::id(),
+                        'created_at' => now(),
+                    ]);
+                }
+            } catch (\Throwable) {
+            }
+        }
         AuditLogger::log('arnel', 'contract_analysis', 'contract', $contract->id, null, ['persisted' => Auth::user()?->canPermission('contract.manage'), 'expiration_alert' => $alert]);
-        return response()->json(['success' => true, 'data' => ['summary' => $summary, 'expiration' => $item, 'parties' => ['ANI', $contract->counterparty_name], 'contract_value' => $contract->value_amount, 'effective_date' => $contract->start_date, 'expiration_date' => $contract->end_date]]);
+        return response()->json(['success' => true, 'data' => ['summary' => $summary, 'expiration' => $item, 'parties' => ['ANI', $contract->counterparty_name], 'contract_value' => $contract->value_amount, 'effective_date' => $contract->start_date, 'expiration_date' => $contract->end_date, 'clauses' => $clauses]]);
     }
 
     public function analyzeLegalCase(Request $request, ArnelAiService $arnel): JsonResponse
@@ -65,6 +126,21 @@ class ArnelController extends Controller
         if (! $case) return response()->json(['message' => 'Legal case not found.'], 404);
         $insights = $arnel->legalCaseInsights([(array) $case]); $deadline = $insights['deadlines'][0]['date'] ?? null; $summary = $insights['summary'] . ' Case: ' . $case->title . '.';
         if (Auth::user()?->canPermission('legal.manage')) DB::table('legal_cases')->where('id', $case->id)->update(['ai_summary' => $summary, 'next_deadline' => $deadline]);
+        try {
+            if (\Illuminate\Support\Facades\Schema::hasTable('legal_activity_logs')) {
+                DB::table('legal_activity_logs')->insert([
+                    'case_id' => $case->id,
+                    'actor_id' => Auth::id(),
+                    'action' => 'arnel_analysis',
+                    'from_status' => $case->status,
+                    'to_status' => $case->status,
+                    'remarks' => 'AI case summary / deadline refresh',
+                    'meta' => json_encode(['next_deadline' => $deadline]),
+                    'created_at' => now(),
+                ]);
+            }
+        } catch (\Throwable) {
+        }
         AuditLogger::log('arnel', 'legal_case_analysis', 'legal_case', $case->id, null, ['persisted' => Auth::user()?->canPermission('legal.manage'), 'next_deadline' => $deadline]);
         return response()->json(['success' => true, 'data' => ['summary' => $summary, 'important_dates' => $insights['deadlines'], 'related_documents' => $insights['related_documents'], 'next_deadline' => $deadline]]);
     }

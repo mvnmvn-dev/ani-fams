@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Repositories\ReservationRepository;
 use App\Support\AuditLogger;
+use App\Support\AutomationLogger;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 
@@ -88,9 +89,20 @@ class ReservationService
             return ['success' => false, 'error' => 'Recurring series is limited to 52 occurrences.'];
         }
 
+        $attendees = (int) ($input['attendee_count'] ?? 0);
         foreach ($occurrences as [$occStart, $occEnd]) {
             if ($this->repo->hasConflict($facilityId, $occStart, $occEnd)) {
-                return ['success' => false, 'error' => "That facility is already booked around {$occStart}."];
+                $alternatives = $this->repo->findAvailableAlternatives($facilityId, $occStart, $occEnd, $attendees > 0 ? $attendees : null);
+                $altNames = array_map(static fn ($a) => $a['name'], $alternatives);
+                $hint = $altNames === []
+                    ? 'Try a different time window.'
+                    : 'Suggested rooms: ' . implode(', ', $altNames);
+
+                return [
+                    'success' => false,
+                    'error' => "That facility is already booked around {$occStart}. {$hint}",
+                    'alternatives' => $alternatives,
+                ];
             }
         }
 
@@ -111,6 +123,7 @@ class ReservationService
                 'recurrence_rule' => $rule,
                 'recurrence_until' => $until ?: null,
                 'is_maintenance' => 0,
+                'attendee_count' => $attendees > 0 ? $attendees : null,
             ]);
             $firstId ??= $id;
 
@@ -120,6 +133,8 @@ class ReservationService
                     $this->repo->attachEquipment($id, $eid, $qty);
                 }
             }
+
+            $this->repo->addLog($id, 'created', null, 'pending', Auth::id(), 'Reservation submitted');
         }
 
         $this->notifyApprovers(
@@ -133,6 +148,9 @@ class ReservationService
             'purpose' => $purpose,
             'occurrences' => count($occurrences),
             'series_id' => $seriesId,
+        ]);
+        AutomationLogger::log('reservations', 'notify_approvers', 'reservation', $firstId, [
+            'purpose' => $purpose,
         ]);
 
         return ['success' => true, 'id' => $firstId, 'created' => count($occurrences)];
@@ -213,14 +231,33 @@ class ReservationService
 
         $this->repo->updateStatus($reservationId, $decision, Auth::id());
 
+        $checkInCode = null;
+        if ($decision === 'approved') {
+            $checkInCode = 'RSV-' . strtoupper(Str::random(8));
+            $this->repo->setCheckInCode($reservationId, $checkInCode);
+        }
+
+        $this->repo->addLog(
+            $reservationId,
+            $decision,
+            'pending',
+            $decision,
+            Auth::id(),
+            $decision === 'approved' ? 'Approved — QR check-in code issued' : 'Rejected'
+        );
+
         $notificationService = app(NotificationService::class);
         $resModel = \App\Models\Reservation::with('facility')->find($reservationId);
         if ($resModel) {
+            $body = "Your reservation request for {$resModel->facility->name} on {$resModel->start_datetime->format('Y-m-d H:i')} has been {$decision}.";
+            if ($checkInCode) {
+                $body .= " Check-in QR code: {$checkInCode}.";
+            }
             $notificationService->send(
                 $resModel->requested_by,
                 'reservations',
                 "Reservation {$decision}",
-                "Your reservation request for {$resModel->facility->name} on {$resModel->start_datetime->format('Y-m-d H:i')} has been {$decision}.",
+                $body,
                 '/reservations',
                 true
             );
@@ -232,10 +269,102 @@ class ReservationService
             'reservation',
             $reservationId,
             ['status' => 'pending'],
-            ['status' => $decision]
+            ['status' => $decision, 'check_in_code' => $checkInCode]
         );
+        AutomationLogger::log('reservations', $decision, 'reservation', $reservationId, [
+            'check_in_code' => $checkInCode,
+        ]);
 
-        return ['success' => true];
+        return ['success' => true, 'check_in_code' => $checkInCode];
+    }
+
+    /**
+     * QR / code check-in after approval.
+     * @return array{success: bool, error?: string, status?: string, reservation?: array}
+     */
+    public function checkInByCode(string $code): array
+    {
+        $code = trim($code);
+        if ($code === '') {
+            return ['success' => false, 'error' => 'Check-in code is required.'];
+        }
+
+        $reservation = $this->repo->findByCheckInCode($code);
+        if (! $reservation) {
+            return ['success' => false, 'error' => 'Invalid check-in code.'];
+        }
+
+        return $this->advanceStatus((int) $reservation['id'], 'checked_in', 'QR / code check-in');
+    }
+
+    /**
+     * Advance through Pending → Approved → Checked-In → In Use → Completed / Cancelled / No Show.
+     * @return array{success: bool, error?: string, status?: string}
+     */
+    public function advanceStatus(int $reservationId, string $toStatus, ?string $remarks = null): array
+    {
+        $allowed = ['checked_in', 'in_use', 'completed', 'cancelled', 'no_show'];
+        if (! in_array($toStatus, $allowed, true)) {
+            return ['success' => false, 'error' => 'Invalid lifecycle status.'];
+        }
+
+        $reservation = $this->repo->find($reservationId);
+        if (! $reservation) {
+            return ['success' => false, 'error' => 'Reservation not found.'];
+        }
+
+        $from = (string) ($reservation['status'] ?? '');
+        $transitions = [
+            'approved' => ['checked_in', 'no_show', 'cancelled'],
+            'checked_in' => ['in_use', 'completed', 'cancelled'],
+            'in_use' => ['completed', 'cancelled'],
+        ];
+
+        if ($toStatus === 'cancelled') {
+            return $this->cancelReservation($reservationId, $remarks ?: 'Cancelled');
+        }
+
+        if ($toStatus === 'no_show') {
+            if ($from !== 'approved' && empty($reservation['no_show'])) {
+                // allow from approved
+            }
+            if ($from !== 'approved') {
+                return ['success' => false, 'error' => 'Only approved reservations can be marked no-show.'];
+            }
+        } elseif (! in_array($toStatus, $transitions[$from] ?? [], true)) {
+            return ['success' => false, 'error' => "Cannot move from {$from} to {$toStatus}."];
+        }
+
+        $canManage = Auth::user()?->canPermission('reservation.manage')
+            || Auth::user()?->canPermission('reservation.approve')
+            || Auth::user()?->canPermission('reservation.checkin');
+        $isOwner = (int) ($reservation['requested_by'] ?? 0) === (int) Auth::id();
+
+        if (! $canManage && ! ($isOwner && $toStatus === 'checked_in')) {
+            return ['success' => false, 'error' => 'You do not have permission for this action.'];
+        }
+
+        $this->repo->advanceLifecycle($reservationId, $toStatus, Auth::id());
+        $this->repo->addLog($reservationId, 'lifecycle', $from, $toStatus, Auth::id(), $remarks);
+        AuditLogger::log('reservations', 'lifecycle', 'reservation', $reservationId, ['status' => $from], ['status' => $toStatus]);
+        AutomationLogger::log('reservations', 'lifecycle_' . $toStatus, 'reservation', $reservationId);
+
+        return ['success' => true, 'status' => $toStatus, 'id' => $reservationId];
+    }
+
+    public function lifecycleAnalytics(): array
+    {
+        return $this->repo->analyticsSummary();
+    }
+
+    public function approvalHistory(int $reservationId): array
+    {
+        return $this->repo->getLogs($reservationId);
+    }
+
+    public function suggestAlternatives(int $facilityId, string $start, string $end, ?int $attendees = null): array
+    {
+        return $this->repo->findAvailableAlternatives($facilityId, $start, $end, $attendees);
     }
 
     /**
@@ -442,10 +571,12 @@ class ReservationService
             return ['success' => false, 'error' => 'Only approved reservations can be marked as no-show.'];
         }
 
-        $this->repo->markNoShow($reservationId, Auth::id());
+        $this->repo->advanceLifecycle($reservationId, 'no_show', Auth::id());
+        $this->repo->addLog($reservationId, 'no_show', $reservation['status'] ?? 'approved', 'no_show', Auth::id());
 
         AuditLogger::log('reservations', 'no_show', 'reservation', $reservationId, ['no_show' => false], [
             'no_show' => true,
+            'status' => 'no_show',
         ]);
 
         return ['success' => true];

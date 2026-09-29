@@ -11,6 +11,8 @@
 /** @var bool $canManage */
 
 $statusStyles = [
+    'pending_approval' => 'bg-accent-50 text-accent-700 border-accent-200',
+    'approved'    => 'bg-brand-50 text-brand-700 border-brand-200',
     'scheduled'   => 'bg-brand-50 text-brand-700 border-brand-200',
     'checked_in'  => 'bg-brand-50 text-brand-700 border-brand-300 font-semibold',
     'checked_out' => 'bg-gray-100 text-gray-700 border-gray-200',
@@ -18,10 +20,12 @@ $statusStyles = [
     'denied'      => 'bg-accent-50 text-accent-700 border-accent-200 font-semibold',
 ];
 
+$widgets = $widgets ?? [];
 $onSite      = array_values(array_filter($visits, fn($v) => $v['status'] === 'checked_in'));
-$scheduled   = array_values(array_filter($visits, fn($v) => $v['status'] === 'scheduled'));
+$scheduled   = array_values(array_filter($visits, fn($v) => in_array($v['status'], ['scheduled', 'pending_approval', 'approved'], true)));
 $completed   = array_values(array_filter($visits, fn($v) => in_array($v['status'], ['checked_out', 'no_show', 'denied'])));
 $watchlisted = array_values(array_filter($visits, fn($v) => $v['is_watchlisted']));
+$pendingApproval = array_values(array_filter($visits, fn($v) => ($v['status'] ?? '') === 'pending_approval'));
 $todayKey = date('Y-m-d');
 $scheduledToday = count(array_filter($scheduled, fn($v) => str_starts_with((string) ($v['expected_arrival'] ?? $v['visit_date'] ?? ''), $todayKey)
     || str_starts_with((string) ($v['scheduled_at'] ?? ''), $todayKey)
@@ -39,6 +43,14 @@ $recentCheckIns = array_slice($recentCheckIns, 0, 5);
 
 ?>
 <div class="animate-fade-in-up space-y-8">
+<?php
+$__visitorWidgetCards = [
+    ['label' => 'Inside building', 'value' => (int) ($widgets['visitors_inside'] ?? count($onSite)), 'hint' => 'Checked in now', 'tone' => 'navy', 'icon' => 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z'],
+    ['label' => "Today's visitors", 'value' => (int) ($widgets['todays_visitors'] ?? $scheduledToday), 'hint' => 'Scheduled / arrived today', 'tone' => 'peach', 'icon' => 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z'],
+    ['label' => 'Pending approvals', 'value' => (int) ($widgets['pending_approvals'] ?? count($pendingApproval)), 'hint' => 'Awaiting host approval', 'tone' => 'terracotta', 'icon' => 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z'],
+    ['label' => 'Expired / overstay', 'value' => (int) (($widgets['expired_passes'] ?? 0) + ($widgets['overstaying'] ?? 0)), 'hint' => 'Passes needing attention', 'tone' => 'brown', 'icon' => 'M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z'],
+];
+?>
     <?php
     render_page_header([
         'title' => 'Visitors',
@@ -77,12 +89,7 @@ $recentCheckIns = array_slice($recentCheckIns, 0, 5);
         <?php if (!empty($ai['anomalies'])): ?><p class="mt-3 text-xs font-semibold text-accent-700">Review unusual frequency: <?php foreach ($ai['anomalies'] as $item): ?><?= htmlspecialchars($item['name']) ?> (<?= (int) $item['visits'] ?>)<?php if ($item !== end($ai['anomalies'])): ?>, <?php endif; ?><?php endforeach; ?></p><?php endif; ?>
     </section>
 
-    @include('partials.stat_kpi_grid', ['cards' => [
-        ['label' => 'On site now', 'value' => count($onSite), 'hint' => 'Checked in and present', 'tone' => 'navy', 'icon' => 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z'],
-        ['label' => 'Scheduled', 'value' => count($scheduled), 'hint' => 'Awaiting arrival', 'tone' => 'navy', 'icon' => 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z'],
-        ['label' => 'Watchlist hits', 'value' => count($watchlisted), 'hint' => 'Flagged visitors', 'tone' => 'peach', 'icon' => 'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z'],
-        ['label' => 'Completed', 'value' => count($completed), 'hint' => 'Checked out / closed', 'tone' => 'terracotta', 'icon' => 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z'],
-    ]])
+    @include('partials.stat_kpi_grid', ['cards' => $__visitorWidgetCards])
 
     <div class="module-info-grid">
         @include('partials.module_feed_list', [
@@ -275,8 +282,14 @@ $recentCheckIns = array_slice($recentCheckIns, 0, 5);
                                         </span>
                                     </td>
                                     <td class="text-right whitespace-nowrap" data-row-actions>
+                                        <?php if (in_array($visit['status'], ['pending_approval', 'scheduled'], true)): ?>
+                                            <form action="<?= url('/visitors/' . $visit['id'] . '/approve') ?>" method="POST" class="inline" data-ajax-action="visitor.approve">
+                                                @csrf
+                                                <button type="submit" class="text-xs font-bold text-brand-700 hover:text-brand-900 mr-2">Approve</button>
+                                            </form>
+                                        <?php endif; ?>
                                         <?php if ($canCheckIn): ?>
-                                            <?php if ($visit['status'] === 'scheduled'): ?>
+                                            <?php if (in_array($visit['status'], ['scheduled', 'approved', 'pending_approval'], true)): ?>
                                                 <form action="<?= url('/visitors/' . $visit['id'] . '/check-in') ?>" method="POST" class="inline" data-ajax-action="visitor.checkin">
                                                     @csrf
                                                     <button type="submit" class="text-xs font-bold text-brand-700 hover:text-brand-900 mr-2">Check In</button>

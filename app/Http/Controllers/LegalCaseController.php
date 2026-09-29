@@ -323,4 +323,14 @@ class LegalCaseController extends Controller
 
         return $this->streamExportPdf('legal_cases', 'Legal Cases Export', $headers, $rows);
     }
+
+    public function advanceWorkflow(Request $request, string $id, LegalCaseService $service)
+    {
+        $result = $service->advanceWorkflow((int) $id, (string) $request->input('status', ''), $request->input('remarks'));
+
+        return redirect()->route('legal.show', $id)->with(
+            $result['success'] ? 'flash_success' : 'flash_error',
+            $result['success'] ? 'Case workflow updated.' : ($result['error'] ?? 'Update failed.')
+        );
+    }
 }

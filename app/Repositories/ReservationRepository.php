@@ -81,7 +81,7 @@ class ReservationRepository
         $sql = "SELECT COUNT(*) FROM reservations
              WHERE facility_id = :facility_id
                AND deleted_at IS NULL
-               AND status IN ('pending','approved')
+               AND status IN ('pending','approved','checked_in','in_use')
                AND start_datetime < :end
                AND end_datetime > :start";
         $params = ['facility_id' => $facilityId, 'start' => $start, 'end' => $end];
@@ -100,10 +100,10 @@ class ReservationRepository
         $stmt = $this->pdo()->prepare(
             "INSERT INTO reservations (
                 facility_id, requested_by, purpose, start_datetime, end_datetime, status,
-                series_id, recurrence_rule, recurrence_until, is_maintenance, approved_by, approved_at
+                series_id, recurrence_rule, recurrence_until, is_maintenance, approved_by, approved_at, attendee_count
              ) VALUES (
                 :facility_id, :requested_by, :purpose, :start, :end, :status,
-                :series_id, :recurrence_rule, :recurrence_until, :is_maintenance, :approved_by, :approved_at
+                :series_id, :recurrence_rule, :recurrence_until, :is_maintenance, :approved_by, :approved_at, :attendee_count
              )"
         );
         $status = $data['status'] ?? 'pending';
@@ -120,6 +120,7 @@ class ReservationRepository
             'is_maintenance' => ! empty($data['is_maintenance']),
             'approved_by' => $data['approved_by'] ?? null,
             'approved_at' => $data['approved_at'] ?? null,
+            'attendee_count' => $data['attendee_count'] ?? null,
         ]));
 
         return $this->insertId('reservations');
@@ -470,5 +471,182 @@ class ReservationRepository
         $stmt->execute(['facility_id' => $facilityId]);
 
         return $stmt->fetch();
+    }
+
+    // ===================== DEFENSE READY: LIFECYCLE / QR / LOGS =====================
+
+    public function findAvailableAlternatives(int $excludeFacilityId, string $start, string $end, ?int $minCapacity = null): array
+    {
+        $sql = "SELECT f.id, f.name, f.location, f.capacity, f.type
+                FROM facilities f
+                WHERE f.status = 'available'
+                  AND f.id != :exclude
+                  AND NOT EXISTS (
+                      SELECT 1 FROM reservations r
+                      WHERE r.facility_id = f.id
+                        AND r.deleted_at IS NULL
+                        AND r.status IN ('pending','approved','checked_in','in_use')
+                        AND r.start_datetime < :end
+                        AND r.end_datetime > :start
+                  )";
+        $params = ['exclude' => $excludeFacilityId, 'start' => $start, 'end' => $end];
+        if ($minCapacity !== null && $minCapacity > 0) {
+            $sql .= ' AND f.capacity >= :cap';
+            $params['cap'] = $minCapacity;
+        }
+        $sql .= ' ORDER BY f.capacity ASC, f.name LIMIT 5';
+        $stmt = $this->pdo()->prepare($sql);
+        $stmt->execute($params);
+
+        return $stmt->fetchAll();
+    }
+
+    public function setCheckInCode(int $reservationId, string $code): void
+    {
+        $stmt = $this->pdo()->prepare(
+            'UPDATE reservations SET check_in_code = :code WHERE id = :id'
+        );
+        $stmt->execute(['code' => $code, 'id' => $reservationId]);
+    }
+
+    public function findByCheckInCode(string $code): ?array
+    {
+        $stmt = $this->pdo()->prepare(
+            "SELECT r.*, f.name AS facility_name, u.full_name AS requester_name
+             FROM reservations r
+             JOIN facilities f ON f.id = r.facility_id
+             JOIN users u ON u.id = r.requested_by
+             WHERE r.check_in_code = :code AND r.deleted_at IS NULL
+             LIMIT 1"
+        );
+        $stmt->execute(['code' => $code]);
+        $row = $stmt->fetch();
+
+        return $row ?: null;
+    }
+
+    public function advanceLifecycle(int $reservationId, string $status, ?int $actorId = null): void
+    {
+        $sets = ['status = :status'];
+        $params = ['status' => $status, 'id' => $reservationId];
+
+        if (in_array($status, ['checked_in', 'in_use'], true)) {
+            $sets[] = 'checked_in_at = COALESCE(checked_in_at, CURRENT_TIMESTAMP)';
+            if ($actorId) {
+                $sets[] = 'checked_in_by = COALESCE(checked_in_by, :actor)';
+                $params['actor'] = $actorId;
+            }
+        }
+        if ($status === 'completed') {
+            $sets[] = 'completed_at = CURRENT_TIMESTAMP';
+        }
+        if ($status === 'no_show') {
+            $sets[] = 'no_show = ' . $this->boolLiteral(true);
+            $sets[] = 'no_show_reported_at = CURRENT_TIMESTAMP';
+            if ($actorId) {
+                $sets[] = 'no_show_reported_by = :actor';
+                $params['actor'] = $actorId;
+            }
+        }
+
+        $sql = 'UPDATE reservations SET ' . implode(', ', $sets) . ' WHERE id = :id';
+        $this->pdo()->prepare($sql)->execute($params);
+    }
+
+    public function addLog(int $reservationId, string $action, ?string $from, ?string $to, ?int $actorId, ?string $remarks = null, array $meta = []): void
+    {
+        try {
+            $stmt = $this->pdo()->prepare(
+                'INSERT INTO reservation_logs (reservation_id, actor_id, action, from_status, to_status, remarks, meta, created_at)
+                 VALUES (:rid, :actor, :action, :from_status, :to_status, :remarks, :meta, CURRENT_TIMESTAMP)'
+            );
+            $stmt->execute([
+                'rid' => $reservationId,
+                'actor' => $actorId,
+                'action' => $action,
+                'from_status' => $from,
+                'to_status' => $to,
+                'remarks' => $remarks,
+                'meta' => $meta === [] ? null : json_encode($meta),
+            ]);
+        } catch (\Throwable) {
+            // Table may be absent on older DBs; ignore.
+        }
+    }
+
+    public function getLogs(int $reservationId): array
+    {
+        try {
+            $stmt = $this->pdo()->prepare(
+                "SELECT l.*, u.full_name AS actor_name
+                 FROM reservation_logs l
+                 LEFT JOIN users u ON u.id = l.actor_id
+                 WHERE l.reservation_id = :rid
+                 ORDER BY l.created_at ASC"
+            );
+            $stmt->execute(['rid' => $reservationId]);
+
+            return $stmt->fetchAll();
+        } catch (\Throwable) {
+            return [];
+        }
+    }
+
+    public function analyticsSummary(): array
+    {
+        $driver = $this->pdo()->getAttribute(PDO::ATTR_DRIVER_NAME);
+        $hourExpr = match ($driver) {
+            'pgsql' => 'EXTRACT(HOUR FROM start_datetime)',
+            'sqlite' => "CAST(strftime('%H', start_datetime) AS INTEGER)",
+            default => 'HOUR(start_datetime)',
+        };
+        $notMaint = $this->coalesceFalseCondition('is_maintenance');
+        $notNoShow = $this->coalesceFalseCondition('no_show');
+        $isNoShow = $this->isTrueCondition('no_show');
+
+        $totals = $this->pdo()->query(
+            "SELECT
+                COUNT(*) AS total,
+                SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) AS cancelled,
+                SUM(CASE WHEN status = 'completed' OR (status IN ('approved','checked_in','in_use') AND end_datetime < CURRENT_TIMESTAMP AND {$notNoShow}) THEN 1 ELSE 0 END) AS completed,
+                SUM(CASE WHEN status = 'no_show' OR {$isNoShow} THEN 1 ELSE 0 END) AS no_shows
+             FROM reservations
+             WHERE deleted_at IS NULL
+               AND {$notMaint}"
+        )->fetch() ?: [];
+
+        $peakHours = $this->pdo()->query(
+            "SELECT {$hourExpr} AS hour_of_day, COUNT(*) AS booking_count
+             FROM reservations
+             WHERE deleted_at IS NULL
+               AND status IN ('approved','checked_in','in_use','completed')
+               AND {$notMaint}
+             GROUP BY {$hourExpr}
+             ORDER BY booking_count DESC
+             LIMIT 6"
+        )->fetchAll();
+
+        $mostReserved = $this->pdo()->query(
+            "SELECT f.name, COUNT(r.id) AS booking_count
+             FROM facilities f
+             JOIN reservations r ON r.facility_id = f.id
+             WHERE r.deleted_at IS NULL
+               AND r.status IN ('approved','checked_in','in_use','completed')
+               AND {$this->coalesceFalseCondition('r.is_maintenance')}
+             GROUP BY f.id, f.name
+             ORDER BY booking_count DESC
+             LIMIT 5"
+        )->fetchAll();
+
+        $total = max(1, (int) ($totals['total'] ?? 0));
+
+        return [
+            'most_reserved' => $mostReserved,
+            'peak_hours' => $peakHours,
+            'cancellation_rate' => round(((int) ($totals['cancelled'] ?? 0) / $total) * 100, 1),
+            'completion_rate' => round(((int) ($totals['completed'] ?? 0) / $total) * 100, 1),
+            'no_show_rate' => round(((int) ($totals['no_shows'] ?? 0) / $total) * 100, 1),
+            'totals' => $totals,
+        ];
     }
 }

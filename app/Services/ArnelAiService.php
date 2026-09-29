@@ -185,8 +185,66 @@ class ArnelAiService
         $counts = [];
         foreach ($visits as $visit) { $name = trim((string) ($visit['visitor_name'] ?? 'Unknown visitor')); $counts[$name] = ($counts[$name] ?? 0) + 1; }
         arsort($counts); $frequent = array_slice($counts, 0, 5, true);
-        $fallback = ['summary' => count($todayVisits) . ' visitor(s) are recorded for today.', 'frequent_visitors' => array_map(static fn ($name, $count) => ['name' => $name, 'visits' => $count], array_keys($frequent), array_values($frequent)), 'anomalies' => array_values(array_map(static fn ($name, $count) => ['name' => $name, 'visits' => $count], array_keys(array_filter($counts, static fn ($count) => $count >= 5)), array_values(array_filter($counts, static fn ($count) => $count >= 5))))];
+        $overstaying = array_values(array_filter($visits, static function ($v) {
+            if (($v['status'] ?? '') !== 'checked_in') return false;
+            if (! empty($v['badge_expires_at']) && strtotime($v['badge_expires_at']) < time()) return true;
+            $hours = (int) ($v['expected_duration_hours'] ?? 8);
+            return ! empty($v['check_in_time']) && strtotime($v['check_in_time']) < strtotime("-{$hours} hours");
+        }));
+        $fallback = [
+            'summary' => count($todayVisits) . ' visitor(s) are recorded for today' . (count($overstaying) ? '; ' . count($overstaying) . ' may be overstaying.' : '.'),
+            'frequent_visitors' => array_map(static fn ($name, $count) => ['name' => $name, 'visits' => $count], array_keys($frequent), array_values($frequent)),
+            'anomalies' => array_values(array_map(static fn ($name, $count) => ['name' => $name, 'visits' => $count], array_keys(array_filter($counts, static fn ($count) => $count >= 5)), array_values(array_filter($counts, static fn ($count) => $count >= 5)))),
+            'overstaying' => array_map(static fn ($v) => ['name' => $v['visitor_name'] ?? 'Visitor', 'check_in_time' => $v['check_in_time'] ?? null], array_slice($overstaying, 0, 8)),
+            'peak_hint' => 'Review visitor peak hours on the Visitors dashboard widgets.',
+        ];
         return $fallback;
+    }
+
+    /** @return array{renewal:string|null,termination:string|null,confidentiality:string|null,payment_terms:string|null} */
+    public function extractContractClauses(string $text, string $title = ''): array
+    {
+        $text = trim(\Illuminate\Support\Str::limit($text, 25000, ''));
+        $fallback = [
+            'renewal' => $this->clauseSnippet($text, ['renew', 'auto-renew', 'renewal']),
+            'termination' => $this->clauseSnippet($text, ['terminat', 'cancel']),
+            'confidentiality' => $this->clauseSnippet($text, ['confidential', 'non-disclosure', 'nda']),
+            'payment_terms' => $this->clauseSnippet($text, ['payment', 'invoice', 'consideration', 'fee']),
+        ];
+        if ($text === '') {
+            return $fallback;
+        }
+        $result = $this->jsonRequest(
+            'You are ARNEL AI for contract clause extraction. Quote or paraphrase only clauses evidenced in the text. Use null when absent.',
+            "Contract title: {$title}\nText:\n{$text}",
+            [
+                'renewal' => ['type' => ['string', 'null']],
+                'termination' => ['type' => ['string', 'null']],
+                'confidentiality' => ['type' => ['string', 'null']],
+                'payment_terms' => ['type' => ['string', 'null']],
+            ],
+            'contract_clauses'
+        );
+
+        return is_array($result) ? array_replace($fallback, $result) : $fallback;
+    }
+
+    private function clauseSnippet(string $text, array $needles): ?string
+    {
+        if ($text === '') {
+            return null;
+        }
+        $lower = strtolower($text);
+        foreach ($needles as $needle) {
+            $pos = strpos($lower, $needle);
+            if ($pos === false) {
+                continue;
+            }
+            $start = max(0, $pos - 40);
+            return trim(\Illuminate\Support\Str::limit(substr($text, $start, 220), 200, '…'));
+        }
+
+        return null;
     }
 
     public function groupNotifications(iterable $notifications): array

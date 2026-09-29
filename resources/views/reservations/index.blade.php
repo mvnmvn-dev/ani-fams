@@ -8,10 +8,14 @@
 /** @var bool $canApprove */
 
 $statusColors = [
-    'pending'   => 'bg-accent-50 text-accent-700 border-accent-200',
-    'approved'  => 'bg-brand-50 text-brand-700 border-brand-300',
-    'rejected'  => 'bg-accent-50 text-accent-700 border-accent-200',
-    'cancelled' => 'bg-gray-100 text-gray-500 border-gray-200',
+    'pending'     => 'bg-accent-50 text-accent-700 border-accent-200',
+    'approved'    => 'bg-brand-50 text-brand-700 border-brand-300',
+    'checked_in'  => 'bg-brand-50 text-brand-800 border-brand-300 font-semibold',
+    'in_use'      => 'bg-brand-50 text-brand-900 border-brand-400 font-semibold',
+    'completed'   => 'bg-gray-100 text-gray-600 border-gray-200',
+    'rejected'    => 'bg-accent-50 text-accent-700 border-accent-200',
+    'cancelled'   => 'bg-gray-100 text-gray-500 border-gray-200',
+    'no_show'     => 'bg-accent-50 text-accent-800 border-accent-300',
 ];
 $pendingCount = 0;
 $approvedCount = 0;
@@ -20,10 +24,13 @@ $todayBookings = 0;
 $todayKey = date('Y-m-d');
 foreach ($reservations as $r) {
     if ($r['status'] === 'pending') $pendingCount++;
-    elseif ($r['status'] === 'approved') $approvedCount++;
+    elseif (in_array($r['status'], ['approved', 'checked_in', 'in_use'], true)) $approvedCount++;
     elseif ($r['status'] === 'rejected') $rejectedCount++;
     if (str_starts_with((string) ($r['start_datetime'] ?? ''), $todayKey)) $todayBookings++;
 }
+$analytics = $analytics ?? [];
+$cancelRate = $analytics['cancellation_rate'] ?? null;
+$completeRate = $analytics['completion_rate'] ?? null;
 $todayReservations = array_values(array_filter($reservations, static fn($r) => str_starts_with((string) ($r['start_datetime'] ?? ''), $todayKey)));
 usort($todayReservations, static fn($a, $b) => strcmp($a['start_datetime'] ?? '', $b['start_datetime'] ?? ''));
 $facilityUsage = [];
@@ -79,10 +86,38 @@ $upcomingApproved = array_slice($upcomingApproved, 0, 5);
 
     @include('partials.stat_kpi_grid', ['cards' => [
         ['label' => 'Pending review', 'value' => $pendingCount, 'hint' => 'Awaiting approve / reject', 'tone' => 'peach', 'icon' => 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z'],
-        ['label' => 'Approved', 'value' => $approvedCount, 'hint' => 'Confirmed bookings', 'tone' => 'navy', 'icon' => 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z'],
+        ['label' => 'Active bookings', 'value' => $approvedCount, 'hint' => 'Approved / checked-in / in use', 'tone' => 'navy', 'icon' => 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z'],
         ['label' => 'Today', 'value' => $todayBookings, 'hint' => 'Starting today', 'tone' => 'navy', 'icon' => 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z'],
-        ['label' => 'Rejected', 'value' => $rejectedCount, 'hint' => 'Declined requests', 'tone' => 'terracotta', 'icon' => 'M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z'],
+        ['label' => 'Completion', 'value' => ($completeRate !== null ? $completeRate.'%' : $rejectedCount), 'hint' => ($completeRate !== null ? 'Lifecycle completion rate' : 'Rejected requests'), 'tone' => 'terracotta', 'icon' => 'M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z'],
     ]])
+
+    <div class="module-info-grid">
+        <div class="module-insight-panel">
+            <h3 class="module-insight-title">QR check-in</h3>
+            <p class="module-insight-sub">Scan or enter the code issued after approval</p>
+            <form action="<?= route('reservations.checkin') ?>" method="POST" class="mt-3 flex flex-wrap gap-2">
+                @csrf
+                <input type="text" name="code" required placeholder="RSV-XXXXXXXX"
+                       class="flex-1 min-w-[10rem] rounded-xl border border-ink/15 px-3 py-2 text-sm bg-sand/10 font-mono">
+                <button type="submit" class="btn-primary text-sm">Check in</button>
+            </form>
+            <?php if ($cancelRate !== null): ?>
+                <p class="mt-3 text-xs text-ink/55">Cancellation rate <?= htmlspecialchars((string) $cancelRate) ?>% · No-show <?= htmlspecialchars((string) ($analytics['no_show_rate'] ?? 0)) ?>%</p>
+            <?php endif; ?>
+        </div>
+        <?php if (!empty($analytics['most_reserved'])): ?>
+        <div class="module-insight-panel">
+            <h3 class="module-insight-title">Most reserved rooms</h3>
+            <p class="module-insight-sub">Defense analytics snapshot</p>
+            <?php foreach (array_slice($analytics['most_reserved'], 0, 5) as $row): ?>
+                <div class="module-stat-row">
+                    <span class="text-ink/70"><?= htmlspecialchars($row['name'] ?? '') ?></span>
+                    <strong class="tabular-nums text-ink"><?= (int) ($row['booking_count'] ?? 0) ?></strong>
+                </div>
+            <?php endforeach; ?>
+        </div>
+        <?php endif; ?>
+    </div>
 
     <div class="module-info-grid">
         @include('partials.module_feed_list', [
@@ -154,8 +189,12 @@ $upcomingApproved = array_slice($upcomingApproved, 0, 5);
                 ['name' => 'status', 'label' => 'Status', 'allLabel' => 'All statuses', 'options' => [
                     'pending' => 'Pending',
                     'approved' => 'Approved',
+                    'checked_in' => 'Checked-In',
+                    'in_use' => 'In Use',
+                    'completed' => 'Completed',
                     'rejected' => 'Rejected',
                     'cancelled' => 'Cancelled',
+                    'no_show' => 'No Show',
                 ]],
                 ['name' => 'facility', 'label' => 'Facility', 'allLabel' => 'All facilities', 'options' => $facilityOptions],
             ]])
@@ -218,6 +257,12 @@ $upcomingApproved = array_slice($upcomingApproved, 0, 5);
             <?php else: ?>
                 <div class="cal-shell" id="jsCalendar"></div>
                 <div class="mt-3 flex flex-wrap items-center gap-3">
+                    <label class="text-xs font-bold uppercase tracking-wider text-ink/50">View</label>
+                    <div class="inline-flex rounded-xl border border-ink/15 overflow-hidden text-sm" id="calViewToggle">
+                        <button type="button" data-cal-view="month" class="px-3 py-1.5 bg-brand-700 text-white font-semibold">Month</button>
+                        <button type="button" data-cal-view="week" class="px-3 py-1.5 bg-white text-ink/70 font-semibold">Week</button>
+                        <button type="button" data-cal-view="agenda" class="px-3 py-1.5 bg-white text-ink/70 font-semibold">Agenda</button>
+                    </div>
                     <label class="text-xs font-bold uppercase tracking-wider text-ink/50">Calendar facility</label>
                     <select id="calFacilityFilter" class="rounded-xl border border-ink/15 px-3 py-2 text-sm bg-sand/10">
                         <option value="">All facilities</option>
@@ -251,6 +296,8 @@ $upcomingApproved = array_slice($upcomingApproved, 0, 5);
                     var currentMonth = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
                     if (currentMonth < MIN) currentMonth = MIN;
                     if (currentMonth > MAX) currentMonth = MAX;
+                    var calView = 'month';
+                    var weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay());
 
                     function pad2(n) { return n < 10 ? '0' + n : '' + n; }
 
@@ -268,11 +315,24 @@ $upcomingApproved = array_slice($upcomingApproved, 0, 5);
                         return el.innerHTML;
                     }
 
+                    function ymd(d) {
+                        return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+                    }
+
                     function refreshFilters() {
                         var root = document.querySelector('[data-filter-root]');
                         if (root && typeof root._moduleFilterApply === 'function') {
                             root._moduleFilterApply();
                         }
+                    }
+
+                    function setViewButtons() {
+                        document.querySelectorAll('#calViewToggle [data-cal-view]').forEach(function (btn) {
+                            var active = btn.getAttribute('data-cal-view') === calView;
+                            btn.className = active
+                                ? 'px-3 py-1.5 bg-brand-700 text-white font-semibold'
+                                : 'px-3 py-1.5 bg-white text-ink/70 font-semibold';
+                        });
                     }
 
                     function applyFacilityFilter() {
@@ -282,10 +342,62 @@ $upcomingApproved = array_slice($upcomingApproved, 0, 5);
                             return !facilityFilter || String(r.facility_id) === String(facilityFilter);
                         });
                         rebuildByDay();
-                        render(currentMonth);
+                        render();
                     }
 
-                    function render(ym) {
+                    function renderWeek() {
+                        var el = document.getElementById('jsCalendar');
+                        if (!el) return;
+                        var html = '<div class="cal-toolbar"><h2>Week of ' + MONTHS[weekStart.getMonth()] + ' ' + weekStart.getDate() + ', ' + weekStart.getFullYear() + '</h2><div class="cal-nav">';
+                        html += '<button type="button" data-week-delta="-7">&#8249;</button>';
+                        html += '<button type="button" data-week-delta="0">Today</button>';
+                        html += '<button type="button" data-week-delta="7">&#8250;</button></div></div>';
+                        html += '<div class="cal-weekdays" aria-hidden="true"><span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span></div>';
+                        html += '<div class="cal-grid">';
+                        for (var i = 0; i < 7; i++) {
+                            var day = new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate() + i);
+                            var key = ymd(day);
+                            var events = byDay[key] || [];
+                            html += '<div class="cal-day' + (key === TODAY ? ' is-today' : '') + '"><div class="cal-day-num">' + day.getDate() + '</div><div class="cal-events">';
+                            events.forEach(function (r) {
+                                html += '<div class="cal-event is-' + esc(r.status) + '" title="' + esc(r.facility_name + ' · ' + r.purpose) + '">'
+                                    + '<span class="cal-event-time">' + formatTime(r.start_datetime) + '</span>'
+                                    + '<span class="cal-event-title">' + esc(r.facility_name) + '</span></div>';
+                            });
+                            html += '</div></div>';
+                        }
+                        html += '</div>';
+                        html += '<div class="cal-legend"><span><i style="background:#CCAD9F"></i>Pending</span><span><i style="background:#142E4C"></i>Approved</span><span><i style="background:#3b82f6"></i>Checked-In / In Use</span><span><i style="background:#A06A56"></i>Rejected / No Show</span></div>';
+                        el.innerHTML = html;
+                        el.querySelectorAll('[data-week-delta]').forEach(function (btn) {
+                            btn.addEventListener('click', function () {
+                                var delta = parseInt(btn.getAttribute('data-week-delta'), 10);
+                                if (delta === 0) weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay());
+                                else weekStart = new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate() + delta);
+                                render();
+                            });
+                        });
+                    }
+
+                    function renderAgenda() {
+                        var el = document.getElementById('jsCalendar');
+                        if (!el) return;
+                        var sorted = reservations.slice().sort(function (a, b) {
+                            return String(a.start_datetime).localeCompare(String(b.start_datetime));
+                        });
+                        var html = '<div class="cal-toolbar"><h2>Agenda</h2></div><div class="space-y-2 p-3">';
+                        if (!sorted.length) html += '<p class="text-sm text-ink/50">No reservations in view.</p>';
+                        sorted.slice(0, 40).forEach(function (r) {
+                            html += '<div class="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-ink/10 px-3 py-2 text-sm">'
+                                + '<div><strong>' + esc(r.facility_name) + '</strong><div class="text-ink/55">' + esc(r.purpose || '') + '</div></div>'
+                                + '<div class="text-right text-ink/65">' + esc(String(r.start_datetime).replace('T', ' ').substring(0, 16))
+                                + '<div><span class="cal-event is-' + esc(r.status) + '" style="display:inline-block;padding:.1rem .45rem;border-radius:.5rem;font-size:.7rem;">' + esc(r.status) + '</span></div></div></div>';
+                        });
+                        html += '</div>';
+                        el.innerHTML = html;
+                    }
+
+                    function renderMonth(ym) {
                         var el = document.getElementById('jsCalendar');
                         if (!el) return;
 
@@ -359,7 +471,8 @@ $upcomingApproved = array_slice($upcomingApproved, 0, 5);
                         html += '<div class="cal-legend">'
                             + '<span><i style="background:#CCAD9F"></i>Pending</span>'
                             + '<span><i style="background:#142E4C"></i>Approved</span>'
-                            + '<span><i style="background:#A06A56"></i>Rejected</span>'
+                            + '<span><i style="background:#3b82f6"></i>Checked-In / In Use</span>'
+                            + '<span><i style="background:#A06A56"></i>Rejected / No Show</span>'
                             + '<span><i style="background:#64748b"></i>Maintenance</span>'
                             + '</div>';
 
@@ -370,17 +483,30 @@ $upcomingApproved = array_slice($upcomingApproved, 0, 5);
                                 e.preventDefault();
                                 e.stopPropagation();
                                 currentMonth = btn.getAttribute('data-cal-go');
-                                render(currentMonth);
+                                render();
                             });
                         });
 
                         refreshFilters();
                     }
 
+                    function render() {
+                        setViewButtons();
+                        if (calView === 'week') return renderWeek();
+                        if (calView === 'agenda') return renderAgenda();
+                        return renderMonth(currentMonth);
+                    }
+
                     var filterEl = document.getElementById('calFacilityFilter');
                     if (filterEl) filterEl.addEventListener('change', applyFacilityFilter);
+                    document.querySelectorAll('#calViewToggle [data-cal-view]').forEach(function (btn) {
+                        btn.addEventListener('click', function () {
+                            calView = btn.getAttribute('data-cal-view');
+                            render();
+                        });
+                    });
 
-                    render(currentMonth);
+                    render();
                 })();
                 </script>
             <?php endif; ?>

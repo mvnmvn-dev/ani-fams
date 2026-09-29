@@ -36,7 +36,24 @@ class DashboardService
             'pending_disposals'    => $user?->canPermission('retention.view') ? $retService->pendingDisposalCount() : 0,
             'active_legal_cases'   => $user?->canPermission('legal.view') ? $legalService->activeCount() : 0,
             'active_contracts'     => $user?->canPermission('contract.view') ? $conService->activeCount() : 0,
+            'documents_today'      => $user?->canPermission('document.view') ? count(array_filter($documents, static fn ($d) => str_starts_with((string) ($d['created_at'] ?? ''), date('Y-m-d')))) : 0,
+            'expiring_contracts'   => $user?->canPermission('contract.view') ? count(array_filter($contracts, static function ($c) {
+                if (empty($c['end_date']) || ! in_array($c['status'] ?? '', ['active', 'renewed'], true)) return false;
+                $days = (int) floor((strtotime($c['end_date']) - time()) / 86400);
+                return $days >= 0 && $days <= 30;
+            })) : 0,
+            'compliance_alerts'    => $user?->canPermission('retention.view') ? (function () {
+                try {
+                    if (! \Illuminate\Support\Facades\Schema::hasTable('compliance_alerts')) return 0;
+                    return (int) \Illuminate\Support\Facades\DB::table('compliance_alerts')->where('status', 'open')->count();
+                } catch (\Throwable) {
+                    return 0;
+                }
+            })() : 0,
         ];
+
+        $visitorWidgets = $user?->canPermission('visitor.view') ? $visService->dashboardWidgets() : [];
+        $reservationAnalytics = $user?->canPermission('reservation.view') ? $resService->lifecycleAnalytics() : [];
 
         // Completion/Success rates for Executive Trends
         $totalRes = count($reservations);
@@ -109,6 +126,8 @@ class DashboardService
             'attentionItems'     => $attentionItems,
             'aiInsights'         => $aiInsights,
             'quickActions'       => TopbarData::quickActions(),
+            'visitorWidgets'     => $visitorWidgets,
+            'reservationAnalytics' => $reservationAnalytics,
         ];
     }
 

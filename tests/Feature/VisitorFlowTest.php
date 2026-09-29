@@ -43,7 +43,7 @@ class VisitorFlowTest extends TestCase
         ]);
         $this->assertDatabaseHas('visits', [
             'purpose' => 'Business Meeting',
-            'status' => 'scheduled',
+            'status' => 'pending_approval',
             'host_employee_id' => $employeeId,
         ]);
     }

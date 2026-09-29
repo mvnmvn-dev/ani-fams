@@ -341,4 +341,48 @@ class VisitorRepository
         
         return $this->pdo()->query($sql)->fetchAll();
     }
+
+    // ===================== DEFENSE READY =====================
+
+    public function updateVisitDefenseFields(int $visitId, array $fields): void
+    {
+        $allowed = [
+            'host_approved_at', 'host_approved_by', 'badge_expires_at',
+            'expected_duration_hours', 'registration_type',
+        ];
+        $sets = [];
+        $params = ['id' => $visitId];
+        foreach ($fields as $key => $value) {
+            if (! in_array($key, $allowed, true)) {
+                continue;
+            }
+            $sets[] = "{$key} = :{$key}";
+            $params[$key] = $value;
+        }
+        if ($sets === []) {
+            return;
+        }
+        $sql = 'UPDATE visits SET ' . implode(', ', $sets) . ' WHERE id = :id';
+        $this->pdo()->prepare($sql)->execute($params);
+    }
+
+    public function peakVisitorHours(): array
+    {
+        $driver = $this->pdo()->getAttribute(PDO::ATTR_DRIVER_NAME);
+        $hourExpr = match ($driver) {
+            'pgsql' => 'EXTRACT(HOUR FROM COALESCE(check_in_time, scheduled_at))',
+            'sqlite' => "CAST(strftime('%H', COALESCE(check_in_time, scheduled_at)) AS INTEGER)",
+            default => 'HOUR(COALESCE(check_in_time, scheduled_at))',
+        };
+
+        return $this->pdo()->query(
+            "SELECT {$hourExpr} AS hour_of_day, COUNT(*) AS visit_count
+             FROM visits
+             WHERE deleted_at IS NULL
+               AND status IN ('checked_in','checked_out','approved','scheduled')
+             GROUP BY {$hourExpr}
+             ORDER BY visit_count DESC
+             LIMIT 8"
+        )->fetchAll();
+    }
 }

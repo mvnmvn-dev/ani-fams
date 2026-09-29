@@ -98,8 +98,67 @@ class LegalCaseService
             'status'      => $status,
             'risk_level'  => $risk,
         ]);
+        $this->logLegalActivity($id, 'created', null, $status, 'Case opened');
 
         return ['success' => true, 'id' => $id];
+    }
+
+    /**
+     * Defense Ready workflow: Pending Review → Under Investigation → Legal Opinion → Resolved
+     * @return array{success: bool, error?: string}
+     */
+    public function advanceWorkflow(int $caseId, string $toStatus, ?string $remarks = null): array
+    {
+        if (! Auth::user()?->canPermission('legal.manage')) {
+            return ['success' => false, 'error' => 'Permission denied.'];
+        }
+
+        $map = [
+            'pending_review' => 'pending_review',
+            'under_investigation' => 'under_investigation',
+            'legal_opinion' => 'legal_opinion',
+            'resolved' => 'resolved',
+            'open' => 'pending_review',
+            'in_progress' => 'under_investigation',
+            'closed' => 'resolved',
+        ];
+        $normalized = $map[$toStatus] ?? $toStatus;
+        $allowed = ['pending_review', 'under_investigation', 'legal_opinion', 'resolved'];
+        if (! in_array($normalized, $allowed, true)) {
+            return ['success' => false, 'error' => 'Invalid workflow status.'];
+        }
+
+        $case = $this->repo->find($caseId);
+        if (! $case) {
+            return ['success' => false, 'error' => 'Case not found.'];
+        }
+
+        $from = (string) ($case['status'] ?? '');
+        $this->repo->update($caseId, ['status' => $normalized]);
+        $this->logLegalActivity($caseId, 'workflow', $from, $normalized, $remarks);
+        AuditLogger::log('legal', 'workflow', 'legal_case', $caseId, ['status' => $from], ['status' => $normalized]);
+
+        return ['success' => true, 'status' => $normalized];
+    }
+
+    private function logLegalActivity(int $caseId, string $action, ?string $from, ?string $to, ?string $remarks = null, array $meta = []): void
+    {
+        try {
+            if (! \Illuminate\Support\Facades\Schema::hasTable('legal_activity_logs')) {
+                return;
+            }
+            \Illuminate\Support\Facades\DB::table('legal_activity_logs')->insert([
+                'case_id' => $caseId,
+                'actor_id' => Auth::id(),
+                'action' => $action,
+                'from_status' => $from,
+                'to_status' => $to,
+                'remarks' => $remarks,
+                'meta' => $meta === [] ? null : json_encode($meta),
+                'created_at' => now()->format('Y-m-d H:i:s'),
+            ]);
+        } catch (\Throwable) {
+        }
     }
 
     /**

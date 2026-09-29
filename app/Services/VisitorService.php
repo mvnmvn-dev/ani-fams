@@ -4,7 +4,11 @@ namespace App\Services;
 
 use App\Repositories\VisitorRepository;
 use App\Support\AuditLogger;
+use App\Support\AutomationLogger;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class VisitorService
 {
@@ -110,7 +114,8 @@ class VisitorService
             }
         }
 
-        $visitStatus = $denied ? 'denied' : 'scheduled';
+        $visitStatus = $denied ? 'denied' : 'pending_approval';
+        $registrationType = ! empty($input['walk_in']) ? 'walk_in' : 'pre_register';
         if ($denied && $notes === '') {
             $notes = 'Auto-denied: matched security watchlist.';
         }
@@ -124,8 +129,25 @@ class VisitorService
             'status' => $visitStatus,
         ]);
 
+        try {
+            $hours = max(1, (int) ($input['expected_duration_hours'] ?? 8));
+            $this->repo->updateVisitDefenseFields($visitId, [
+                'registration_type' => $registrationType,
+                'expected_duration_hours' => $hours,
+            ]);
+        } catch (\Throwable) {
+        }
+
         foreach ($areaIds as $areaId) {
             $this->repo->addVisitAreaAccess($visitId, (int) $areaId);
+        }
+
+        if ($denied || $flagWatchlist) {
+            $this->notifyWatchlistAdmins($fullName !== '' ? $fullName : ($visitor['full_name'] ?? 'Visitor'), $visitId);
+        }
+
+        if (! $denied) {
+            $this->notifyHostApproval($hostId, $visitId, $fullName !== '' ? $fullName : 'Visitor');
         }
 
         AuditLogger::log('visitors', 'create', 'visit', $visitId, null, [
@@ -134,8 +156,10 @@ class VisitorService
             'purpose' => $purpose,
             'scheduled_at' => $scheduled,
             'status' => $visitStatus,
+            'registration_type' => $registrationType,
             'watchlist_match' => $watchlistMatch['id'] ?? null,
         ]);
+        AutomationLogger::log('visitors', 'pre_register', 'visit', $visitId, ['status' => $visitStatus]);
 
         if ($denied) {
             return [
@@ -145,7 +169,7 @@ class VisitorService
             ];
         }
 
-        return ['success' => true, 'id' => $visitId];
+        return ['success' => true, 'id' => $visitId, 'status' => $visitStatus];
     }
 
     public function checkIn(int $visitId): array
@@ -159,6 +183,16 @@ class VisitorService
             return ['success' => false, 'error' => 'This visit was denied and cannot be checked in.'];
         }
 
+        $status = (string) ($visit['status'] ?? '');
+        if (! in_array($status, ['approved', 'scheduled', 'pending_approval'], true)) {
+            return ['success' => false, 'error' => 'Visit is not eligible for check-in.'];
+        }
+
+        // Host approval required unless staff overrides walk-in / already approved.
+        if ($status === 'pending_approval' && ! Auth::user()?->canPermission('visitor.manage') && ! Auth::user()?->canPermission('visitor.checkin')) {
+            return ['success' => false, 'error' => 'Host approval is required before check-in.'];
+        }
+
         $visitor = $this->repo->findVisitor((int) $visit['visitor_id']);
         if ($visitor && ! empty($visitor['is_watchlisted'])) {
             return ['success' => false, 'error' => 'Check-in blocked: visitor is on the security watchlist.'];
@@ -166,7 +200,18 @@ class VisitorService
 
         $badgeCode = 'BADGE-' . strtoupper(bin2hex(random_bytes(3)));
         $checkedInAt = now()->format('Y-m-d H:i:s');
+        $hours = max(1, (int) ($visit['expected_duration_hours'] ?? 8));
+        $expiresAt = now()->addHours($hours)->format('Y-m-d H:i:s');
+
         $this->repo->updateVisitStatus($visitId, 'checked_in', $checkedInAt, null, $badgeCode);
+        try {
+            $this->repo->updateVisitDefenseFields($visitId, [
+                'badge_expires_at' => $expiresAt,
+            ]);
+        } catch (\Throwable) {
+        }
+
+        $this->issueVisitorBadge($visitId, $visitor ?? [], $visit, $badgeCode, $checkedInAt, $expiresAt);
 
         $notificationService = app(\App\Services\NotificationService::class);
         $visitModel = \App\Models\Visit::with(['host.user', 'visitor'])->find($visitId);
@@ -184,7 +229,9 @@ class VisitorService
         AuditLogger::log('visitors', 'check_in', 'visit', $visitId, ['status' => $visit['status']], [
             'status' => 'checked_in',
             'badge_code' => $badgeCode,
+            'badge_expires_at' => $expiresAt,
         ]);
+        AutomationLogger::log('visitors', 'check_in', 'visit', $visitId, ['badge_code' => $badgeCode]);
 
         return [
             'success' => true,
@@ -192,8 +239,172 @@ class VisitorService
             'status' => 'checked_in',
             'check_in_time' => $checkedInAt,
             'badge_code' => $badgeCode,
+            'badge_expires_at' => $expiresAt,
             'visitor_id' => (int) $visit['visitor_id'],
         ];
+    }
+
+    /**
+     * Host approval before visit (Registered → Approved).
+     * @return array{success: bool, error?: string}
+     */
+    public function approveVisit(int $visitId): array
+    {
+        $visit = $this->repo->findVisit($visitId);
+        if (! $visit) {
+            return ['success' => false, 'error' => 'Visit not found.'];
+        }
+
+        if (! in_array($visit['status'] ?? '', ['pending_approval', 'scheduled'], true)) {
+            return ['success' => false, 'error' => 'Visit cannot be approved in its current status.'];
+        }
+
+        $canManage = Auth::user()?->canPermission('visitor.manage') || Auth::user()?->canPermission('visitor.checkin');
+        // Host employee linked to current user may approve.
+        $isHost = false;
+        try {
+            $emp = DB::table('employees')->where('user_id', Auth::id())->value('id');
+            $isHost = $emp && (int) $emp === (int) ($visit['host_employee_id'] ?? 0);
+        } catch (\Throwable) {
+        }
+
+        if (! $canManage && ! $isHost) {
+            return ['success' => false, 'error' => 'Only the host or visitor administrators can approve this visit.'];
+        }
+
+        $this->repo->updateVisitStatus($visitId, 'approved', null, null);
+        try {
+            $this->repo->updateVisitDefenseFields($visitId, [
+                'host_approved_at' => now()->format('Y-m-d H:i:s'),
+                'host_approved_by' => Auth::id(),
+            ]);
+        } catch (\Throwable) {
+        }
+
+        AuditLogger::log('visitors', 'host_approve', 'visit', $visitId, ['status' => $visit['status']], ['status' => 'approved']);
+        AutomationLogger::log('visitors', 'host_approve', 'visit', $visitId);
+
+        return ['success' => true, 'status' => 'approved'];
+    }
+
+    public function dashboardWidgets(): array
+    {
+        $visits = $this->repo->allVisits();
+        $today = date('Y-m-d');
+        $inside = 0;
+        $todayCount = 0;
+        $pending = 0;
+        $expiredPasses = 0;
+        $overstaying = 0;
+
+        foreach ($visits as $v) {
+            $status = $v['status'] ?? '';
+            if ($status === 'checked_in') {
+                $inside++;
+                $expires = $v['badge_expires_at'] ?? null;
+                $hours = (int) ($v['expected_duration_hours'] ?? 8);
+                $checkIn = $v['check_in_time'] ?? null;
+                if ($expires && strtotime($expires) < time()) {
+                    $overstaying++;
+                } elseif ($checkIn && strtotime($checkIn) < strtotime("-{$hours} hours")) {
+                    $overstaying++;
+                }
+            }
+            if (str_starts_with((string) ($v['scheduled_at'] ?? $v['check_in_time'] ?? ''), $today)) {
+                $todayCount++;
+            }
+            if (in_array($status, ['pending_approval', 'scheduled'], true)) {
+                $pending++;
+            }
+            if (! empty($v['badge_expires_at']) && strtotime($v['badge_expires_at']) < time() && $status === 'checked_in') {
+                $expiredPasses++;
+            }
+        }
+
+        return [
+            'visitors_inside' => $inside,
+            'todays_visitors' => $todayCount,
+            'pending_approvals' => $pending,
+            'expired_passes' => $expiredPasses,
+            'overstaying' => $overstaying,
+        ];
+    }
+
+    public function peakVisitorHours(): array
+    {
+        return $this->repo->peakVisitorHours();
+    }
+
+    private function issueVisitorBadge(int $visitId, array $visitor, array $visit, string $badgeCode, string $issuedAt, string $expiresAt): void
+    {
+        if (! Schema::hasTable('visitor_badges')) {
+            return;
+        }
+
+        try {
+            DB::table('visitor_badges')->where('visit_id', $visitId)->update(['status' => 'revoked']);
+            DB::table('visitor_badges')->insert([
+                'visit_id' => $visitId,
+                'visitor_id' => (int) ($visit['visitor_id'] ?? $visitor['id'] ?? 0),
+                'badge_code' => $badgeCode,
+                'qr_payload' => $badgeCode,
+                'visitor_name' => $visitor['full_name'] ?? 'Visitor',
+                'company' => $visitor['company'] ?? null,
+                'host_name' => $visit['host_name'] ?? null,
+                'photo_path' => $visitor['photo_path'] ?? null,
+                'issued_at' => $issuedAt,
+                'expires_at' => $expiresAt,
+                'status' => 'active',
+                'created_at' => now()->format('Y-m-d H:i:s'),
+            ]);
+        } catch (\Throwable) {
+        }
+    }
+
+    private function notifyWatchlistAdmins(string $visitorName, int $visitId): void
+    {
+        try {
+            $notificationService = app(NotificationService::class);
+            $adminIds = DB::table('users')
+                ->join('role_permissions', 'role_permissions.role_id', '=', 'users.role_id')
+                ->join('permissions', 'permissions.id', '=', 'role_permissions.permission_id')
+                ->where('permissions.code', 'visitor.manage')
+                ->where('users.status', 'active')
+                ->whereNull('users.deleted_at')
+                ->distinct()
+                ->pluck('users.id');
+            foreach ($adminIds as $uid) {
+                $notificationService->send(
+                    (int) $uid,
+                    'visitors',
+                    'Watchlist alert',
+                    "Visitor \"{$visitorName}\" matched the security watchlist (visit #{$visitId}).",
+                    '/visitors',
+                    true
+                );
+            }
+            AutomationLogger::log('visitors', 'watchlist_alert', 'visit', $visitId);
+        } catch (\Throwable) {
+        }
+    }
+
+    private function notifyHostApproval(int $hostEmployeeId, int $visitId, string $visitorName): void
+    {
+        try {
+            $userId = DB::table('employees')->where('id', $hostEmployeeId)->value('user_id');
+            if (! $userId) {
+                return;
+            }
+            app(NotificationService::class)->send(
+                (int) $userId,
+                'visitors',
+                'Visitor approval needed',
+                "Please approve the visit for {$visitorName} (visit #{$visitId}).",
+                '/visitors',
+                true
+            );
+        } catch (\Throwable) {
+        }
     }
 
     public function checkOut(int $visitId): array
@@ -251,6 +462,8 @@ class VisitorService
             'visitor_company' => $visitor['company'] ?? '',
             'visitor_photo' => $visitor['photo_path'] ?? null,
             'is_watchlisted' => $visitor['is_watchlisted'] ?? 0,
+            'host_name' => $visit['host_name'] ?? null,
+            'badge_expires_at' => $visit['badge_expires_at'] ?? null,
         ]);
     }
 

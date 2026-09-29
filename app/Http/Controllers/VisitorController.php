@@ -27,6 +27,8 @@ class VisitorController extends Controller
             'visitors' => $service->visitors(),
             'employees' => $service->employees(),
             'areas' => $service->areas(),
+            'widgets' => $service->dashboardWidgets(),
+            'peakHours' => $service->peakVisitorHours(),
             'canRegister' => Auth::user()->canPermission('visitor.register'),
             'canCheckIn' => Auth::user()->canPermission('visitor.checkin'),
             'canManage' => Auth::user()->canPermission('visitor.manage'),
@@ -40,7 +42,21 @@ class VisitorController extends Controller
 
         return redirect()->route('visitors.index')->with(
             $result['success'] ? 'flash_success' : 'flash_error',
-            $result['success'] ? 'Visitor pre-registered successfully.' : $result['error']
+            $result['success'] ? 'Visitor registered — awaiting host approval.' : $result['error']
+        );
+    }
+
+    public function approve(Request $request, string $id, VisitorService $service)
+    {
+        $result = $service->approveVisit((int) $id);
+        $success = (bool) ($result['success'] ?? false);
+
+        return $this->flashOrJson(
+            $request,
+            redirect()->route('visitors.index'),
+            $success,
+            $success ? 'Visit approved by host.' : ($result['error'] ?? 'Unable to approve.'),
+            array_merge(['action' => 'visitor.approve'], $result)
         );
     }
 

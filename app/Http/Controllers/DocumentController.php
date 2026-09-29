@@ -57,6 +57,8 @@ class DocumentController extends Controller
             return redirect()->route('documents.index')->with('flash_error', 'Document not found.');
         }
 
+        $service->logView((int) $id);
+
         $roles = DB::table('roles')->select('id', 'name')->orderBy('name')->get()->map(fn ($r) => (array) $r)->all();
 
         $data = [
@@ -135,6 +137,31 @@ class DocumentController extends Controller
             $result['success'] ? 'flash_success' : 'flash_error',
             $result['success'] ? 'New version uploaded.' : $result['error']
         );
+    }
+
+    public function restoreVersion(Request $request, string $id, string $version, DocumentService $service)
+    {
+        $result = $service->restoreVersion((int) $id, (int) $version);
+
+        return redirect()->route('documents.index', ['open' => $id])->with(
+            $result['success'] ? 'flash_success' : 'flash_error',
+            $result['success'] ? 'Version restored.' : ($result['error'] ?? 'Restore failed.')
+        );
+    }
+
+    public function download(string $id, DocumentService $service)
+    {
+        $result = $service->secureDownload((int) $id);
+        if (! ($result['success'] ?? false)) {
+            return redirect()->route('documents.index')->with('flash_error', $result['error'] ?? 'Download failed.');
+        }
+
+        $response = response()->download($result['path'], $result['filename'] ?? 'document');
+        if (! empty($result['watermark'])) {
+            $response->headers->set('X-Document-Watermark', $result['watermark']);
+        }
+
+        return $response;
     }
 
     public function updateAccess(Request $request, string $id, DocumentService $service)

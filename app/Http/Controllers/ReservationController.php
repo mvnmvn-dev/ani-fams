@@ -28,6 +28,7 @@ class ReservationController extends Controller
             'manageFacilities' => $canManage ? $service->facilitiesForManage() : [],
             'equipment' => $service->listEquipment(),
             'utilization' => $service->utilizationStats(),
+            'analytics' => $service->lifecycleAnalytics(),
             'canApprove' => $canApprove,
             'canManage' => $canManage,
         ]);
@@ -273,5 +274,85 @@ class ReservationController extends Controller
         return response($icalContent)
             ->header('Content-Type', 'text/calendar')
             ->header('Content-Disposition', 'attachment; filename="reservation_'.$id.'.ics"');
+    }
+
+    // ===================== DEFENSE READY =====================
+
+    public function checkIn(Request $request, ReservationService $service)
+    {
+        $code = (string) $request->input('code', $request->input('check_in_code', ''));
+        $result = $service->checkInByCode($code);
+
+        return $this->flashOrJson(
+            $request,
+            redirect()->route('reservations.index'),
+            (bool) ($result['success'] ?? false),
+            $result['success'] ? 'Reservation checked in.' : ($result['error'] ?? 'Check-in failed.'),
+            array_merge(['action' => 'reservation.checkin'], $result)
+        );
+    }
+
+    public function lifecycle(Request $request, string $id, ReservationService $service)
+    {
+        $status = (string) $request->input('status', '');
+        $remarks = $request->input('remarks');
+        $result = $service->advanceStatus((int) $id, $status, $remarks);
+
+        return $this->flashOrJson(
+            $request,
+            redirect()->route('reservations.index'),
+            (bool) ($result['success'] ?? false),
+            $result['success'] ? 'Reservation updated to '.$status.'.' : ($result['error'] ?? 'Update failed.'),
+            array_merge(['action' => 'reservation.lifecycle', 'id' => (int) $id], $result)
+        );
+    }
+
+    public function history(string $id, ReservationService $service)
+    {
+        return response()->json(['logs' => $service->approvalHistory((int) $id)]);
+    }
+
+    public function analytics(ReservationService $service)
+    {
+        return response()->json($service->lifecycleAnalytics());
+    }
+
+    public function alternatives(Request $request, ReservationService $service)
+    {
+        $facilityId = (int) $request->query('facility_id', 0);
+        $start = (string) $request->query('start_datetime', '');
+        $end = (string) $request->query('end_datetime', '');
+        $attendees = (int) $request->query('attendee_count', 0);
+
+        if (! $facilityId || $start === '' || $end === '') {
+            return response()->json(['alternatives' => [], 'error' => 'facility_id, start_datetime, and end_datetime are required.'], 422);
+        }
+
+        return response()->json([
+            'alternatives' => $service->suggestAlternatives($facilityId, $start, $end, $attendees > 0 ? $attendees : null),
+        ]);
+    }
+
+    public function qrBadge(string $id, ReservationService $service)
+    {
+        $rows = $service->listForCurrentUser();
+        $reservation = null;
+        foreach ($rows as $row) {
+            if ((int) ($row['id'] ?? 0) === (int) $id) {
+                $reservation = $row;
+                break;
+            }
+        }
+        if (! $reservation) {
+            $reservation = app(\App\Repositories\ReservationRepository::class)->find((int) $id);
+        }
+        if (! $reservation || empty($reservation['check_in_code'])) {
+            return redirect()->route('reservations.index')->with('flash_error', 'Check-in QR is only available after approval.');
+        }
+
+        return view('reservations.qr', [
+            'pageTitle' => 'Reservation Check-In QR',
+            'reservation' => $reservation,
+        ]);
     }
 }
