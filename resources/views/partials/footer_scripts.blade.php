@@ -619,6 +619,12 @@
             return;
         }
 
+        if (action === 'reservation.checkin') {
+            var codeInput = form.querySelector('input[name="code"]');
+            if (codeInput) codeInput.value = '';
+            return;
+        }
+
         if ((action === 'visitor.checkin' || action === 'visitor.checkout') && row) {
             var status = data.status || (action === 'visitor.checkin' ? 'checked_in' : 'checked_out');
             var visitId = data.id || row.getAttribute('data-visit-id');
@@ -804,9 +810,25 @@
         if (!form || form.getAttribute('data-ajax-busy') === '1') return Promise.resolve();
         form.setAttribute('data-ajax-busy', '1');
 
+        var buttons = form.querySelectorAll('button, input[type="submit"]');
+        buttons.forEach(function (btn) { btn.disabled = true; });
+
         var fd = new FormData(form);
         if (submitter && submitter.name) {
             fd.set(submitter.name, submitter.value);
+        }
+
+        var controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+        var timedOut = false;
+        var timer = window.setTimeout(function () {
+            timedOut = true;
+            if (controller) controller.abort();
+        }, 20000);
+
+        function unlock() {
+            window.clearTimeout(timer);
+            form.removeAttribute('data-ajax-busy');
+            buttons.forEach(function (btn) { btn.disabled = false; });
         }
 
         return fetch(form.action, {
@@ -817,36 +839,57 @@
                 'Accept': 'application/json'
             },
             body: fd,
-            credentials: 'same-origin'
+            credentials: 'same-origin',
+            signal: controller ? controller.signal : undefined
         }).then(function (res) {
-            return res.json().then(function (data) {
-                return { ok: res.ok, status: res.status, data: data };
-            }).catch(function () {
-                return { ok: res.ok, status: res.status, data: {} };
+            return res.text().then(function (text) {
+                var data = {};
+                try { data = text ? JSON.parse(text) : {}; } catch (err) { data = {}; }
+                return { ok: res.ok, status: res.status, data: data, raw: text };
             });
         }).then(function (result) {
-            form.removeAttribute('data-ajax-busy');
-            var d = result.data;
-            if (result.ok && (d.success || d.success === undefined)) {
+            unlock();
+            var d = result.data || {};
+            var succeeded = result.ok && d.success === true;
+            if (succeeded) {
                 if (d.message) showToast('success', d.message);
                 applyAjaxDomUpdate(form, d);
             } else {
-                showToast('error', d.error || d.message || 'Action failed.');
+                showToast('error', d.error || d.message || (timedOut ? 'Request timed out. Please try again.' : 'Action failed.'));
             }
         }).catch(function (err) {
-            form.removeAttribute('data-ajax-busy');
-            showToast('error', 'Network error. Please try again.');
+            unlock();
+            showToast('error', timedOut || (err && err.name === 'AbortError')
+                ? 'Request timed out. Please try again.'
+                : 'Network error. Please try again.');
         });
     };
 
     document.addEventListener('submit', function (e) {
         var form = e.target;
-        if (form.hasAttribute('data-ajax-action')) {
+        if (form && form.hasAttribute('data-ajax-action')) {
             e.preventDefault();
             window.submitAjaxForm(form, e.submitter);
         }
     });
 
+    // Clear stuck leave/busy states after soft navigation or bfcache restore.
+    function resetInteractiveUi() {
+        root.classList.remove('is-leaving', 'sidebar-booting');
+        document.body.classList.remove('is-leaving');
+        document.querySelectorAll('[data-ajax-busy]').forEach(function (el) {
+            el.removeAttribute('data-ajax-busy');
+            el.querySelectorAll('button[disabled], input[type="submit"][disabled]').forEach(function (btn) {
+                btn.disabled = false;
+            });
+        });
+        document.querySelectorAll('.ui-reveal').forEach(function (el) {
+            el.classList.add('is-visible');
+        });
+    }
+    window.addEventListener('pageshow', resetInteractiveUi);
+    window.addEventListener('load', resetInteractiveUi);
+    resetInteractiveUi();
     /* ---------- Global Signature Pad Handler ---------- */
     var activeSignature = null;
 
@@ -1256,6 +1299,13 @@
 
         if (!blocks.length) return;
 
+        // Interactive tables must be usable immediately (Approve / Check In / Reject).
+        blocks.forEach(function (el) {
+            if (el.classList.contains('module-table-wrap') || el.querySelector('[data-ajax-action], [data-row-actions]')) {
+                el.classList.add('is-visible');
+            }
+        });
+
         if (reduceMotion || !('IntersectionObserver' in window)) {
             blocks.forEach(function (el) { el.classList.add('is-visible'); });
             return;
@@ -1267,12 +1317,19 @@
                 entry.target.classList.add('is-visible');
                 io.unobserve(entry.target);
             });
-        }, { threshold: 0.1, rootMargin: '0px 0px -20px 0px' });
+        }, { threshold: 0.05, rootMargin: '40px 0px 40px 0px' });
 
         blocks.forEach(function (el, i) {
+            if (el.classList.contains('is-visible')) return;
             el.style.animationDelay = ((i % 3) * 0.06) + 's';
             io.observe(el);
         });
+
+        // Failsafe: never leave actionable UI stuck invisible after soft navigation.
+        window.setTimeout(function () {
+            blocks.forEach(function (el) { el.classList.add('is-visible'); });
+            try { io.disconnect(); } catch (err) {}
+        }, 500);
     })();
 
     /* ---------- Real-time notifications polling ---------- */

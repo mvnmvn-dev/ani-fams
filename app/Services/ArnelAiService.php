@@ -158,10 +158,28 @@ class ArnelAiService
     }
 
     /** Heuristic conflict result is deterministic; the LLM supplies only the human-readable recommendation. */
-    public function reservationRecommendation(array $request, bool $conflict, ?string $suggestedFacility): array
+    public function reservationRecommendation(array $request, bool $conflict, ?string $suggestedFacility, bool $useAi = true): array
     {
-        $fallback = ['recommendation' => $conflict ? 'Choose an available facility or adjust the requested time.' : 'Requested facility and schedule have no detected conflict.', 'rationale' => $conflict ? 'An existing pending or approved booking overlaps the requested window.' : 'No overlapping pending or approved booking was found.'];
-        $result = $this->jsonRequest('You are ARNEL recommendation AI for facilities scheduling. Do not approve or create reservations. Use only supplied facts.', 'Give a concise scheduling recommendation from this JSON: ' . json_encode(['request' => $request, 'conflict' => $conflict, 'suggested_facility' => $suggestedFacility]), ['recommendation' => ['type' => 'string'], 'rationale' => ['type' => 'string']], 'reservation_recommendation');
+        $fallback = [
+            'recommendation' => $conflict
+                ? ('Choose an available facility or adjust the requested time.' . ($suggestedFacility ? " Suggested: {$suggestedFacility}." : ''))
+                : 'Requested facility and schedule have no detected conflict.',
+            'rationale' => $conflict
+                ? 'An existing pending, approved, or active booking overlaps the requested window.'
+                : 'No overlapping pending or approved booking was found.',
+        ];
+
+        if (! $useAi) {
+            return $fallback;
+        }
+
+        $result = $this->jsonRequest(
+            'You are ARNEL recommendation AI for facilities scheduling. Do not approve or create reservations. Use only supplied facts.',
+            'Give a concise scheduling recommendation from this JSON: ' . json_encode(['request' => $request, 'conflict' => $conflict, 'suggested_facility' => $suggestedFacility]),
+            ['recommendation' => ['type' => 'string'], 'rationale' => ['type' => 'string']],
+            'reservation_recommendation'
+        );
+
         return is_array($result) ? array_replace($fallback, $result) : $fallback;
     }
 

@@ -8,6 +8,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class ArnelController extends Controller
 {
@@ -62,21 +63,137 @@ class ArnelController extends Controller
 
     public function analyzeReservation(Request $request, ArnelAiService $arnel): JsonResponse
     {
-        if (! Auth::user()?->canPermission('reservation.view')) return response()->json(['message' => 'Reservation permission required.'], 403);
-        $data = $request->validate(['reservation_id' => ['nullable', 'integer'], 'facility_id' => ['nullable', 'integer'], 'facility_name' => ['nullable', 'string', 'max:150'], 'start_datetime' => ['nullable', 'date'], 'end_datetime' => ['nullable', 'date', 'after:start_datetime']]);
-        $reservation = ! empty($data['reservation_id']) ? DB::table('reservations')->find((int) $data['reservation_id']) : null;
-        if ($data['reservation_id'] && ! $reservation) return response()->json(['message' => 'Reservation not found.'], 404);
-        $facilityId = (int) ($data['facility_id'] ?? $reservation->facility_id ?? 0);
-        if (! $facilityId && ! empty($data['facility_name'])) $facilityId = (int) (DB::table('facilities')->where('name', $data['facility_name'])->value('id') ?? 0);
-        $start = $data['start_datetime'] ?? $reservation->start_datetime ?? null; $end = $data['end_datetime'] ?? $reservation->end_datetime ?? null;
-        if (! $facilityId || ! $start || ! $end) return response()->json(['message' => 'facility_id, start_datetime, and end_datetime are required.'], 422);
-        $conflict = DB::table('reservations')->where('facility_id', $facilityId)->whereIn('status', ['pending', 'approved'])->where('start_datetime', '<', $end)->where('end_datetime', '>', $start)->when($reservation, fn ($q) => $q->where('id', '!=', $reservation->id))->exists();
-        $suggested = DB::table('facilities')->where('status', 'available')->where('id', '!=', $facilityId)->orderBy('name')->first();
-        $recommendation = $arnel->reservationRecommendation(['facility_id' => $facilityId, 'start_datetime' => $start, 'end_datetime' => $end], $conflict, $suggested->name ?? null);
-        $result = ['conflict_status' => $conflict ? 'conflict_detected' : 'clear', 'suggested_facility' => $conflict ? ($suggested->name ?? null) : null, 'suggested_schedule' => ['start_datetime' => $start, 'end_datetime' => $end], 'ai_suggestion' => $recommendation['recommendation'], 'ai_rationale' => $recommendation['rationale']];
-        if ($reservation && Auth::user()?->canPermission('reservation.approve')) DB::table('reservations')->where('id', $reservation->id)->update(['conflict_status' => $result['conflict_status'], 'ai_suggestion' => $result['ai_suggestion'], 'ai_notes' => json_encode($result)]);
-        AuditLogger::log('arnel', 'reservation_analysis', 'reservation', $reservation->id ?? 0, null, ['persisted' => (bool) ($reservation && Auth::user()?->canPermission('reservation.approve')), 'conflict_status' => $result['conflict_status']]);
-        return response()->json(['success' => true, 'persisted' => (bool) ($reservation && Auth::user()?->canPermission('reservation.approve')), 'data' => $result]);
+        try {
+            if (! Auth::user()?->canPermission('reservation.view')) {
+                return response()->json(['message' => 'Reservation permission required.'], 403);
+            }
+
+            $data = $request->validate([
+                'reservation_id' => ['nullable', 'integer'],
+                'facility_id' => ['nullable', 'integer'],
+                'facility_name' => ['nullable', 'string', 'max:150'],
+                'start_datetime' => ['nullable', 'string', 'max:40'],
+                'end_datetime' => ['nullable', 'string', 'max:40'],
+            ]);
+
+            $start = $this->normalizeDateTime($data['start_datetime'] ?? null);
+            $end = $this->normalizeDateTime($data['end_datetime'] ?? null);
+
+            $reservation = ! empty($data['reservation_id'])
+                ? DB::table('reservations')->find((int) $data['reservation_id'])
+                : null;
+            if (! empty($data['reservation_id']) && ! $reservation) {
+                return response()->json(['message' => 'Reservation not found.'], 404);
+            }
+
+            $facilityId = (int) ($data['facility_id'] ?? $reservation->facility_id ?? 0);
+            if (! $facilityId && ! empty($data['facility_name'])) {
+                $facilityId = (int) (DB::table('facilities')->where('name', $data['facility_name'])->value('id') ?? 0);
+            }
+
+            $start = $start ?? ($reservation->start_datetime ?? null);
+            $end = $end ?? ($reservation->end_datetime ?? null);
+
+            if (! $facilityId || ! $start || ! $end) {
+                return response()->json(['message' => 'facility_id, start_datetime, and end_datetime are required.'], 422);
+            }
+
+            if (strtotime((string) $end) <= strtotime((string) $start)) {
+                return response()->json(['message' => 'End time must be after start time.'], 422);
+            }
+
+            $conflictQuery = DB::table('reservations')
+                ->where('facility_id', $facilityId)
+                ->whereIn('status', ['pending', 'approved', 'checked_in', 'in_use'])
+                ->where('start_datetime', '<', $end)
+                ->where('end_datetime', '>', $start);
+
+            if ($reservation) {
+                $conflictQuery->where('id', '!=', $reservation->id);
+            }
+
+            if (Schema::hasColumn('reservations', 'deleted_at')) {
+                $conflictQuery->whereNull('deleted_at');
+            }
+
+            $conflict = $conflictQuery->exists();
+
+            $suggestedQuery = DB::table('facilities')->where('id', '!=', $facilityId);
+            if (Schema::hasColumn('facilities', 'status')) {
+                $suggestedQuery->whereIn('status', ['available', 'active', 'open']);
+            }
+            $suggested = $suggestedQuery->orderBy('name')->first();
+
+            // Conflict math is local; AI text is optional and must never block the lobby check.
+            $recommendation = $arnel->reservationRecommendation(
+                ['facility_id' => $facilityId, 'start_datetime' => $start, 'end_datetime' => $end],
+                $conflict,
+                $suggested->name ?? null,
+                false
+            );
+
+            $result = [
+                'conflict_status' => $conflict ? 'conflict_detected' : 'clear',
+                'suggested_facility' => $conflict ? ($suggested->name ?? null) : null,
+                'suggested_schedule' => ['start_datetime' => $start, 'end_datetime' => $end],
+                'ai_suggestion' => $recommendation['recommendation'],
+                'ai_rationale' => $recommendation['rationale'],
+            ];
+
+            if ($reservation && Auth::user()?->canPermission('reservation.approve')) {
+                try {
+                    DB::table('reservations')->where('id', $reservation->id)->update([
+                        'conflict_status' => $result['conflict_status'],
+                        'ai_suggestion' => $result['ai_suggestion'],
+                        'ai_notes' => json_encode($result),
+                    ]);
+                } catch (\Throwable) {
+                    // Columns may be missing on older DBs; conflict result still returns to the UI.
+                }
+            }
+
+            AuditLogger::log(
+                'arnel',
+                'reservation_analysis',
+                'reservation',
+                $reservation->id ?? 0,
+                null,
+                ['persisted' => false, 'conflict_status' => $result['conflict_status']]
+            );
+
+            return response()->json([
+                'success' => true,
+                'persisted' => false,
+                'data' => $result,
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'message' => collect($e->errors())->flatten()->first() ?: 'Invalid reservation check request.',
+                'errors' => $e->errors(),
+            ], 422);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return response()->json([
+                'message' => 'ARNEL could not complete the availability check. Please try again.',
+            ], 500);
+        }
+    }
+
+    private function normalizeDateTime(mixed $value): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        $raw = str_replace('T', ' ', trim((string) $value));
+        if (preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/', $raw)) {
+            $raw .= ':00';
+        }
+
+        $ts = strtotime($raw);
+
+        return $ts ? date('Y-m-d H:i:s', $ts) : null;
     }
 
     public function analyzeContract(Request $request, ArnelAiService $arnel): JsonResponse

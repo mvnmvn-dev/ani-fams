@@ -95,7 +95,7 @@ $upcomingApproved = array_slice($upcomingApproved, 0, 5);
         <div class="module-insight-panel">
             <h3 class="module-insight-title">QR check-in</h3>
             <p class="module-insight-sub">Lobby desk: scan or type the <strong>RSV-…</strong> code from a booking’s <strong>View QR</strong> badge (not a visitor pass)</p>
-            <form action="<?= route('reservations.checkin') ?>" method="POST" class="mt-3 flex flex-wrap gap-2">
+            <form action="<?= route('reservations.checkin') ?>" method="POST" class="mt-3 flex flex-wrap gap-2" data-ajax-action="reservation.checkin">
                 @csrf
                 <input type="text" name="code" required placeholder="RSV-XXXXXXXX"
                        pattern="RSV-.+" title="Use the RSV-… code from the approved reservation QR badge"
@@ -273,12 +273,12 @@ $upcomingApproved = array_slice($upcomingApproved, 0, 5);
                                             <form action="<?= url('/reservations/' . $r['id'] . '/decide') ?>" method="POST" class="inline" data-ajax-action="reservation.decide">
                                                 @csrf
                                                 <input type="hidden" name="decision" value="approved">
-                                                <button class="text-xs font-bold text-brand-700 hover:text-brand-900 mr-3">Approve</button>
+                                                <button type="submit" class="text-xs font-bold text-brand-700 hover:text-brand-900 mr-3">Approve</button>
                                             </form>
                                             <form action="<?= url('/reservations/' . $r['id'] . '/decide') ?>" method="POST" class="inline" data-ajax-action="reservation.decide">
                                                 @csrf
                                                 <input type="hidden" name="decision" value="rejected">
-                                                <button class="text-xs font-bold text-accent-700 hover:text-accent-600">Reject</button>
+                                                <button type="submit" class="text-xs font-bold text-accent-700 hover:text-accent-600">Reject</button>
                                             </form>
                                         </td>
                                     </tr>
@@ -716,8 +716,17 @@ $upcomingApproved = array_slice($upcomingApproved, 0, 5);
         var facility = field('facility_id'), start = field('start_datetime'), end = field('end_datetime');
         if (!facility || !start || !end) { result.className = 'mt-3 rounded-xl bg-accent-50 px-3 py-2.5 text-xs text-accent-700'; result.textContent = 'Select a facility, start time, and end time first.'; return; }
         button.disabled = true; button.textContent = 'Checking…'; result.className = 'mt-3 rounded-xl bg-brand-50 px-3 py-2.5 text-xs text-brand-700'; result.textContent = 'ARNEL is checking facility conflicts…'; result.classList.remove('hidden');
-        fetch(window.appUrl('api/arnel/reservations/analyze'), { method: 'POST', headers: {'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf, 'X-Requested-With': 'XMLHttpRequest'}, body: JSON.stringify({facility_id: facility, start_datetime: start, end_datetime: end}) })
-            .then(function (response) { return response.json().then(function (body) { if (!response.ok) throw new Error(body.message || 'Unable to check availability.'); return body; }); })
+        fetch(window.appUrl('api/arnel/reservations/analyze'), { method: 'POST', headers: {'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf, 'X-Requested-With': 'XMLHttpRequest'}, body: JSON.stringify({facility_id: Number(facility), start_datetime: start, end_datetime: end}) })
+            .then(function (response) {
+                return response.text().then(function (text) {
+                    var body = {};
+                    try { body = text ? JSON.parse(text) : {}; } catch (e) {
+                        throw new Error(response.ok ? 'ARNEL returned an unexpected response.' : 'Availability check failed (server ' + response.status + '). Please try again.');
+                    }
+                    if (!response.ok) throw new Error(body.message || 'Unable to check availability.');
+                    return body;
+                });
+            })
             .then(function (body) { var data = body.data || {}; var conflict = data.conflict_status === 'conflict_detected'; result.className = 'mt-3 rounded-xl px-3 py-2.5 text-xs ' + (conflict ? 'bg-accent-50 text-accent-700' : 'bg-brand-50 text-brand-700'); result.innerHTML = '<strong>' + (conflict ? 'Conflict detected' : 'No conflict detected') + '</strong><span class="block mt-1">' + safe(data.ai_suggestion || '') + (data.suggested_facility ? '<br><strong>Suggested facility:</strong> ' + safe(data.suggested_facility) : '') + '</span>'; })
             .catch(function (error) { result.className = 'mt-3 rounded-xl bg-accent-50 px-3 py-2.5 text-xs text-accent-700'; result.textContent = error.message; })
             .finally(function () { button.disabled = false; button.textContent = 'Check availability'; });
