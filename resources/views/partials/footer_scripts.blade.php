@@ -183,10 +183,11 @@
         modal.removeAttribute('hidden');
         modal.classList.remove('hidden');
         modal.classList.add('is-open', 'flex');
+        // Nested action modals (party, cost, etc.) must sit above the open record detail.
         if (id !== 'recordModal' && id !== 'confirmModal') {
             var record = document.getElementById('recordModal');
             if (record && record.classList.contains('is-open')) {
-                modal.style.zIndex = '130';
+                modal.style.zIndex = '1030';
             }
         }
         document.body.classList.add('modal-open');
