@@ -25,7 +25,7 @@ $empty = $empty ?? 'Nothing to show yet.';
                 <li class="module-feed-item">
                     <div class="min-w-0 flex-1">
                         <?php if (!empty($item['href'])): ?>
-                            <a href="<?= htmlspecialchars($item['href']) ?>" <?= !empty($item['modal']) ? 'data-record-modal' : '' ?>>
+                            <a href="<?= htmlspecialchars($item['href']) ?>" <?= !empty($item['modal']) ? 'data-record-modal' : '' ?> <?= !empty($item['new_tab']) ? 'target="_blank" rel="noopener"' : '' ?>>
                                 <?= htmlspecialchars($item['label']) ?>
                             </a>
                         <?php else: ?>

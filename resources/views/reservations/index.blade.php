@@ -94,7 +94,7 @@ $upcomingApproved = array_slice($upcomingApproved, 0, 5);
     <div class="module-info-grid">
         <div class="module-insight-panel">
             <h3 class="module-insight-title">QR check-in</h3>
-            <p class="module-insight-sub">Scan or enter the <strong>reservation</strong> code (RSV-…) from the booking QR badge after approval — not a visitor badge</p>
+            <p class="module-insight-sub">Lobby desk: scan or type the <strong>RSV-…</strong> code from a booking’s <strong>View QR</strong> badge (not a visitor pass)</p>
             <form action="<?= route('reservations.checkin') ?>" method="POST" class="mt-3 flex flex-wrap gap-2">
                 @csrf
                 <input type="text" name="code" required placeholder="RSV-XXXXXXXX"
@@ -106,39 +106,77 @@ $upcomingApproved = array_slice($upcomingApproved, 0, 5);
                 <p class="mt-3 text-xs text-ink/55">Cancellation rate <?= htmlspecialchars((string) $cancelRate) ?>% · No-show <?= htmlspecialchars((string) ($analytics['no_show_rate'] ?? 0)) ?>%</p>
             <?php endif; ?>
         </div>
-        <?php if (!empty($analytics['most_reserved'])): ?>
+        <?php
+        $qrReady = array_values(array_filter($reservations, static function ($r) {
+            return in_array($r['status'] ?? '', ['approved', 'checked_in', 'in_use'], true)
+                && ! empty($r['check_in_code']);
+        }));
+        usort($qrReady, static fn($a, $b) => strcmp($a['start_datetime'] ?? '', $b['start_datetime'] ?? ''));
+        $qrReady = array_slice($qrReady, 0, 8);
+        ?>
         <div class="module-insight-panel">
-            <h3 class="module-insight-title">Most reserved rooms</h3>
-            <p class="module-insight-sub">Defense analytics snapshot</p>
-            <?php foreach (array_slice($analytics['most_reserved'], 0, 5) as $row): ?>
-                <div class="module-stat-row">
-                    <span class="text-ink/70"><?= htmlspecialchars($row['name'] ?? '') ?></span>
-                    <strong class="tabular-nums text-ink"><?= (int) ($row['booking_count'] ?? 0) ?></strong>
-                </div>
-            <?php endforeach; ?>
+            <h3 class="module-insight-title">Booking QR badges</h3>
+            <p class="module-insight-sub">Open the badge to show or print the QR — no URL typing needed</p>
+            <?php if (empty($qrReady)): ?>
+                <p class="text-sm text-ink/45 py-1">Approve a reservation first, then its QR badge appears here.</p>
+            <?php else: ?>
+                <ul class="module-feed-list">
+                    <?php foreach ($qrReady as $r): ?>
+                        <li class="module-feed-item">
+                            <div class="min-w-0 flex-1">
+                                <span class="text-sm font-semibold text-ink"><?= htmlspecialchars($r['facility_name'] ?? '') ?></span>
+                                <p class="module-feed-meta"><?= htmlspecialchars(($r['purpose'] ?? '') . ' · ' . date('M j, g:ia', strtotime($r['start_datetime'] ?? 'now'))) ?></p>
+                                <p class="mt-1 font-mono text-[11px] text-ink/55"><?= htmlspecialchars($r['check_in_code'] ?? '') ?></p>
+                            </div>
+                            <a href="<?= route('reservations.qr', $r['id']) ?>" target="_blank" rel="noopener"
+                               class="shrink-0 text-xs font-bold px-3 py-2 rounded-lg border border-brand-200 text-brand-700 hover:bg-brand-50 transition">
+                                View QR
+                            </a>
+                        </li>
+                    <?php endforeach; ?>
+                </ul>
+            <?php endif; ?>
         </div>
-        <?php endif; ?>
     </div>
+    <?php if (!empty($analytics['most_reserved'])): ?>
+    <div class="module-insight-panel">
+        <h3 class="module-insight-title">Most reserved rooms</h3>
+        <p class="module-insight-sub">Defense analytics snapshot</p>
+        <?php foreach (array_slice($analytics['most_reserved'], 0, 5) as $row): ?>
+            <div class="module-stat-row">
+                <span class="text-ink/70"><?= htmlspecialchars($row['name'] ?? '') ?></span>
+                <strong class="tabular-nums text-ink"><?= (int) ($row['booking_count'] ?? 0) ?></strong>
+            </div>
+        <?php endforeach; ?>
+    </div>
+    <?php endif; ?>
 
     <div class="module-info-grid">
         @include('partials.module_feed_list', [
             'title' => "Today's schedule",
             'subtitle' => 'All bookings starting today across HQ, plant, and warehouse',
-            'items' => array_map(static fn($r) => [
-                'label' => $r['facility_name'],
-                'meta'  => ($r['purpose'] ?? '') . ' · ' . ($r['requester_name'] ?? ''),
-                'aside' => date('g:ia', strtotime($r['start_datetime'])) . ' – ' . date('g:ia', strtotime($r['end_datetime'])),
-                'badge' => $r['status'] ?? null,
-            ], $todayReservations),
+            'items' => array_map(static function ($r) {
+                $canQr = in_array($r['status'] ?? '', ['approved', 'checked_in', 'in_use'], true) && ! empty($r['check_in_code']);
+                return [
+                    'label' => $r['facility_name'],
+                    'meta'  => ($r['purpose'] ?? '') . ' · ' . ($r['requester_name'] ?? ''),
+                    'aside' => date('g:ia', strtotime($r['start_datetime'])) . ' – ' . date('g:ia', strtotime($r['end_datetime'])),
+                    'badge' => $r['status'] ?? null,
+                    'href'  => $canQr ? route('reservations.qr', $r['id']) : null,
+                    'new_tab' => $canQr,
+                ];
+            }, $todayReservations),
             'empty' => 'No reservations scheduled for today.',
         ])
         @include('partials.module_feed_list', [
             'title' => 'Upcoming approved bookings',
-            'subtitle' => 'Next confirmed HQ, plant, and field reservations',
+            'subtitle' => 'Click a booking name to open its QR badge',
             'items' => array_map(static fn($r) => [
                 'label' => $r['facility_name'],
                 'meta'  => ($r['requester_name'] ?? '') . ' · ' . ($r['purpose'] ?? ''),
                 'aside' => date('M j, g:ia', strtotime($r['start_datetime'])),
+                'href'  => ! empty($r['check_in_code']) ? route('reservations.qr', $r['id']) : null,
+                'new_tab' => ! empty($r['check_in_code']),
             ], $upcomingApproved),
             'empty' => 'No upcoming approved bookings.',
         ])
@@ -281,6 +319,13 @@ $upcomingApproved = array_slice($upcomingApproved, 0, 5);
                     var allReservations = <?= json_encode(array_values($reservations), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
                     var reservations = allReservations.slice();
                     var facilityFilter = '';
+                    var qrBase = <?= json_encode(url('/reservations')) ?>;
+
+                    function qrLink(r) {
+                        var ok = ['approved', 'checked_in', 'in_use'].indexOf(String(r.status || '')) !== -1 && r.check_in_code;
+                        if (!ok) return '';
+                        return ' <a class="text-xs font-bold text-brand-700 underline" href="' + qrBase + '/' + r.id + '/qr" target="_blank" rel="noopener">View QR</a>';
+                    }
 
                     var byDay = {};
                     function rebuildByDay() {
@@ -392,7 +437,8 @@ $upcomingApproved = array_slice($upcomingApproved, 0, 5);
                             html += '<div class="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-ink/10 px-3 py-2 text-sm">'
                                 + '<div><strong>' + esc(r.facility_name) + '</strong><div class="text-ink/55">' + esc(r.purpose || '') + '</div></div>'
                                 + '<div class="text-right text-ink/65">' + esc(String(r.start_datetime).replace('T', ' ').substring(0, 16))
-                                + '<div><span class="cal-event is-' + esc(r.status) + '" style="display:inline-block;padding:.1rem .45rem;border-radius:.5rem;font-size:.7rem;">' + esc(r.status) + '</span></div></div></div>';
+                                + '<div><span class="cal-event is-' + esc(r.status) + '" style="display:inline-block;padding:.1rem .45rem;border-radius:.5rem;font-size:.7rem;">' + esc(r.status) + '</span>'
+                                + qrLink(r) + '</div></div></div>';
                         });
                         html += '</div>';
                         el.innerHTML = html;
