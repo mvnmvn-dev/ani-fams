@@ -30,5 +30,12 @@ if [ "${RUN_MIGRATIONS:-false}" = "true" ]; then
   echo "Running database migrations..."
   php artisan migrate --force
 else
-  echo "Skipping Laravel migrations; using the imported PostgreSQL schema."
+  echo "Skipping full Laravel migrations; using the imported PostgreSQL schema."
 fi
+
+# Always apply additive Defense Ready schema (safe / idempotent) so QR check-in
+# and related columns exist even when RUN_MIGRATIONS is false.
+echo "Applying Defense Ready schema updates..."
+php artisan migrate --force --path=database/migrations/2026_09_29_000001_defense_ready_improvements.php || {
+  echo "Warning: Defense Ready migration did not complete. Approve/QR features may be limited."
+}

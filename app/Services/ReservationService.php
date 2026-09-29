@@ -246,21 +246,29 @@ class ReservationService
             $decision === 'approved' ? 'Approved — QR check-in code issued' : 'Rejected'
         );
 
-        $notificationService = app(NotificationService::class);
-        $resModel = \App\Models\Reservation::with('facility')->find($reservationId);
-        if ($resModel) {
-            $body = "Your reservation request for {$resModel->facility->name} on {$resModel->start_datetime->format('Y-m-d H:i')} has been {$decision}.";
-            if ($checkInCode) {
-                $body .= " Check-in QR code: {$checkInCode}.";
+        try {
+            $notificationService = app(NotificationService::class);
+            $resModel = \App\Models\Reservation::with(['facility', 'requester'])->find($reservationId);
+            if ($resModel && $resModel->requested_by) {
+                $facilityName = $resModel->facility->name ?? 'facility';
+                $when = $resModel->start_datetime
+                    ? $resModel->start_datetime->format('Y-m-d H:i')
+                    : (string) ($reservation['start_datetime'] ?? '');
+                $body = "Your reservation request for {$facilityName} on {$when} has been {$decision}.";
+                if ($checkInCode) {
+                    $body .= " Check-in QR code: {$checkInCode}.";
+                }
+                $notificationService->send(
+                    (int) $resModel->requested_by,
+                    'reservations',
+                    "Reservation {$decision}",
+                    $body,
+                    '/reservations',
+                    true
+                );
             }
-            $notificationService->send(
-                $resModel->requested_by,
-                'reservations',
-                "Reservation {$decision}",
-                $body,
-                '/reservations',
-                true
-            );
+        } catch (\Throwable $e) {
+            report($e);
         }
 
         AuditLogger::log(

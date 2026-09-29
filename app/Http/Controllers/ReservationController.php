@@ -72,7 +72,14 @@ class ReservationController extends Controller
     public function decide(Request $request, string $id, ReservationService $service)
     {
         $decision = (string) $request->input('decision', '');
-        $result = $service->decide((int) $id, $decision);
+
+        try {
+            $result = $service->decide((int) $id, $decision);
+        } catch (\Throwable $e) {
+            report($e);
+            $result = ['success' => false, 'error' => 'Unable to update reservation. Please try again.'];
+        }
+
         $success = (bool) ($result['success'] ?? false);
         $message = $success ? 'Reservation '.$decision.'.' : (string) ($result['error'] ?? 'Unable to update reservation.');
 
@@ -85,6 +92,7 @@ class ReservationController extends Controller
                 'action' => 'reservation.decide',
                 'id' => (int) $id,
                 'status' => $decision,
+                'check_in_code' => $result['check_in_code'] ?? null,
             ]
         );
     }

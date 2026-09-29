@@ -503,10 +503,15 @@ class ReservationRepository
 
     public function setCheckInCode(int $reservationId, string $code): void
     {
-        $stmt = $this->pdo()->prepare(
-            'UPDATE reservations SET check_in_code = :code WHERE id = :id'
-        );
-        $stmt->execute(['code' => $code, 'id' => $reservationId]);
+        try {
+            $stmt = $this->pdo()->prepare(
+                'UPDATE reservations SET check_in_code = :code WHERE id = :id'
+            );
+            $stmt->execute(['code' => $code, 'id' => $reservationId]);
+        } catch (\Throwable $e) {
+            // Column may be absent until defense-ready migration runs on the host DB.
+            report($e);
+        }
     }
 
     public function findByCheckInCode(string $code): ?array
