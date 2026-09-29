@@ -61,7 +61,7 @@ $recentFeed = array_map(static fn($d) => [
                 Export PDF
             </a>
             <?php if ($canManage): ?>
-                <button type="button" onclick="fetch('<?= route('documents.ocr.process') ?>', { method: 'POST', headers: { 'X-CSRF-TOKEN': '<?= csrf_token() ?>' } }).then(r => r.json()).then(d => alert(d.success ? 'Processed ' + d.processed_count + ' documents for OCR.' : 'Failed to process OCR.'));" class="btn-secondary mr-2 inline-flex items-center gap-1.5">
+                <button type="button" onclick="processDocumentsOcr(this)" class="btn-secondary mr-2 inline-flex items-center gap-1.5">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
                     Process OCR
                 </button>
@@ -168,15 +168,48 @@ $recentFeed = array_map(static fn($d) => [
     <?php endif; ?>
 
     <script>
+        function notifyUser(type, message, options) {
+            if (typeof showToast === 'function') {
+                showToast(type, message, options || {});
+                return;
+            }
+            alert(message);
+        }
+
+        async function processDocumentsOcr(button) {
+            if (button) button.disabled = true;
+            try {
+                const response = await fetch('<?= route('documents.ocr.process') ?>', {
+                    method: 'POST',
+                    headers: { 'X-CSRF-TOKEN': '<?= csrf_token() ?>', 'Accept': 'application/json' },
+                });
+                const data = await response.json();
+                notifyUser(
+                    data.success ? 'success' : 'error',
+                    data.success ? ('Processed ' + (data.processed_count ?? 0) + ' documents for OCR.') : (data.message || 'Failed to process OCR.')
+                );
+            } catch (error) {
+                notifyUser('error', 'Failed to process OCR.');
+            } finally {
+                if (button) button.disabled = false;
+            }
+        }
+
         async function arnelReanalyze(id, button) {
             button.disabled = true;
             button.textContent = 'Analyzing…';
             try {
                 const response = await fetch('<?= route('api.arnel.documents.analyze') ?>', { method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRF-TOKEN': '<?= csrf_token() ?>', 'Accept': 'application/json'}, body: JSON.stringify({document_id: id}) });
                 const data = await response.json();
-                alert(data.success ? 'Document re-analyzed successfully.' : (data.message || 'Unable to analyze document.'));
-                if (data.success) window.location.reload();
-            } catch (error) { alert('Unable to analyze document.'); }
+                if (data.success) {
+                    notifyUser('success', 'Document re-analyzed successfully.');
+                    window.setTimeout(function () { window.location.reload(); }, 900);
+                    return;
+                }
+                notifyUser('error', data.message || 'Unable to analyze document.');
+            } catch (error) {
+                notifyUser('error', 'Unable to analyze document.');
+            }
             button.disabled = false;
             button.textContent = 'Re-analyze';
         }
@@ -205,10 +238,12 @@ $recentFeed = array_map(static fn($d) => [
             try {
                 await arnelClassificationFeedback(documentId, false, corrected);
                 closeModal('classificationCorrectionModal');
-                window.location.reload();
+                notifyUser('success', 'Classification correction saved.');
+                window.setTimeout(function () { window.location.reload(); }, 900);
             } catch (exception) {
                 error.textContent = exception.message;
                 error.classList.remove('hidden');
+                notifyUser('error', exception.message || 'Unable to save correction.');
             } finally {
                 submit.disabled = false;
                 submit.textContent = 'Save correction';
