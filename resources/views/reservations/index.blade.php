@@ -94,10 +94,11 @@ $upcomingApproved = array_slice($upcomingApproved, 0, 5);
     <div class="module-info-grid">
         <div class="module-insight-panel">
             <h3 class="module-insight-title">QR check-in</h3>
-            <p class="module-insight-sub">Scan or enter the code issued after approval</p>
+            <p class="module-insight-sub">Scan or enter the <strong>reservation</strong> code (RSV-…) from the booking QR badge after approval — not a visitor badge</p>
             <form action="<?= route('reservations.checkin') ?>" method="POST" class="mt-3 flex flex-wrap gap-2">
                 @csrf
                 <input type="text" name="code" required placeholder="RSV-XXXXXXXX"
+                       pattern="RSV-.+" title="Use the RSV-… code from the approved reservation QR badge"
                        class="flex-1 min-w-[10rem] rounded-xl border border-ink/15 px-3 py-2 text-sm bg-sand/10 font-mono">
                 <button type="submit" class="btn-primary text-sm">Check in</button>
             </form>

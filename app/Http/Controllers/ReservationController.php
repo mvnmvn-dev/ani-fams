@@ -281,7 +281,12 @@ class ReservationController extends Controller
     public function checkIn(Request $request, ReservationService $service)
     {
         $code = (string) $request->input('code', $request->input('check_in_code', ''));
-        $result = $service->checkInByCode($code);
+
+        try {
+            $result = $service->checkInByCode($code);
+        } catch (\Throwable) {
+            $result = ['success' => false, 'error' => 'Check-in failed unexpectedly. Use an RSV-… reservation code, not a visitor badge.'];
+        }
 
         return $this->flashOrJson(
             $request,

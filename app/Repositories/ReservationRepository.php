@@ -511,18 +511,23 @@ class ReservationRepository
 
     public function findByCheckInCode(string $code): ?array
     {
-        $stmt = $this->pdo()->prepare(
-            "SELECT r.*, f.name AS facility_name, u.full_name AS requester_name
-             FROM reservations r
-             JOIN facilities f ON f.id = r.facility_id
-             JOIN users u ON u.id = r.requested_by
-             WHERE r.check_in_code = :code AND r.deleted_at IS NULL
-             LIMIT 1"
-        );
-        $stmt->execute(['code' => $code]);
-        $row = $stmt->fetch();
+        try {
+            $stmt = $this->pdo()->prepare(
+                "SELECT r.*, f.name AS facility_name, u.full_name AS requester_name
+                 FROM reservations r
+                 JOIN facilities f ON f.id = r.facility_id
+                 JOIN users u ON u.id = r.requested_by
+                 WHERE r.check_in_code = :code AND r.deleted_at IS NULL
+                 LIMIT 1"
+            );
+            $stmt->execute(['code' => $code]);
+            $row = $stmt->fetch();
 
-        return $row ?: null;
+            return $row ?: null;
+        } catch (\Throwable) {
+            // Column may be missing if defense-ready migration is not applied yet.
+            return null;
+        }
     }
 
     public function advanceLifecycle(int $reservationId, string $status, ?int $actorId = null): void

@@ -289,12 +289,30 @@ class ReservationService
             return ['success' => false, 'error' => 'Check-in code is required.'];
         }
 
-        $reservation = $this->repo->findByCheckInCode($code);
-        if (! $reservation) {
-            return ['success' => false, 'error' => 'Invalid check-in code.'];
+        // Visitor badges (BADGE-XXXXXX) belong to Visitors, not Facilities Reservation.
+        $normalized = strtoupper($code);
+        if (str_starts_with($normalized, 'BADGE-') || preg_match('/^[A-F0-9]{6}$/', $normalized) === 1) {
+            return [
+                'success' => false,
+                'error' => 'That looks like a visitor badge code. Use Visitors → Check In for visitor passes. This box only accepts reservation codes (RSV-…).',
+            ];
         }
 
-        return $this->advanceStatus((int) $reservation['id'], 'checked_in', 'QR / code check-in');
+        try {
+            $reservation = $this->repo->findByCheckInCode($code);
+        } catch (\Throwable) {
+            return ['success' => false, 'error' => 'Check-in is temporarily unavailable. Ask an admin to apply the latest database updates.'];
+        }
+
+        if (! $reservation) {
+            return ['success' => false, 'error' => 'Invalid reservation check-in code. Use the RSV-… code from the approved booking QR badge.'];
+        }
+
+        try {
+            return $this->advanceStatus((int) $reservation['id'], 'checked_in', 'QR / code check-in');
+        } catch (\Throwable) {
+            return ['success' => false, 'error' => 'Unable to complete reservation check-in. Please try again or contact support.'];
+        }
     }
 
     /**
