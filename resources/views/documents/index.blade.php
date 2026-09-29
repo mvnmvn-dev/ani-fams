@@ -168,87 +168,191 @@ $recentFeed = array_map(static fn($d) => [
     <?php endif; ?>
 
     <script>
-        function notifyUser(type, message, options) {
-            if (typeof showToast === 'function') {
-                showToast(type, message, options || {});
-                return;
-            }
-            alert(message);
-        }
+        (function () {
+            var pendingKey = 'fams_documents_toast';
 
-        async function processDocumentsOcr(button) {
-            if (button) button.disabled = true;
-            try {
-                const response = await fetch('<?= route('documents.ocr.process') ?>', {
-                    method: 'POST',
-                    headers: { 'X-CSRF-TOKEN': '<?= csrf_token() ?>', 'Accept': 'application/json' },
+            function ensureToastHost() {
+                var host = document.getElementById('toast-host');
+                if (host) return host;
+                host = document.createElement('div');
+                host.id = 'toast-host';
+                host.className = 'toast-host';
+                host.setAttribute('aria-live', 'polite');
+                document.body.appendChild(host);
+                return host;
+            }
+
+            function renderToast(type, message, options) {
+                options = options || {};
+                var kind = type === 'error' ? 'error' : 'success';
+                var title = options.title || (kind === 'success' ? 'Success' : 'Something went wrong');
+                var duration = typeof options.duration === 'number' ? options.duration : (kind === 'error' ? 5500 : 4200);
+                var host = ensureToastHost();
+                var toast = document.createElement('div');
+                toast.className = 'toast toast-' + kind;
+                toast.setAttribute('role', kind === 'error' ? 'alert' : 'status');
+                toast.innerHTML =
+                    '<span class="toast-icon" aria-hidden="true">' +
+                        '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">' +
+                            (kind === 'success'
+                                ? '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>'
+                                : '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>') +
+                        '</svg>' +
+                    '</span>' +
+                    '<div class="toast-body">' +
+                        '<p class="toast-title"></p>' +
+                        '<p class="toast-message"></p>' +
+                    '</div>' +
+                    '<button type="button" class="toast-close" aria-label="Dismiss">' +
+                        '<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">' +
+                            '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>' +
+                        '</svg>' +
+                    '</button>';
+                toast.querySelector('.toast-title').textContent = title;
+                toast.querySelector('.toast-message').textContent = String(message || '');
+                toast.querySelector('.toast-close').addEventListener('click', function () {
+                    toast.classList.remove('is-visible');
+                    toast.classList.add('is-leaving');
+                    window.setTimeout(function () { if (toast.parentNode) toast.parentNode.removeChild(toast); }, 280);
                 });
-                const data = await response.json();
-                notifyUser(
-                    data.success ? 'success' : 'error',
-                    data.success ? ('Processed ' + (data.processed_count ?? 0) + ' documents for OCR.') : (data.message || 'Failed to process OCR.')
-                );
-            } catch (error) {
-                notifyUser('error', 'Failed to process OCR.');
-            } finally {
-                if (button) button.disabled = false;
+                host.appendChild(toast);
+                requestAnimationFrame(function () {
+                    requestAnimationFrame(function () { toast.classList.add('is-visible'); });
+                });
+                if (duration > 0) {
+                    window.setTimeout(function () {
+                        toast.classList.remove('is-visible');
+                        toast.classList.add('is-leaving');
+                        window.setTimeout(function () { if (toast.parentNode) toast.parentNode.removeChild(toast); }, 280);
+                    }, duration);
+                }
             }
-        }
 
-        async function arnelReanalyze(id, button) {
-            button.disabled = true;
-            button.textContent = 'Analyzing…';
-            try {
-                const response = await fetch('<?= route('api.arnel.documents.analyze') ?>', { method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRF-TOKEN': '<?= csrf_token() ?>', 'Accept': 'application/json'}, body: JSON.stringify({document_id: id}) });
-                const data = await response.json();
-                if (data.success) {
-                    notifyUser('success', 'Document re-analyzed successfully.');
-                    window.setTimeout(function () { window.location.reload(); }, 900);
+            window.notifyUser = function (type, message, options) {
+                if (typeof window.showToast === 'function') {
+                    window.showToast(type, message, options || {});
                     return;
                 }
-                notifyUser('error', data.message || 'Unable to analyze document.');
-            } catch (error) {
-                notifyUser('error', 'Unable to analyze document.');
-            }
-            button.disabled = false;
-            button.textContent = 'Re-analyze';
-        }
-        function openClassificationCorrectionModal(id) {
-            document.getElementById('classificationCorrectionDocumentId').value = id;
-            document.getElementById('correctedClassification').value = '';
-            document.getElementById('classificationCorrectionError').classList.add('hidden');
-            openModal('classificationCorrectionModal');
-            setTimeout(() => document.getElementById('correctedClassification').focus(), 50);
-        }
-        async function arnelClassificationFeedback(id, correct, corrected = null) {
-            const response = await fetch('<?= url('/api/arnel/documents') ?>/' + id + '/classification-feedback', { method: 'POST', headers: {'Content-Type': 'application/json', 'X-CSRF-TOKEN': '<?= csrf_token() ?>', 'Accept': 'application/json'}, body: JSON.stringify({correct: correct, corrected_classification: corrected}) });
-            const data = await response.json();
-            if (!response.ok || !data.success) throw new Error(data.message || 'Unable to record feedback.');
-            return data;
-        }
-        async function submitClassificationCorrection(event) {
-            event.preventDefault();
-            const documentId = document.getElementById('classificationCorrectionDocumentId').value;
-            const corrected = document.getElementById('correctedClassification').value.trim();
-            const submit = document.getElementById('classificationCorrectionSubmit');
-            const error = document.getElementById('classificationCorrectionError');
-            submit.disabled = true;
-            submit.textContent = 'Saving…';
-            error.classList.add('hidden');
+                renderToast(type, message, options);
+            };
+
             try {
-                await arnelClassificationFeedback(documentId, false, corrected);
-                closeModal('classificationCorrectionModal');
-                notifyUser('success', 'Classification correction saved.');
-                window.setTimeout(function () { window.location.reload(); }, 900);
-            } catch (exception) {
-                error.textContent = exception.message;
-                error.classList.remove('hidden');
-                notifyUser('error', exception.message || 'Unable to save correction.');
-            } finally {
-                submit.disabled = false;
-                submit.textContent = 'Save correction';
-            }
-        }
+                var pending = sessionStorage.getItem(pendingKey);
+                if (pending) {
+                    sessionStorage.removeItem(pendingKey);
+                    var payload = JSON.parse(pending);
+                    window.setTimeout(function () {
+                        window.notifyUser(payload.type || 'success', payload.message || '');
+                    }, 120);
+                }
+            } catch (e) {}
+
+            window.processDocumentsOcr = async function (button) {
+                if (button) button.disabled = true;
+                try {
+                    const response = await fetch('<?= route('documents.ocr.process') ?>', {
+                        method: 'POST',
+                        headers: { 'X-CSRF-TOKEN': '<?= csrf_token() ?>', 'Accept': 'application/json' },
+                    });
+                    const data = await response.json();
+                    window.notifyUser(
+                        data.success ? 'success' : 'error',
+                        data.success ? ('Processed ' + (data.processed_count ?? 0) + ' documents for OCR.') : (data.message || 'Failed to process OCR.')
+                    );
+                } catch (error) {
+                    window.notifyUser('error', 'Failed to process OCR.');
+                } finally {
+                    if (button) button.disabled = false;
+                }
+            };
+
+            window.arnelReanalyze = async function (id, button) {
+                button.disabled = true;
+                button.textContent = 'Analyzing…';
+                try {
+                    const response = await fetch('<?= route('api.arnel.documents.analyze') ?>', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': '<?= csrf_token() ?>',
+                            'Accept': 'application/json',
+                        },
+                        body: JSON.stringify({ document_id: id }),
+                    });
+                    const data = await response.json();
+                    if (data.success) {
+                        try {
+                            sessionStorage.setItem(pendingKey, JSON.stringify({
+                                type: 'success',
+                                message: 'Document re-analyzed successfully.',
+                            }));
+                        } catch (e) {}
+                        window.notifyUser('success', 'Document re-analyzed successfully.');
+                        window.setTimeout(function () { window.location.reload(); }, 700);
+                        return;
+                    }
+                    window.notifyUser('error', data.message || 'Unable to analyze document.');
+                } catch (error) {
+                    window.notifyUser('error', 'Unable to analyze document.');
+                }
+                button.disabled = false;
+                button.textContent = 'Re-analyze';
+            };
+
+            window.openClassificationCorrectionModal = function (id) {
+                document.getElementById('classificationCorrectionDocumentId').value = id;
+                document.getElementById('correctedClassification').value = '';
+                document.getElementById('classificationCorrectionError').classList.add('hidden');
+                openModal('classificationCorrectionModal');
+                setTimeout(function () { document.getElementById('correctedClassification').focus(); }, 50);
+            };
+
+            window.arnelClassificationFeedback = async function (id, correct, corrected) {
+                corrected = corrected || null;
+                const response = await fetch('<?= url('/api/arnel/documents') ?>/' + id + '/classification-feedback', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': '<?= csrf_token() ?>',
+                        'Accept': 'application/json',
+                    },
+                    body: JSON.stringify({ correct: correct, corrected_classification: corrected }),
+                });
+                const data = await response.json();
+                if (!response.ok || !data.success) throw new Error(data.message || 'Unable to record feedback.');
+                return data;
+            };
+
+            window.submitClassificationCorrection = async function (event) {
+                event.preventDefault();
+                const documentId = document.getElementById('classificationCorrectionDocumentId').value;
+                const corrected = document.getElementById('correctedClassification').value.trim();
+                const submit = document.getElementById('classificationCorrectionSubmit');
+                const error = document.getElementById('classificationCorrectionError');
+                submit.disabled = true;
+                submit.textContent = 'Saving…';
+                error.classList.add('hidden');
+                try {
+                    await window.arnelClassificationFeedback(documentId, false, corrected);
+                    closeModal('classificationCorrectionModal');
+                    try {
+                        sessionStorage.setItem(pendingKey, JSON.stringify({
+                            type: 'success',
+                            message: 'Classification correction saved.',
+                        }));
+                    } catch (e) {}
+                    window.notifyUser('success', 'Classification correction saved.');
+                    window.setTimeout(function () { window.location.reload(); }, 700);
+                } catch (exception) {
+                    error.textContent = exception.message;
+                    error.classList.remove('hidden');
+                    window.notifyUser('error', exception.message || 'Unable to save correction.');
+                } finally {
+                    submit.disabled = false;
+                    submit.textContent = 'Save correction';
+                }
+            };
+        })();
     </script>
 
     @include('partials.stat_kpi_grid', ['cards' => [
