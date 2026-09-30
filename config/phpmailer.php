@@ -18,6 +18,9 @@ return [
 
     'from_name' => env('MAIL_FROM_NAME', env('APP_NAME', 'ANI-FAMS')),
 
+    // Keep well under Render's gateway limit so SMTP hangs return a flash error, not 504.
+    'timeout' => (int) env('MAIL_TIMEOUT', 10),
+
     'otp_ttl_minutes' => (int) env('OTP_TTL_MINUTES', 10),
 
 ];

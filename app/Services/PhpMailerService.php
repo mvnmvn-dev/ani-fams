@@ -30,6 +30,7 @@ class PhpMailerService
         $mail->Password = $password;
         $mail->SMTPSecure = config('phpmailer.encryption') ?: PHPMailer::ENCRYPTION_STARTTLS;
         $mail->Port = (int) config('phpmailer.port', 587);
+        $mail->Timeout = max(1, (int) config('phpmailer.timeout', 10));
         if ($ehloDomain = trim((string) config('phpmailer.ehlo_domain'))) {
             $mail->Helo = $ehloDomain;
         }
