@@ -23,6 +23,8 @@ class PhpMailerService
             throw new \RuntimeException('SMTP sender is not configured with a valid email address.');
         }
 
+        $timeout = max(1, (int) config('phpmailer.timeout', 10));
+
         $mail->isSMTP();
         $mail->Host = $host;
         $mail->SMTPAuth = true;
@@ -30,7 +32,17 @@ class PhpMailerService
         $mail->Password = $password;
         $mail->SMTPSecure = config('phpmailer.encryption') ?: PHPMailer::ENCRYPTION_STARTTLS;
         $mail->Port = (int) config('phpmailer.port', 587);
-        $mail->Timeout = max(1, (int) config('phpmailer.timeout', 10));
+        $mail->Timeout = $timeout;
+        $mail->SMTPOptions = [
+            'ssl' => [
+                'verify_peer' => true,
+                'verify_peer_name' => true,
+                'allow_self_signed' => false,
+            ],
+            'socket' => [
+                'timeout' => $timeout,
+            ],
+        ];
         if ($ehloDomain = trim((string) config('phpmailer.ehlo_domain'))) {
             $mail->Helo = $ehloDomain;
         }

@@ -28,6 +28,10 @@ class AuthLoginService
 
     public function requiresEmailOtp(User $user): bool
     {
+        if (! config('phpmailer.email_otp_enabled', true)) {
+            return false;
+        }
+
         if ($user->hasRole('admin')) {
             return false;
         }

@@ -21,6 +21,9 @@ return [
     // Keep well under Render's gateway limit so SMTP hangs return a flash error, not 504.
     'timeout' => (int) env('MAIL_TIMEOUT', 10),
 
+    // Set false on Render when Gmail SMTP is blocked/hanging so staff/employee can log in.
+    'email_otp_enabled' => filter_var(env('AUTH_EMAIL_OTP_ENABLED', true), FILTER_VALIDATE_BOOLEAN),
+
     'otp_ttl_minutes' => (int) env('OTP_TTL_MINUTES', 10),
 
 ];
