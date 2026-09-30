@@ -24,6 +24,8 @@ class PhpMailerService
         }
 
         $timeout = max(1, (int) config('phpmailer.timeout', 10));
+        // Cap PHP stream waits so a stuck smtp.gmail.com cannot outlive nginx → 504.
+        @ini_set('default_socket_timeout', (string) $timeout);
 
         $mail->isSMTP();
         $mail->Host = $host;
@@ -33,16 +35,7 @@ class PhpMailerService
         $mail->SMTPSecure = config('phpmailer.encryption') ?: PHPMailer::ENCRYPTION_STARTTLS;
         $mail->Port = (int) config('phpmailer.port', 587);
         $mail->Timeout = $timeout;
-        $mail->SMTPOptions = [
-            'ssl' => [
-                'verify_peer' => true,
-                'verify_peer_name' => true,
-                'allow_self_signed' => false,
-            ],
-            'socket' => [
-                'timeout' => $timeout,
-            ],
-        ];
+        $mail->SMTPKeepAlive = false;
         if ($ehloDomain = trim((string) config('phpmailer.ehlo_domain'))) {
             $mail->Helo = $ehloDomain;
         }
