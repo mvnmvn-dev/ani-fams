@@ -23,8 +23,8 @@
       })();
     </script>
     <title>{{ $pageTitle ?? config('app.name') }}</title>
-    <link rel="icon" type="image/png" href="{{ asset('images/system-name.png') }}">
-    <link rel="apple-touch-icon" href="{{ asset('images/system-name.png') }}">
+    <link rel="icon" type="image/jpeg" href="{{ asset('images/anifams.jpg') }}">
+    <link rel="apple-touch-icon" href="{{ asset('images/anifams.jpg') }}">
 <!-- CDN Tailwind for this phase. Swap for a compiled build (see /tailwind.config.js) before production. -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>

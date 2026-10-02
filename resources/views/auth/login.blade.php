@@ -280,7 +280,7 @@
     <div class="login-box" role="main" aria-labelledby="login-heading">
         <aside class="login-box-brand">
             <div class="login-brand-lockup">
-                <img src="{{ asset('images/system-name.png') }}"
+                <img src="{{ asset('images/anifams.jpg') }}"
                      alt="{{ config('app.name') }} logo"
                      class="login-brand-logo">
             </div>

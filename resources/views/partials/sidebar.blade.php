@@ -17,7 +17,7 @@ $navItems = [
 ?>
 <aside id="app-sidebar" class="app-sidebar h-full shrink-0 text-sand/90 flex flex-col relative z-30 overflow-hidden">
     <div class="sidebar-brand px-3 py-4 border-b border-white/10 flex items-center gap-3">
-        <img src="<?= asset('images/system-name.png') ?>"
+        <img src="<?= asset('images/anifams.jpg') ?>"
              alt="<?= htmlspecialchars(config('app.name')) ?>"
              class="sidebar-mark sidebar-brand-logo shrink-0"
              title="<?= htmlspecialchars(config('app.name')) ?>">
