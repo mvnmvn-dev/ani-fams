@@ -32,10 +32,6 @@ class AuthLoginService
             return false;
         }
 
-        if ($user->hasRole('admin')) {
-            return false;
-        }
-
         return $this->otpDeliveryEmail($user) !== null;
     }
 

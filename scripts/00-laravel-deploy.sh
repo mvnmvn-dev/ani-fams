@@ -43,4 +43,9 @@ php artisan migrate --force --path=database/migrations/2026_09_29_000001_defense
   echo "Warning: Defense Ready migration did not complete. Approve/QR features may be limited."
 }
 
+echo "Applying admin OTP email update..."
+php artisan migrate --force --path=database/migrations/2026_10_02_000001_set_admin_otp_email.php || {
+  echo "Warning: Admin OTP email migration did not complete."
+}
+
 exit 0

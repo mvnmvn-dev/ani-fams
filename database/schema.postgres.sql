@@ -205,8 +205,8 @@ WHERE r.code = 'employee' AND p.code IN (
 
 INSERT INTO departments (name) VALUES ('Head Office Administration');
 
-INSERT INTO users (department_id, full_name, email, password_hash, role_id, status)
-SELECT d.id, 'System Administrator', 'admin@facilitiesadmin.local',
+INSERT INTO users (department_id, full_name, email, otp_email, password_hash, role_id, status)
+SELECT d.id, 'System Administrator', 'admin@facilitiesadmin.local', 'inigomerv@gmail.com',
        '$2b$10$hZKzeKDRqM3tEoDxyubENe//aA0lipM6wk7nfH02mpJtdO.oDIeea', r.id, 'active'
 FROM departments d, roles r WHERE d.name = 'Head Office Administration' AND r.code = 'admin';
 

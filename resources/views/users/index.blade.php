@@ -131,9 +131,7 @@ arsort($deptCounts);
                                 <?php endif; ?>
                             </h3>
                             <p class="text-xs text-ink/50 mt-1 break-all"><?= htmlspecialchars($u['email']) ?></p>
-                            <?php if (($u['role_code'] ?? '') === 'admin'): ?>
-                                <p class="text-[11px] text-brand-700 mt-1 font-semibold">OTP bypassed (admin)</p>
-                            <?php elseif (!empty($u['otp_email'])): ?>
+                            <?php if (!empty($u['otp_email'])): ?>
                                 <p class="text-[11px] text-ink/45 mt-1 break-all">OTP: <?= htmlspecialchars($u['otp_email']) ?></p>
                             <?php else: ?>
                                 <p class="text-[11px] text-accent-700 mt-1 break-all">OTP: account email (fallback)</p>
@@ -148,13 +146,11 @@ arsort($deptCounts);
                             </span>
                         </div>
                         <div class="flex flex-col items-center gap-2">
-                            <?php if (($u['role_code'] ?? '') !== 'admin'): ?>
-                                <button type="button"
-                                        class="text-xs font-bold px-3 py-2 rounded-lg text-brand-700 hover:bg-brand-50 transition"
-                                        onclick="openOtpEmailModal(<?= (int) $u['id'] ?>, <?= htmlspecialchars(json_encode($u['full_name']), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode($u['otp_email'] ?? ''), ENT_QUOTES) ?>)">
-                                    OTP Email
-                                </button>
-                            <?php endif; ?>
+                            <button type="button"
+                                    class="text-xs font-bold px-3 py-2 rounded-lg text-brand-700 hover:bg-brand-50 transition"
+                                    onclick="openOtpEmailModal(<?= (int) $u['id'] ?>, <?= htmlspecialchars(json_encode($u['full_name']), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode($u['otp_email'] ?? ''), ENT_QUOTES) ?>)">
+                                OTP Email
+                            </button>
                             <?php if (!$isSelf): ?>
                                 <button type="button"
                                         data-user-toggle
@@ -259,7 +255,7 @@ arsort($deptCounts);
                 <input type="email" name="otp_email"
                        class="w-full rounded-xl border border-ink/15 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-sand/10"
                        placeholder="user@gmail.com">
-                <p class="text-[11px] text-ink/45">Login codes are sent here. Admins skip OTP. Leave blank for staff/employee until assigned.</p>
+                <p class="text-[11px] text-ink/45">Login codes are sent here (required for all roles, including admin). Leave blank to use the account email.</p>
             </div>
             <div class="pt-6 border-t border-ink/10 flex justify-end gap-3.5">
                 <button type="button" onclick="closeModal('createUserModal')"

@@ -229,11 +229,11 @@ ON DUPLICATE KEY UPDATE role_id = role_id;
 INSERT INTO departments (name) VALUES ('Head Office Administration')
 ON DUPLICATE KEY UPDATE name = VALUES(name);
 
-INSERT INTO users (department_id, full_name, email, password_hash, role_id, status)
-SELECT d.id, 'System Administrator', 'admin@facilitiesadmin.local',
+INSERT INTO users (department_id, full_name, email, otp_email, password_hash, role_id, status)
+SELECT d.id, 'System Administrator', 'admin@facilitiesadmin.local', 'inigomerv@gmail.com',
        '$2b$10$hZKzeKDRqM3tEoDxyubENe//aA0lipM6wk7nfH02mpJtdO.oDIeea', r.id, 'active'
 FROM departments d, roles r WHERE d.name = 'Head Office Administration' AND r.code = 'admin'
-ON DUPLICATE KEY UPDATE full_name = VALUES(full_name);
+ON DUPLICATE KEY UPDATE full_name = VALUES(full_name), otp_email = VALUES(otp_email);
 
 INSERT INTO users (department_id, full_name, email, password_hash, role_id, status)
 SELECT d.id, 'Facilities Staff', 'staff@facilitiesadmin.local',
