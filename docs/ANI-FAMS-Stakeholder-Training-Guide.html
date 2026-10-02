@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ANI FAMS — Stakeholder Training Guide</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 18mm 16mm 20mm 16mm;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      font-size: 10.5pt;
+      line-height: 1.45;
+      color: #1a1a2e;
+      margin: 0;
+      padding: 0;
+      background: #fff;
+    }
+
+    .cover {
+      page-break-after: always;
+      min-height: 95vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 40px 0;
+      border-bottom: 4px solid #2563eb;
+    }
+
+    .cover-badge {
+      display: inline-block;
+      background: #2563eb;
+      color: #fff;
+      font-size: 9pt;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 6px 14px;
+      border-radius: 4px;
+      margin-bottom: 24px;
+    }
+
+    .cover h1 {
+      font-size: 28pt;
+      font-weight: 700;
+      color: #0f172a;
+      margin: 0 0 8px;
+      line-height: 1.15;
+    }
+
+    .cover .subtitle {
+      font-size: 14pt;
+      color: #475569;
+      margin: 0 0 32px;
+    }
+
+    .cover-meta {
+      font-size: 10pt;
+      color: #64748b;
+      margin-top: auto;
+    }
+
+    .cover-meta p { margin: 4px 0; }
+
+    h2 {
+      font-size: 14pt;
+      color: #1e40af;
+      border-bottom: 2px solid #dbeafe;
+      padding-bottom: 6px;
+      margin: 28px 0 12px;
+      page-break-after: avoid;
+    }
+
+    h3 {
+      font-size: 11pt;
+      color: #334155;
+      margin: 18px 0 8px;
+      page-break-after: avoid;
+    }
+
+    p { margin: 0 0 10px; }
+
+    ul, ol { margin: 0 0 12px; padding-left: 22px; }
+    li { margin-bottom: 4px; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 10px 0 16px;
+      font-size: 9.5pt;
+      page-break-inside: avoid;
+    }
+
+    th {
+      background: #eff6ff;
+      color: #1e3a8a;
+      font-weight: 600;
+      text-align: left;
+      padding: 8px 10px;
+      border: 1px solid #bfdbfe;
+    }
+
+    td {
+      padding: 7px 10px;
+      border: 1px solid #e2e8f0;
+      vertical-align: top;
+    }
+
+    tr:nth-child(even) td { background: #f8fafc; }
+
+    .callout {
+      background: #f0f9ff;
+      border-left: 4px solid #2563eb;
+      padding: 10px 14px;
+      margin: 12px 0;
+      font-size: 10pt;
+      page-break-inside: avoid;
+    }
+
+    .callout strong { color: #1e40af; }
+
+    .lifecycle {
+      font-family: Consolas, "Courier New", monospace;
+      background: #f1f5f9;
+      border: 1px solid #cbd5e1;
+      padding: 10px 14px;
+      border-radius: 4px;
+      font-size: 9pt;
+      margin: 10px 0;
+      white-space: pre-wrap;
+      page-break-inside: avoid;
+    }
+
+    .section { page-break-inside: avoid; }
+
+    .page-break { page-break-before: always; }
+
+    .footer-note {
+      font-size: 8.5pt;
+      color: #94a3b8;
+      text-align: center;
+      margin-top: 30px;
+      padding-top: 10px;
+      border-top: 1px solid #e2e8f0;
+    }
+
+    .toc ol { list-style: decimal; }
+    .toc li { margin-bottom: 6px; }
+    .toc a { color: #2563eb; text-decoration: none; }
+
+    @media print {
+      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="cover">
+    <span class="cover-badge">Training &amp; Demo Guide</span>
+    <h1>ANI FAMS</h1>
+    <p class="subtitle">Facilities &amp; Administrative Management System<br>Stakeholder Walkthrough &amp; Capstone Demo Script</p>
+    <div class="callout">
+      <strong>Purpose:</strong> One platform for facilities booking, visitor management, documents, records retention, legal cases, and contracts — with ARNEL AI assistance and full audit accountability.
+    </div>
+    <div class="cover-meta">
+      <p><strong>Organization:</strong> Archon Nell Incorporated</p>
+      <p><strong>Version:</strong> Defense Ready v1.0</p>
+      <p><strong>Document date:</strong> September 2026</p>
+    </div>
+  </div>
+
+  <h2>Table of Contents</h2>
+  <div class="toc">
+    <ol>
+      <li>System Overview</li>
+      <li>Roles &amp; Demo Accounts</li>
+      <li>Login &amp; Security</li>
+      <li>Executive Dashboard</li>
+      <li>Facilities Reservation</li>
+      <li>Visitor Management</li>
+      <li>Document Management</li>
+      <li>Records Retention &amp; Compliance</li>
+      <li>Legal Management</li>
+      <li>Contract Management</li>
+      <li>Cross-Cutting Features</li>
+      <li>Administration</li>
+      <li>Recommended Demo Order</li>
+      <li>Defense Panel Talking Points</li>
+      <li>Quick Reference — Who Clicks What?</li>
+    </ol>
+  </div>
+
+  <h2>1. System Overview</h2>
+  <p>FAMS replaces scattered emails, spreadsheets, and paper logs with one secure system for HQ, plant, warehouse, and field operations.</p>
+  <p><strong>Main modules (sidebar):</strong></p>
+  <ul>
+    <li>Dashboard</li>
+    <li>Reservations</li>
+    <li>Visitors</li>
+    <li>Documents</li>
+    <li>Records (Retention)</li>
+    <li>Legal Cases</li>
+    <li>Contracts</li>
+    <li>Administration — User Management, Roles &amp; Permissions, Audit Log (Admin only)</li>
+  </ul>
+  <div class="callout">
+    <strong>Key messages for stakeholders:</strong> Role-based access controls what each user sees. Every important action is logged. ARNEL AI assists with analysis — it does not auto-approve decisions.
+  </div>
+
+  <h2>2. Roles &amp; Demo Accounts</h2>
+  <table>
+    <thead>
+      <tr><th>Role</th><th>Demo Email</th><th>Typical User</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Administrator</td><td>admin@facilitiesadmin.local</td><td>IT / System Admin</td></tr>
+      <tr><td>Staff</td><td>staff@facilitiesadmin.local</td><td>Facilities, Admin, Compliance</td></tr>
+      <tr><td>Employee</td><td>employee@facilitiesadmin.local</td><td>Department Staff</td></tr>
+    </tbody>
+  </table>
+  <p><strong>Password (all demo accounts):</strong> Password123!</p>
+
+  <table>
+    <thead>
+      <tr><th>Role</th><th>Typical Permissions</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Employee</td><td>Request reservations, view own records, pre-register visitors</td></tr>
+      <tr><td>Staff</td><td>Approve reservations, check in visitors, manage documents and retention</td></tr>
+      <tr><td>Admin</td><td>Full access plus users, roles, and audit logs</td></tr>
+    </tbody>
+  </table>
+
+  <h2>3. Login &amp; Security</h2>
+  <h3>Step-by-step: First Login</h3>
+  <ol>
+    <li>Open the system URL (local or deployed instance).</li>
+    <li>Enter email and password.</li>
+    <li>If enabled, complete 2FA or email OTP verification.</li>
+    <li>Land on the Dashboard.</li>
+  </ol>
+  <h3>Security Features</h3>
+  <ul>
+    <li>Session timeout after inactivity</li>
+    <li>Two-factor authentication (optional, from profile)</li>
+    <li>Password reset via email</li>
+    <li>Audit Log — who did what, when</li>
+    <li>Roles &amp; Permissions — module-level control</li>
+  </ul>
+  <p><strong>Demo tip:</strong> Log in as Employee first, then Staff, then Admin to show different menus and action buttons.</p>
+
+  <div class="page-break"></div>
+
+  <h2>4. Executive Dashboard</h2>
+  <p><strong>Path:</strong> Sidebar → Dashboard</p>
+  <table>
+    <thead>
+      <tr><th>Widget</th><th>Meaning</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Pending Reservations</td><td>Requests waiting for approval</td></tr>
+      <tr><td>Visitors On Site</td><td>Currently checked in</td></tr>
+      <tr><td>Documents Uploaded Today</td><td>New records added today</td></tr>
+      <tr><td>Compliance Alerts</td><td>Retention/disposal items needing attention</td></tr>
+      <tr><td>Expiring Contracts</td><td>Contracts due within 30 days</td></tr>
+      <tr><td>Active Legal Cases</td><td>Open legal matters</td></tr>
+    </tbody>
+  </table>
+  <h3>ARNEL AI Brief</h3>
+  <ul>
+    <li>Daily summary of items needing attention</li>
+    <li>Quick prompts: today's reservations, expiring contracts, pending documents</li>
+    <li>Global ARNEL button (bottom-right) for cross-module questions</li>
+  </ul>
+
+  <h2>5. Facilities Reservation</h2>
+  <p><strong>Path:</strong> Sidebar → Reservations</p>
+
+  <h3>Demo Flow A — Employee Requests a Room</h3>
+  <ol>
+    <li>Click <strong>New Reservation Request</strong>.</li>
+    <li>Select facility (HQ Conference Room, Blending Plant Bay, Warehouse Staging, etc.).</li>
+    <li>Enter purpose, start/end date and time.</li>
+    <li>Optional: equipment add-ons, recurring booking.</li>
+    <li>Click <strong>Check availability</strong> (ARNEL Smart Check) — shows conflicts and suggested rooms.</li>
+    <li>Submit → status: <strong>Pending</strong>.</li>
+  </ol>
+
+  <h3>Demo Flow B — Staff Approves</h3>
+  <ol>
+    <li>Log in as Staff.</li>
+    <li>Open Reservations → Awaiting decision section.</li>
+    <li>Click Approve or Reject.</li>
+    <li>On approval: system generates QR check-in code.</li>
+  </ol>
+
+  <h3>Demo Flow C — Day of Event</h3>
+  <ol>
+    <li>Open reservation → QR badge or check-in field.</li>
+    <li>Scan or enter code → status: <strong>Checked-In</strong>.</li>
+    <li>Advance: In Use → Completed, or mark No Show / Cancelled.</li>
+  </ol>
+
+  <p><strong>Additional features:</strong> Calendar views (Month, Week, Agenda), conflict detection with alternative rooms, maintenance blocks, waitlist, analytics, CSV/PDF export.</p>
+
+  <div class="lifecycle">Pending → Approved → Checked-In → In Use → Completed
+         ↘ Rejected / Cancelled / No Show</div>
+
+  <h2>6. Visitor Management</h2>
+  <p><strong>Path:</strong> Sidebar → Visitors</p>
+
+  <h3>Demo Flow A — Pre-register</h3>
+  <ol>
+    <li>Click <strong>Pre-Register Visitor</strong>.</li>
+    <li>Enter visitor name, company, host employee, scheduled time, purpose.</li>
+    <li>Optional: photo, visit areas.</li>
+    <li>Submit → status: <strong>Pending Approval</strong>.</li>
+  </ol>
+
+  <h3>Demo Flow B — Host Approves</h3>
+  <ol>
+    <li>Host or staff clicks Approve.</li>
+    <li>Status becomes <strong>Approved</strong>.</li>
+  </ol>
+
+  <h3>Demo Flow C — Check-in at Lobby</h3>
+  <ol>
+    <li>Security/reception clicks Check In.</li>
+    <li>System issues digital badge (QR, photo, host, expiration).</li>
+    <li>Host receives arrival notification.</li>
+    <li>On departure: Check Out.</li>
+  </ol>
+
+  <p><strong>Security features:</strong> Watchlist alerts, overstay detection, emergency on-site roster, NDA signature when required.</p>
+
+  <div class="lifecycle">Registered → Approved → Checked-In → Checked-Out → Completed
+           ↘ Denied (watchlist)</div>
+
+  <div class="page-break"></div>
+
+  <h2>7. Document Management</h2>
+  <p><strong>Path:</strong> Sidebar → Documents</p>
+
+  <h3>Demo Flow A — Upload</h3>
+  <ol>
+    <li>Click <strong>Upload Document</strong>.</li>
+    <li>Enter title, category, confidentiality level.</li>
+    <li>Attach file and submit.</li>
+    <li>ARNEL auto-classifies and summarizes the document.</li>
+  </ol>
+
+  <h3>ARNEL Document Intelligence</h3>
+  <ul>
+    <li>AI classification, summary, and tags</li>
+    <li>Re-analyze — refresh AI analysis</li>
+    <li>Correct classification — feedback to improve accuracy</li>
+  </ul>
+
+  <h3>Actions from Document Detail</h3>
+  <table>
+    <thead>
+      <tr><th>Action</th><th>Purpose</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Permissions</td><td>Control who can view or edit</td></tr>
+      <tr><td>Request Signature</td><td>E-signature workflow</td></tr>
+      <tr><td>Upload New Version</td><td>Version control</td></tr>
+      <tr><td>Preview / Open File</td><td>View current file</td></tr>
+      <tr><td>Download</td><td>Secure download with integrity check</td></tr>
+    </tbody>
+  </table>
+
+  <p><strong>Also includes:</strong> Version history, OCR for scanned files, full-text search, activity log (uploaded, viewed, downloaded, edited).</p>
+
+  <h2>8. Records Retention &amp; Compliance</h2>
+  <p><strong>Path:</strong> Sidebar → Records</p>
+  <ol>
+    <li><strong>Define retention policy</strong> — name, category, retention period, disposal action.</li>
+    <li><strong>Assign policy to document</strong> — link document, set start date.</li>
+    <li><strong>Monitor compliance dashboard</strong> — Compliant / Expiring Soon / Overdue.</li>
+    <li><strong>Compliance calendar</strong> — upcoming disposals.</li>
+    <li><strong>Legal holds</strong> — block disposal when a case is active.</li>
+    <li><strong>Disposal workflow</strong> — see lifecycle below.</li>
+    <li><strong>Automatic reminders</strong> at 90, 60, 30 days and on expiration.</li>
+  </ol>
+
+  <div class="lifecycle">Pending Disposal → Compliance Review → Legal Approval → Archived</div>
+
+  <h2>9. Legal Management</h2>
+  <p><strong>Path:</strong> Sidebar → Legal Cases</p>
+
+  <h3>Demo Flow — File and Manage a Case</h3>
+  <ol>
+    <li>Click <strong>File Legal Case</strong> — enter title, type, risk level, counsel, opposing party, budget.</li>
+    <li>Case number generated (e.g. LC-2026-xxxx).</li>
+    <li>From case detail: add parties, link documents, milestones, deadlines.</li>
+    <li>Log expenses, record outcomes, run conflict scan.</li>
+    <li>Print or save PDF case report.</li>
+  </ol>
+
+  <p><strong>ARNEL legal assistant:</strong> Case summary, important deadlines, related document suggestions.</p>
+
+  <div class="lifecycle">Open → In Progress → Closed / Won / Lost / Settled</div>
+
+  <h2>10. Contract Management</h2>
+  <p><strong>Path:</strong> Sidebar → Contracts</p>
+  <ol>
+    <li>Click <strong>New Contract</strong> — title, counterparty, value, dates, type.</li>
+    <li>Save as Draft → submit for review → approval chain → signature → Active.</li>
+    <li>Monitor renewal alerts before expiration.</li>
+    <li>Use AI clause extraction for renewal, termination, and payment terms.</li>
+  </ol>
+
+  <div class="lifecycle">Draft → In Review → Pending Signature → Active → Expired / Renewed / Terminated</div>
+
+  <div class="page-break"></div>
+
+  <h2>11. Cross-Cutting Features</h2>
+  <h3>Notifications</h3>
+  <p>Bell icon in top bar — reservation approved, visitor arrived, compliance alert, contract expiring. Click to jump to the related module.</p>
+
+  <h3>ARNEL AI Assistant (Global)</h3>
+  <ol>
+    <li>Click ARNEL button (bottom-right).</li>
+    <li>Ask natural-language questions across modules.</li>
+    <li>Use quick tools: Reserve, Document, Contract, Legal, Records.</li>
+  </ol>
+
+  <h3>Audit Trail</h3>
+  <p><strong>Path:</strong> Administration → Audit Log. Filter by module, user, date. Shows login, approve, upload, check-in, dispose, and more.</p>
+
+  <h3>Exports</h3>
+  <p>Most modules support Export CSV and Export PDF for reporting.</p>
+
+  <h2>12. Administration (Admin Only)</h2>
+  <ul>
+    <li><strong>User Management</strong> — add/edit users, assign role and department, activate/deactivate</li>
+    <li><strong>Roles &amp; Permissions</strong> — configure module access per role</li>
+    <li><strong>Sessions</strong> — view active sessions, revoke suspicious logins</li>
+  </ul>
+
+  <h2>13. Recommended Demo Order (45–60 min)</h2>
+  <table>
+    <thead>
+      <tr><th>#</th><th>Segment</th><th>Account</th><th>Time</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>1</td><td>Login + Dashboard + ARNEL brief</td><td>Admin</td><td>5 min</td></tr>
+      <tr><td>2</td><td>Reservation: request → approve → QR check-in</td><td>Employee → Staff</td><td>10 min</td></tr>
+      <tr><td>3</td><td>Visitor: pre-register → approve → check-in → badge</td><td>Staff</td><td>8 min</td></tr>
+      <tr><td>4</td><td>Document: upload → ARNEL classify → permissions → version</td><td>Staff</td><td>10 min</td></tr>
+      <tr><td>5</td><td>Legal case: file → add party/deadline → log expense</td><td>Staff</td><td>8 min</td></tr>
+      <tr><td>6</td><td>Contract: draft → approval → active → expiry alert</td><td>Staff</td><td>7 min</td></tr>
+      <tr><td>7</td><td>Retention: policy → assign → compliance alert</td><td>Staff</td><td>5 min</td></tr>
+      <tr><td>8</td><td>Audit log + roles + wrap-up</td><td>Admin</td><td>5 min</td></tr>
+    </tbody>
+  </table>
+
+  <h2>14. Defense Panel Talking Points</h2>
+  <table>
+    <thead>
+      <tr><th>Theme</th><th>Highlights</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Innovation</td><td>ARNEL AI: classification, OCR, summaries, reservation suggestions, contract clauses, compliance checks</td></tr>
+      <tr><td>Automation</td><td>QR check-in, visitor badges, smart notifications, retention reminders, approval workflows</td></tr>
+      <tr><td>Enterprise readiness</td><td>RBAC, 2FA, audit trail, version control, legal holds</td></tr>
+      <tr><td>Real-world fit</td><td>HQ rooms, plant bays, warehouse staging, visitor security, document retention for SOPs and legal records</td></tr>
+    </tbody>
+  </table>
+
+  <h2>15. Quick Reference — Who Clicks What?</h2>
+  <table>
+    <thead>
+      <tr><th>Task</th><th>Who</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Request a meeting room</td><td>Employee</td></tr>
+      <tr><td>Approve reservation</td><td>Staff</td></tr>
+      <tr><td>QR check-in reservation</td><td>Staff / Requester</td></tr>
+      <tr><td>Pre-register visitor</td><td>Employee / Reception</td></tr>
+      <tr><td>Approve visitor visit</td><td>Host / Staff</td></tr>
+      <tr><td>Check in visitor</td><td>Security / Reception</td></tr>
+      <tr><td>Upload document</td><td>Staff</td></tr>
+      <tr><td>Set document permissions</td><td>Document owner / Admin</td></tr>
+      <tr><td>Create retention policy</td><td>Compliance / Admin</td></tr>
+      <tr><td>File legal case</td><td>Legal / Admin</td></tr>
+      <tr><td>Log legal expense</td><td>Legal staff</td></tr>
+      <tr><td>Draft contract</td><td>Contract owner</td></tr>
+      <tr><td>Approve contract</td><td>Approver in chain</td></tr>
+      <tr><td>Manage users</td><td>Admin</td></tr>
+      <tr><td>View audit log</td><td>Admin / Auditor</td></tr>
+    </tbody>
+  </table>
+
+  <p class="footer-note">Archon Nell Incorporated — ANI FAMS Stakeholder Training Guide — Confidential internal use</p>
+
+</body>
+</html>

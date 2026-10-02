@@ -2,6 +2,10 @@
 
 return [
 
+    // auto = Resend HTTPS when RESEND_API_KEY is set, otherwise SMTP.
+    // Use "resend" or "smtp" to force one transport.
+    'driver' => env('MAIL_OTP_DRIVER', 'auto'),
+
     'host' => env('MAIL_HOST', 'smtp.gmail.com'),
 
     'port' => (int) env('MAIL_PORT', 587),
@@ -19,9 +23,9 @@ return [
     'from_name' => env('MAIL_FROM_NAME', env('APP_NAME', 'ANI-FAMS')),
 
     // Keep well under Render's gateway limit so SMTP hangs return a flash error, not 504.
-    'timeout' => (int) env('MAIL_TIMEOUT', 10),
+    'timeout' => (int) env('MAIL_TIMEOUT', 8),
 
-    // Set false on Render when Gmail SMTP is blocked/hanging so staff/employee can log in.
+    // Set false on Render when email delivery is unavailable so staff/employee can log in.
     'email_otp_enabled' => filter_var(env('AUTH_EMAIL_OTP_ENABLED', true), FILTER_VALIDATE_BOOLEAN),
 
     'otp_ttl_minutes' => (int) env('OTP_TTL_MINUTES', 10),

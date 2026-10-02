@@ -87,8 +87,16 @@ class LoginController extends Controller
             ]);
         } catch (\Throwable $e) {
             report($e);
+            Log::warning('Email OTP delivery failed.', [
+                'user_id' => $user->id,
+                'destination' => $this->maskEmail($otpEmail),
+                'error' => $e->getMessage(),
+            ]);
 
-            return back()->with('flash_error', 'Could not send verification code. Please try again.')->onlyInput('email', 'remember');
+            return back()->with(
+                'flash_error',
+                'Could not send verification code (email service unreachable). Try again or contact an administrator.'
+            )->onlyInput('email', 'remember');
         }
 
         $request->session()->put('email_otp:user:id', $user->id);
