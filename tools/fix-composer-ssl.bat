@@ -2,7 +2,7 @@
 REM Bypass PowerShell execution policy and fix Composer SSL (curl error 60),
 REM then run composer install so Dompdf can generate PDFs.
 REM Double-click this file, or run from cmd:
-REM   scripts\fix-composer-ssl.bat
+REM   tools\fix-composer-ssl.bat
 
 setlocal
 cd /d "%~dp0.."

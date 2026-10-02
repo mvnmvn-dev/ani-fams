@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-set -e
+# Runs before nginx/php-fpm start (richarvey RUN_SCRIPTS). Keep this fast and non-fatal.
+set -u
 
 cd /var/www/html
 
@@ -11,9 +12,11 @@ mkdir -p storage/framework/cache \
 
 touch storage/logs/laravel.log
 
-chown -R www-data:www-data storage bootstrap/cache || true
+# Image runs php-fpm as nginx; www-data may not exist on Alpine.
+chown -R nginx:nginx storage bootstrap/cache 2>/dev/null \
+  || chown -R www-data:www-data storage bootstrap/cache 2>/dev/null \
+  || true
 chmod -R ug+rwX storage bootstrap/cache || true
-
 
 if [ -z "${APP_KEY:-}" ]; then
   echo "APP_KEY is not set; skipping Laravel cache and migration tasks."
@@ -21,14 +24,14 @@ if [ -z "${APP_KEY:-}" ]; then
 fi
 
 echo "Caching Laravel configuration..."
-php artisan config:cache
+php artisan config:cache || echo "Warning: config:cache failed (continuing)."
 
 echo "Caching Laravel routes..."
-php artisan route:cache
+php artisan route:cache || echo "Warning: route:cache failed (continuing)."
 
 if [ "${RUN_MIGRATIONS:-false}" = "true" ]; then
   echo "Running database migrations..."
-  php artisan migrate --force
+  php artisan migrate --force || echo "Warning: migrate failed (continuing)."
 else
   echo "Skipping full Laravel migrations; using the imported PostgreSQL schema."
 fi
@@ -39,3 +42,5 @@ echo "Applying Defense Ready schema updates..."
 php artisan migrate --force --path=database/migrations/2026_09_29_000001_defense_ready_improvements.php || {
   echo "Warning: Defense Ready migration did not complete. Approve/QR features may be limited."
 }
+
+exit 0
