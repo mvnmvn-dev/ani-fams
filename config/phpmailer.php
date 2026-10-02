@@ -18,7 +18,9 @@ return [
 
     'ehlo_domain' => env('MAIL_EHLO_DOMAIN'),
 
-    'from_address' => env('MAIL_FROM_ADDRESS'),
+    // Resend requires a verified sender. Use onboarding@resend.dev for testing (delivers only
+    // to the email on your Resend account). Override with your domain after verification.
+    'from_address' => env('MAIL_FROM_ADDRESS', env('RESEND_API_KEY') ? 'onboarding@resend.dev' : null),
 
     'from_name' => env('MAIL_FROM_NAME', env('APP_NAME', 'ANI-FAMS')),
 

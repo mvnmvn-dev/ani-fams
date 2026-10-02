@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use PHPMailer\PHPMailer\Exception as MailException;
 use PHPMailer\PHPMailer\PHPMailer;
 
@@ -59,11 +60,13 @@ class PhpMailerService
 
             // Prefer HTTPS API on hosts that block outbound SMTP (e.g. Render → Gmail).
             if ($this->shouldUseResend()) {
+                Log::info('Sending OTP email via Resend.', ['to' => $this->maskEmail($to)]);
                 $this->sendViaResend($to, $subject, $htmlBody);
 
                 return;
             }
 
+            Log::info('Sending OTP email via SMTP.', ['host' => config('phpmailer.host'), 'to' => $this->maskEmail($to)]);
             $mail = $this->make();
             $mail->addAddress($to);
             $mail->isHTML(true);
@@ -158,5 +161,12 @@ class PhpMailerService
         }
 
         fclose($socket);
+    }
+
+    private function maskEmail(string $email): string
+    {
+        [$local, $domain] = array_pad(explode('@', $email, 2), 2, '');
+
+        return substr($local, 0, 2).'***@'.$domain;
     }
 }
