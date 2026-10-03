@@ -37,13 +37,39 @@ class AuthLoginService
 
     public function otpDeliveryEmail(User $user): ?string
     {
-        $otpEmail = trim((string) ($user->otp_email ?? ''));
-        if ($otpEmail !== '' && filter_var($otpEmail, FILTER_VALIDATE_EMAIL)) {
-            return $otpEmail;
+        foreach ([
+            trim((string) ($user->otp_email ?? '')),
+            trim((string) ($user->email ?? '')),
+        ] as $candidate) {
+            if ($this->isDeliverableEmail($candidate)) {
+                return $candidate;
+            }
         }
 
-        $accountEmail = trim((string) ($user->email ?? ''));
+        // Demo admin logins use *.local emails which cannot receive mail.
+        // Fall back to the configured OTP/mail username so login still works.
+        if (method_exists($user, 'hasRole') && $user->hasRole('admin')) {
+            foreach ([
+                trim((string) config('phpmailer.admin_otp_email', '')),
+                trim((string) config('phpmailer.from_address', '')),
+                trim((string) config('phpmailer.username', '')),
+            ] as $fallback) {
+                if ($this->isDeliverableEmail($fallback)) {
+                    return $fallback;
+                }
+            }
+        }
 
-        return filter_var($accountEmail, FILTER_VALIDATE_EMAIL) ?: null;
+        return null;
+    }
+
+    private function isDeliverableEmail(string $email): bool
+    {
+        if ($email === '' || ! filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            return false;
+        }
+
+        // Seeded demo logins (admin@facilitiesadmin.local) are not real inboxes.
+        return ! str_ends_with(strtolower($email), '.local');
     }
 }

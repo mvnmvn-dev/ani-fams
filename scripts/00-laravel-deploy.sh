@@ -48,4 +48,9 @@ php artisan migrate --force --path=database/migrations/2026_10_02_000001_set_adm
   echo "Warning: Admin OTP email migration did not complete."
 }
 
+echo "Restoring missing admin OTP email..."
+php artisan migrate --force --path=database/migrations/2026_10_03_000001_restore_admin_otp_email.php || {
+  echo "Warning: Admin OTP restore migration did not complete."
+}
+
 exit 0

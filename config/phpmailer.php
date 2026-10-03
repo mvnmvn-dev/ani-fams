@@ -30,6 +30,10 @@ return [
     // Set false on Render when email delivery is unavailable so staff/employee can log in.
     'email_otp_enabled' => filter_var(env('AUTH_EMAIL_OTP_ENABLED', true), FILTER_VALIDATE_BOOLEAN),
 
+    // Used when an admin has no otp_email and a non-deliverable (e.g. *.local) login email.
+    // Prefer ADMIN_OTP_EMAIL; otherwise code falls back to MAIL_FROM_ADDRESS / MAIL_USERNAME.
+    'admin_otp_email' => env('ADMIN_OTP_EMAIL'),
+
     'otp_ttl_minutes' => (int) env('OTP_TTL_MINUTES', 10),
 
 ];

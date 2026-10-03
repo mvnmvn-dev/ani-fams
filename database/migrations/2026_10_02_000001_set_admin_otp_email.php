@@ -12,7 +12,16 @@ return new class extends Migration
             return;
         }
 
-        $otpEmail = 'inigomerv@gmail.com';
+        $otpEmail = trim((string) (
+            config('phpmailer.admin_otp_email')
+            ?: config('phpmailer.from_address')
+            ?: config('phpmailer.username')
+            ?: 'inigomerv@gmail.com'
+        ));
+
+        if ($otpEmail === '' || ! filter_var($otpEmail, FILTER_VALIDATE_EMAIL) || str_ends_with(strtolower($otpEmail), '.local')) {
+            $otpEmail = 'inigomerv@gmail.com';
+        }
 
         // Admin accounts must receive OTP (no role bypass).
         DB::table('users')
