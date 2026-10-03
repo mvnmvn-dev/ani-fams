@@ -53,4 +53,9 @@ php artisan migrate --force --path=database/migrations/2026_10_03_000001_restore
   echo "Warning: Admin OTP restore migration did not complete."
 }
 
+echo "Disabling admin authenticator 2FA (email OTP fallback)..."
+php artisan migrate --force --path=database/migrations/2026_10_03_000002_disable_admin_two_factor.php || {
+  echo "Warning: Admin 2FA disable migration did not complete."
+}
+
 exit 0
