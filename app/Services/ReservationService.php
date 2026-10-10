@@ -12,9 +12,34 @@ class ReservationService
 {
     public function __construct(private ReservationRepository $repo) {}
 
+    public function canCreateReservations(): bool
+    {
+        return Auth::user()?->hasRole('employee') === true
+            && Auth::user()?->canPermission('reservation.create') === true;
+    }
+
+    public function canStaffApprove(): bool
+    {
+        return Auth::user()?->hasRole('staff') === true
+            && Auth::user()?->canPermission('reservation.approve') === true;
+    }
+
+    public function canStaffManage(): bool
+    {
+        return Auth::user()?->hasRole('staff') === true
+            && (Auth::user()?->canPermission('reservation.manage') === true
+                || Auth::user()?->canPermission('reservation.approve') === true);
+    }
+
+    public function staffUsers(): array
+    {
+        return $this->repo->staffUsers();
+    }
+
     public function listForCurrentUser(): array
     {
-        if (Auth::user()?->canPermission('reservation.approve')) {
+        $user = Auth::user();
+        if ($user && $user->hasRole('staff', 'admin') && $user->canPermission('reservation.approve')) {
             return $this->repo->all();
         }
 
@@ -49,7 +74,8 @@ class ReservationService
 
     public function pendingCountForCurrentUser(): int
     {
-        return Auth::user()?->canPermission('reservation.approve')
+        $user = Auth::user();
+        return $user && $user->hasRole('staff', 'admin') && $user->canPermission('reservation.approve')
             ? $this->repo->countPending()
             : $this->repo->countPendingForUser(Auth::id());
     }
@@ -59,6 +85,10 @@ class ReservationService
      */
     public function submitRequest(array $input): array
     {
+        if (! $this->canCreateReservations()) {
+            return ['success' => false, 'error' => 'Only employees may submit reservation requests.'];
+        }
+
         $facilityId = (int) ($input['facility_id'] ?? 0);
         $purpose = trim($input['purpose'] ?? '');
         $start = $input['start_datetime'] ?? '';
@@ -161,7 +191,7 @@ class ReservationService
      */
     public function scheduleMaintenanceBlock(array $input): array
     {
-        if (! Auth::user()?->canPermission('reservation.manage') && ! Auth::user()?->canPermission('reservation.approve')) {
+        if (! $this->canStaffManage()) {
             return ['success' => false, 'error' => 'You do not have permission to schedule maintenance.'];
         }
 
@@ -212,8 +242,8 @@ class ReservationService
      */
     public function decide(int $reservationId, string $decision): array
     {
-        if (! Auth::user()?->canPermission('reservation.approve')) {
-            return ['success' => false, 'error' => 'You do not have permission to approve reservations.'];
+        if (! $this->canStaffApprove()) {
+            return ['success' => false, 'error' => 'Only Staff may approve or decline reservations.'];
         }
 
         if (! in_array($decision, ['approved', 'rejected'], true)) {
@@ -284,6 +314,29 @@ class ReservationService
         ]);
 
         return ['success' => true, 'check_in_code' => $checkInCode];
+    }
+
+    public function assignInCharge(int $reservationId, int $staffUserId): array
+    {
+        if (! $this->canStaffApprove()) {
+            return ['success' => false, 'error' => 'Only Staff may assign the in-charge person.'];
+        }
+
+        if (! $this->repo->find($reservationId)) {
+            return ['success' => false, 'error' => 'Reservation not found.'];
+        }
+
+        $staffIds = array_map('intval', array_column($this->repo->staffUsers(), 'id'));
+        if (! in_array($staffUserId, $staffIds, true)) {
+            return ['success' => false, 'error' => 'Select an active Staff member as the in-charge person.'];
+        }
+
+        $this->repo->assignInCharge($reservationId, $staffUserId);
+        AuditLogger::log('reservations', 'assign_in_charge', 'reservation', $reservationId, null, [
+            'in_charge_user_id' => $staffUserId,
+        ]);
+
+        return ['success' => true];
     }
 
     /**
@@ -365,8 +418,10 @@ class ReservationService
             || Auth::user()?->canPermission('reservation.approve')
             || Auth::user()?->canPermission('reservation.checkin');
         $isOwner = (int) ($reservation['requested_by'] ?? 0) === (int) Auth::id();
+        $isEmployeeOwner = $isOwner && Auth::user()?->hasRole('employee') === true;
 
-        if (! $canManage && ! ($isOwner && $toStatus === 'checked_in')) {
+        $canManage = Auth::user()?->hasRole('staff') === true && $canManage;
+        if (! $canManage && ! ($isEmployeeOwner && $toStatus === 'checked_in')) {
             return ['success' => false, 'error' => 'You do not have permission for this action.'];
         }
 
@@ -451,6 +506,10 @@ class ReservationService
      */
     public function joinWaitlist(array $input): array
     {
+        if (! $this->canCreateReservations()) {
+            return ['success' => false, 'error' => 'Only employees may join the reservation waitlist.'];
+        }
+
         $facilityId = (int) ($input['facility_id'] ?? 0);
         $purpose = trim($input['purpose'] ?? '');
         $start = $input['preferred_start_datetime'] ?? '';
@@ -497,10 +556,19 @@ class ReservationService
      */
     public function offerWaitlistSlot(int $waitlistId, int $reservationId): array
     {
-        $waitlist = $this->repo->getWaitlistForUser(Auth::id());
+        if (! $this->canStaffManage()) {
+            return ['success' => false, 'error' => 'Only Staff may offer an available reservation slot.'];
+        }
+
+        $reservation = $this->repo->find($reservationId);
+        if (! $reservation) {
+            return ['success' => false, 'error' => 'Reservation not found.'];
+        }
+
+        $waitlist = $this->repo->getWaitlistForFacility((int) $reservation['facility_id']);
         $targetEntry = null;
         foreach ($waitlist as $entry) {
-            if ((int) $entry['id'] === $waitlistId) {
+            if ((int) $entry['id'] === $waitlistId && ($entry['status'] ?? '') === 'pending') {
                 $targetEntry = $entry;
                 break;
             }
@@ -535,6 +603,21 @@ class ReservationService
      */
     public function respondToWaitlistOffer(int $waitlistId, string $response): array
     {
+        if (Auth::user()?->hasRole('employee') !== true) {
+            return ['success' => false, 'error' => 'Only the requesting employee may respond to a waitlist offer.'];
+        }
+
+        $ownedEntry = false;
+        foreach ($this->repo->getWaitlistForUser(Auth::id()) as $entry) {
+            if ((int) $entry['id'] === $waitlistId) {
+                $ownedEntry = true;
+                break;
+            }
+        }
+        if (! $ownedEntry) {
+            return ['success' => false, 'error' => 'Waitlist entry not found.'];
+        }
+
         if (! in_array($response, ['accepted', 'declined'], true)) {
             return ['success' => false, 'error' => 'Invalid response.'];
         }
@@ -557,7 +640,7 @@ class ReservationService
      */
     public function updateCostInfo(int $reservationId, array $costData): array
     {
-        if (! Auth::user()?->canPermission('reservation.manage')) {
+        if (! $this->canStaffManage()) {
             return ['success' => false, 'error' => 'You do not have permission to update cost information.'];
         }
 
@@ -584,7 +667,7 @@ class ReservationService
      */
     public function markNoShow(int $reservationId): array
     {
-        if (! Auth::user()?->canPermission('reservation.manage')) {
+        if (! $this->canStaffManage()) {
             return ['success' => false, 'error' => 'You do not have permission to mark no-shows.'];
         }
 
@@ -626,9 +709,10 @@ class ReservationService
         }
 
         $isOwner = (int) ($reservation['requested_by'] ?? 0) === Auth::id();
-        $canManage = Auth::user()?->canPermission('reservation.manage');
+        $isEmployeeOwner = $isOwner && Auth::user()?->hasRole('employee') === true;
+        $canManage = $this->canStaffManage();
 
-        if (! $isOwner && ! $canManage) {
+        if (! $isEmployeeOwner && ! $canManage) {
             return ['success' => false, 'error' => 'You do not have permission to cancel this reservation.'];
         }
 
@@ -639,7 +723,7 @@ class ReservationService
         $this->repo->markCancelled($reservationId, Auth::id(), $reason);
 
         // Notify approvers if the owner cancels
-        if ($isOwner && ! $canManage) {
+        if ($isEmployeeOwner && ! $canManage) {
             $this->notifyApprovers(
                 'Reservation Cancelled',
                 "Reservation for \"{$reservation['purpose']}\" has been cancelled by the requester.",
@@ -668,7 +752,7 @@ class ReservationService
         }
 
         $isOwner = (int) ($reservation['requested_by'] ?? 0) === Auth::id();
-        if (! $isOwner) {
+        if (! $isOwner || Auth::user()?->hasRole('employee') !== true) {
             return ['success' => false, 'error' => 'You can only submit feedback for your own reservations.'];
         }
 

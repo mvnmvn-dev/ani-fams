@@ -48,7 +48,7 @@ $recentFeed = array_map(static fn($d) => [
     <?php
     render_page_header([
         'title' => 'Documents',
-        'subtitle' => 'Corporate document archive, version control, and access management.',
+        'subtitle' => 'Corporate document library, including completed and expired contracts retained in the archive.',
         'actions' => function () use ($canUpload, $canManage) {
             ?>
             <a href="<?= route('documents.export') ?>" download data-export-link class="btn-secondary mr-2 inline-flex items-center gap-1.5" style="text-decoration: none; display: inline-flex; align-items: center; padding: 0.5rem 1rem; border-radius: 0.75rem;">
@@ -399,6 +399,10 @@ $recentFeed = array_map(static fn($d) => [
                         'confidential' => 'Confidential',
                         'restricted' => 'Restricted',
                     ]],
+                    ['name' => 'status', 'label' => 'Archive status', 'allLabel' => 'All records', 'options' => [
+                        'active' => 'Active',
+                        'archived' => 'Archived',
+                    ]],
                 ]])
                 <div class="module-empty" data-filter-empty hidden>No documents match these filters.</div>
 
@@ -412,6 +416,7 @@ $recentFeed = array_map(static fn($d) => [
                                     <th>Category</th>
                                     <th>Owner</th>
                                     <th>Version</th>
+                                    <th>Status</th>
                                     <th>Confidentiality</th>
                                     <th class="text-right">Actions</th>
                                 </tr>
@@ -422,6 +427,7 @@ $recentFeed = array_map(static fn($d) => [
                                     <tr data-filter-item
                                         data-filter-category="<?= htmlspecialchars($doc['category_name'] ?: 'Uncategorized') ?>"
                                         data-filter-confidentiality="<?= htmlspecialchars($conf) ?>"
+                                        data-filter-status="<?= htmlspecialchars($doc['status'] ?? 'active') ?>"
                                         data-filter-search="<?= htmlspecialchars(strtolower($doc['title'] . ' ' . $doc['document_number'] . ' ' . $doc['owner_name'] . ' ' . ($doc['category_name'] ?? ''))) ?>">
                                         <td class="font-mono text-xs text-ink/60 whitespace-nowrap"><?= htmlspecialchars($doc['document_number']) ?></td>
                                         <td>
@@ -433,6 +439,10 @@ $recentFeed = array_map(static fn($d) => [
                                         <td class="text-ink/70"><?= htmlspecialchars($doc['owner_name']) ?></td>
                                         <td class="text-ink/60">v<?= htmlspecialchars((string) ($doc['version_no'] ?: '1')) ?></td>
                                         <td>
+                                            <span class="inline-block px-2 py-0.5 text-[11px] border rounded capitalize <?= ($doc['status'] ?? 'active') === 'archived' ? 'bg-gray-100 text-gray-700 border-gray-200' : 'bg-brand-50 text-brand-700 border-brand-200' ?>"><?= htmlspecialchars($doc['status'] ?? 'active') ?></span>
+                                            <?php if (!empty($doc['archive_reason'])): ?><p class="mt-1 max-w-40 text-[10px] text-ink/50"><?= htmlspecialchars($doc['archive_reason']) ?></p><?php endif; ?>
+                                        </td>
+                                        <td>
                                             <span class="inline-block px-2 py-0.5 text-[11px] border rounded capitalize <?= $confStyles[$conf] ?? 'bg-gray-50 border-gray-200' ?>">
                                                 <?= htmlspecialchars($conf) ?>
                                             </span>
@@ -441,6 +451,23 @@ $recentFeed = array_map(static fn($d) => [
                                             <a href="<?= url('/documents/' . $doc['id']) ?>" data-record-modal class="text-xs font-semibold text-brand-700 hover:text-brand-900 mr-2">View</a>
                                             <?php if (!empty($doc['file_path'])): ?>
                                                 <a href="<?= htmlspecialchars($doc['file_path']) ?>" download target="_blank" class="text-xs font-semibold text-ink/60 hover:text-ink">Download</a>
+                                            <?php endif; ?>
+                                            <?php if ($canManage && ($doc['status'] ?? '') === 'archived'): ?>
+                                                <form action="<?= url('/documents/' . $doc['id'] . '/restore-archive') ?>" method="POST" class="inline-block ml-2">
+                                                    @csrf
+                                                    <button type="submit" class="text-xs font-semibold text-brand-700 hover:text-brand-900">Restore</button>
+                                                </form>
+                                            <?php elseif ($canManage && ($doc['status'] ?? '') !== 'disposed'): ?>
+                                                <form action="<?= url('/documents/' . $doc['id'] . '/archive') ?>" method="POST" class="mt-2 flex items-center justify-end gap-1">
+                                                    @csrf
+                                                    <select name="archive_reason" aria-label="Archive reason" class="max-w-36 rounded border border-ink/15 px-1 py-1 text-[10px]">
+                                                        <option value="Archived">Other archive</option>
+                                                        <option value="Completed contract">Completed contract</option>
+                                                        <option value="Expired contract">Expired contract</option>
+                                                        <option value="Superseded">Superseded</option>
+                                                    </select>
+                                                    <button type="submit" class="text-xs font-semibold text-ink/65 hover:text-ink">Archive</button>
+                                                </form>
                                             <?php endif; ?>
                                         </td>
                                     </tr>

@@ -95,6 +95,24 @@ class DocumentRepository
         $stmt->execute(['id' => $id]);
     }
 
+    public function archive(int $id, string $reason): void
+    {
+        $stmt = $this->pdo()->prepare(
+            "UPDATE documents SET status = 'archived', archived_at = CURRENT_TIMESTAMP, archive_reason = :reason
+             WHERE id = :id AND deleted_at IS NULL AND status != 'disposed'"
+        );
+        $stmt->execute(['id' => $id, 'reason' => $reason]);
+    }
+
+    public function restoreArchived(int $id): void
+    {
+        $stmt = $this->pdo()->prepare(
+            "UPDATE documents SET status = 'active', archived_at = NULL, archive_reason = NULL
+             WHERE id = :id AND deleted_at IS NULL AND status = 'archived'"
+        );
+        $stmt->execute(['id' => $id]);
+    }
+
     public function findVersion(int $documentId, int $versionNo): ?array
     {
         $stmt = $this->pdo()->prepare(

@@ -14,11 +14,14 @@ trait CreatesTestUsers
     {
         $roleCode = $userOverrides['role_code'] ?? ('role_' . substr(md5(implode(',', $permissions) . microtime(true)), 0, 8));
 
-        $roleId = DB::table('roles')->insertGetId([
-            'code' => $roleCode,
-            'name' => $userOverrides['role_name'] ?? 'Test Role',
-            'description' => 'Test role',
-        ]);
+        $roleId = DB::table('roles')->where('code', $roleCode)->value('id');
+        if (! $roleId) {
+            $roleId = DB::table('roles')->insertGetId([
+                'code' => $roleCode,
+                'name' => $userOverrides['role_name'] ?? 'Test Role',
+                'description' => 'Test role',
+            ]);
+        }
 
         foreach ($permissions as $code) {
             $existing = DB::table('permissions')->where('code', $code)->value('id');

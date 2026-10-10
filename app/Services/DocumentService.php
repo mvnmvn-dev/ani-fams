@@ -151,6 +151,9 @@ class DocumentService
         if (! $doc) {
             return ['success' => false, 'error' => 'Document not found.'];
         }
+        if (($doc['status'] ?? '') === 'archived' || ($doc['status'] ?? '') === 'disposed') {
+            return ['success' => false, 'error' => 'Archived or disposed documents cannot receive new versions.'];
+        }
 
         $changeNotes = trim($input['change_notes'] ?? '');
 
@@ -401,6 +404,54 @@ class DocumentService
         }
         $this->repo->softDelete($documentId);
         AuditLogger::log('documents', 'soft_delete', 'document', $documentId);
+
+        return ['success' => true];
+    }
+
+    public function archiveDocument(int $documentId, string $reason): array
+    {
+        if (! Auth::user()?->canPermission('document.manage')) {
+            return ['success' => false, 'error' => 'You do not have permission to archive documents.'];
+        }
+
+        $doc = $this->repo->find($documentId);
+        if (! $doc) {
+            return ['success' => false, 'error' => 'Document not found.'];
+        }
+        if (($doc['status'] ?? '') === 'disposed') {
+            return ['success' => false, 'error' => 'Disposed documents cannot be archived.'];
+        }
+        if (($doc['status'] ?? '') === 'archived') {
+            return ['success' => false, 'error' => 'This document is already archived.'];
+        }
+
+        $reason = trim($reason);
+        if ($reason === '' || mb_strlen($reason) > 255) {
+            return ['success' => false, 'error' => 'Choose or enter a valid archive reason (maximum 255 characters).'];
+        }
+
+        $this->repo->archive($documentId, $reason);
+        AuditLogger::log('documents', 'archive', 'document', $documentId, ['status' => $doc['status'] ?? null], [
+            'status' => 'archived',
+            'archive_reason' => $reason,
+        ]);
+
+        return ['success' => true];
+    }
+
+    public function restoreArchivedDocument(int $documentId): array
+    {
+        if (! Auth::user()?->canPermission('document.manage')) {
+            return ['success' => false, 'error' => 'You do not have permission to restore archived documents.'];
+        }
+
+        $doc = $this->repo->find($documentId);
+        if (! $doc || ($doc['status'] ?? '') !== 'archived') {
+            return ['success' => false, 'error' => 'Archived document not found.'];
+        }
+
+        $this->repo->restoreArchived($documentId);
+        AuditLogger::log('documents', 'restore_archive', 'document', $documentId, ['status' => 'archived'], ['status' => 'active']);
 
         return ['success' => true];
     }

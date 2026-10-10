@@ -77,6 +77,7 @@ Route::middleware('auth')->group(function () {
     Route::middleware('permission:reservation.create')->post('/reservations', [ReservationController::class, 'store'])->name('reservations.store');
     Route::middleware('permission:reservation.approve')->post('/reservations/maintenance', [ReservationController::class, 'storeMaintenance'])->name('reservations.maintenance');
     Route::middleware('permission:reservation.approve')->post('/reservations/{id}/decide', [ReservationController::class, 'decide'])->name('reservations.decide');
+    Route::middleware('permission:reservation.approve')->post('/reservations/{id}/in-charge', [ReservationController::class, 'assignInCharge'])->name('reservations.in-charge');
     
     // Waitlist routes
     Route::middleware('permission:reservation.create')->post('/reservations/waitlist', [ReservationController::class, 'joinWaitlist'])->name('reservations.waitlist.join');
@@ -147,6 +148,8 @@ Route::middleware('auth')->group(function () {
     Route::middleware('permission:document.view')->get('/documents/{id}/download', [DocumentController::class, 'download'])->name('documents.download');
     Route::post('/documents/{id}/access', [DocumentController::class, 'updateAccess'])->middleware('auth')->name('documents.access');
     Route::middleware('permission:document.manage')->post('/documents/{id}/destroy', [DocumentController::class, 'destroy'])->name('documents.destroy');
+    Route::middleware('permission:document.manage')->post('/documents/{id}/archive', [DocumentController::class, 'archive'])->name('documents.archive');
+    Route::middleware('permission:document.manage')->post('/documents/{id}/restore-archive', [DocumentController::class, 'restoreArchive'])->name('documents.archive.restore');
     
     // Document review/expiration reminders
     Route::middleware('permission:document.manage')->get('/documents/review-needed', [DocumentController::class, 'documentsNeedingReview'])->name('documents.review.needed');
@@ -206,6 +209,7 @@ Route::middleware('auth')->group(function () {
     Route::middleware('permission:legal.view')->get('/legal/export/pdf', [LegalCaseController::class, 'exportPdf'])->name('legal.export.pdf');
     Route::middleware('permission:legal.view')->get('/legal', [LegalCaseController::class, 'index'])->name('legal.index');
     Route::middleware('permission:legal.manage')->post('/legal', [LegalCaseController::class, 'store'])->name('legal.store');
+    Route::middleware('permission:legal.manage')->post('/legal/employee-departures', [LegalCaseController::class, 'storeEmployeeDeparture'])->name('legal.employee-departures.store');
     Route::middleware('permission:legal.manage')->post('/legal/vendors', [LegalCaseController::class, 'storeVendor'])->name('legal.vendors.store');
     Route::middleware('permission:legal.view')->get('/legal/{id}', [LegalCaseController::class, 'show'])->name('legal.show');
     Route::middleware('permission:legal.manage')->post('/legal/{id}/parties', [LegalCaseController::class, 'addParty'])->name('legal.parties');

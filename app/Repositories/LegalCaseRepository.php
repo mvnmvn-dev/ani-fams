@@ -637,4 +637,48 @@ class LegalCaseRepository
 
         return $stmt->fetchAll();
     }
+
+    public function allEmployeeDepartures(): array
+    {
+        return $this->pdo()->query(
+            "SELECT d.*, doc.title AS source_document_title, doc.document_number AS source_document_number,
+                    u.full_name AS recorded_by_name
+             FROM legal_employee_departures d
+             JOIN documents doc ON doc.id = d.source_document_id
+             LEFT JOIN users u ON u.id = d.recorded_by
+             ORDER BY d.effective_date DESC, d.id DESC"
+        )->fetchAll();
+    }
+
+    public function sourceDocument(int $documentId): ?array
+    {
+        $stmt = $this->pdo()->prepare(
+            "SELECT d.id, d.status, d.deleted_at, dc.name AS category_name
+             FROM documents d LEFT JOIN document_categories dc ON dc.id = d.category_id
+             WHERE d.id = :id"
+        );
+        $stmt->execute(['id' => $documentId]);
+        $row = $stmt->fetch();
+
+        return $row ?: null;
+    }
+
+    public function createEmployeeDeparture(array $data): int
+    {
+        $stmt = $this->pdo()->prepare(
+            'INSERT INTO legal_employee_departures
+                (employee_name, departure_type, effective_date, source_document_id, notes, recorded_by)
+             VALUES (:employee_name, :departure_type, :effective_date, :source_document_id, :notes, :recorded_by)'
+        );
+        $stmt->execute([
+            'employee_name' => $data['employee_name'],
+            'departure_type' => $data['departure_type'],
+            'effective_date' => $data['effective_date'],
+            'source_document_id' => $data['source_document_id'],
+            'notes' => $data['notes'] ?? null,
+            'recorded_by' => $data['recorded_by'] ?? null,
+        ]);
+
+        return $this->insertId('legal_employee_departures');
+    }
 }

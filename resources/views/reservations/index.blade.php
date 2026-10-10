@@ -51,7 +51,7 @@ $upcomingApproved = array_slice($upcomingApproved, 0, 5);
         'subtitle' => $canApprove
             ? 'Book and approve ANI HQ, blending plant, warehouse, and field assets.'
             : 'Request meeting rooms, plant bays, warehouse staging, or field vehicles.',
-        'actions' => function () {
+        'actions' => function () use ($canCreate, $canManage) {
             ?>
             <a href="<?= route('reservations.export') ?>" download data-export-link class="btn-secondary mr-2 inline-flex items-center gap-1.5" style="text-decoration: none; display: inline-flex; align-items: center; padding: 0.5rem 1rem; border-radius: 0.75rem;">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -63,7 +63,7 @@ $upcomingApproved = array_slice($upcomingApproved, 0, 5);
                 Export PDF
             </a>
             <?php
-            if (can_perm('reservation.create')) {
+            if ($canCreate) {
                 ?>
                 <button onclick="openModal('reservationModal')" class="btn-primary">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -280,6 +280,46 @@ $upcomingApproved = array_slice($upcomingApproved, 0, 5);
                                                 <input type="hidden" name="decision" value="rejected">
                                                 <button type="submit" class="text-xs font-bold text-accent-700 hover:text-accent-600">Reject</button>
                                             </form>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+        <?php endif; ?>
+
+        <?php if (!empty($reservations)): ?>
+            <section data-filter-section>
+                <p class="module-section-label">Reservation records · <?= count($reservations) ?></p>
+                <div class="module-table-wrap">
+                    <div class="overflow-x-auto">
+                        <table class="module-table">
+                            <thead><tr><th>Facility</th><th>When</th><th>Requested by</th><th>Status</th><th>In charge</th></tr></thead>
+                            <tbody>
+                                <?php foreach ($reservations as $r): ?>
+                                    <tr data-filter-item data-filter-status="<?= htmlspecialchars($r['status'] ?? '') ?>"
+                                        data-filter-facility="<?= htmlspecialchars($r['facility_name'] ?? '') ?>"
+                                        data-filter-search="<?= htmlspecialchars(strtolower(($r['facility_name'] ?? '') . ' ' . ($r['purpose'] ?? '') . ' ' . ($r['requester_name'] ?? '') . ' ' . ($r['in_charge_name'] ?? ''))) ?>">
+                                        <td class="font-semibold"><?= htmlspecialchars($r['facility_name'] ?? '') ?><p class="text-xs font-normal text-ink/55"><?= htmlspecialchars($r['purpose'] ?? '') ?></p></td>
+                                        <td class="text-ink/65 whitespace-nowrap"><?= !empty($r['start_datetime']) ? date('M j, g:ia', strtotime($r['start_datetime'])) : '' ?></td>
+                                        <td class="text-ink/70"><?= htmlspecialchars($r['requester_name'] ?? '') ?></td>
+                                        <td class="capitalize text-ink/70"><?= htmlspecialchars(str_replace('_', ' ', $r['status'] ?? '')) ?></td>
+                                        <td>
+                                            <span class="text-sm text-ink/70"><?= htmlspecialchars($r['in_charge_name'] ?? 'Unassigned') ?></span>
+                                            <?php if ($canApprove && !empty($staffUsers)): ?>
+                                                <form action="<?= url('/reservations/' . $r['id'] . '/in-charge') ?>" method="POST" class="mt-2 flex gap-2" data-ajax-action="reservation.assign_in_charge">
+                                                    @csrf
+                                                    <select name="in_charge_user_id" required class="min-w-0 rounded-lg border border-ink/15 px-2 py-1 text-xs">
+                                                        <option value="">Assign Staff…</option>
+                                                        <?php foreach ($staffUsers as $staffUser): ?>
+                                                            <option value="<?= (int) $staffUser['id'] ?>" <?= (int) ($r['in_charge_user_id'] ?? 0) === (int) $staffUser['id'] ? 'selected' : '' ?>><?= htmlspecialchars($staffUser['full_name']) ?></option>
+                                                        <?php endforeach; ?>
+                                                    </select>
+                                                    <button type="submit" class="text-xs font-semibold text-brand-700 hover:text-brand-900">Assign</button>
+                                                </form>
+                                            <?php endif; ?>
                                         </td>
                                     </tr>
                                 <?php endforeach; ?>
@@ -562,7 +602,7 @@ $upcomingApproved = array_slice($upcomingApproved, 0, 5);
 </div>
 
 <!-- Reservation Form Modal (Outside of transform container) -->
-<?php if (can_perm('reservation.create')): ?>
+<?php if ($canCreate): ?>
 <div id="reservationModal" class="modal-overlay hidden">
     <div class="reservation-modal-panel bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[calc(100vh-2rem)] overflow-y-auto border border-ink/10 animate-fade-in-up" onclick="event.stopPropagation()">
         <div class="px-8 py-5 border-b border-ink/10 flex justify-between items-center bg-gray-50/50">

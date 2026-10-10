@@ -18,8 +18,9 @@ class ReservationController extends Controller
 
     public function index(ReservationService $service)
     {
-        $canApprove = Auth::user()->canPermission('reservation.approve');
-        $canManage = Auth::user()->canPermission('reservation.manage') || $canApprove;
+        $canCreate = $service->canCreateReservations();
+        $canApprove = $service->canStaffApprove();
+        $canManage = $service->canStaffManage();
 
         return view('reservations.index', [
             'pageTitle' => 'Facilities Reservation',
@@ -27,10 +28,12 @@ class ReservationController extends Controller
             'facilities' => $service->facilities(),
             'manageFacilities' => $canManage ? $service->facilitiesForManage() : [],
             'equipment' => $service->listEquipment(),
+            'staffUsers' => $service->staffUsers(),
             'utilization' => $service->utilizationStats(),
             'analytics' => $service->lifecycleAnalytics(),
             'canApprove' => $canApprove,
             'canManage' => $canManage,
+            'canCreate' => $canCreate,
         ]);
     }
 
@@ -94,6 +97,19 @@ class ReservationController extends Controller
                 'status' => $decision,
                 'check_in_code' => $result['check_in_code'] ?? null,
             ]
+        );
+    }
+
+    public function assignInCharge(Request $request, string $id, ReservationService $service)
+    {
+        $result = $service->assignInCharge((int) $id, (int) $request->input('in_charge_user_id', 0));
+
+        return $this->flashOrJson(
+            $request,
+            redirect()->route('reservations.index'),
+            (bool) ($result['success'] ?? false),
+            $result['success'] ? 'In-charge Staff member assigned.' : ($result['error'] ?? 'Unable to assign Staff.'),
+            ['action' => 'reservation.assign_in_charge', 'id' => (int) $id]
         );
     }
 

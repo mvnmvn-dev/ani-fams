@@ -22,10 +22,19 @@ class LegalCaseController extends Controller
     {
         $counsels = DB::table('employees')->select('id', 'full_name', 'position')->orderBy('full_name')->get()->map(fn ($r) => (array) $r)->all();
         $cases = $service->listCases();
+        $departureDocuments = DB::table('documents as d')
+            ->join('document_categories as dc', 'dc.id', '=', 'd.category_id')
+            ->whereIn(DB::raw('LOWER(dc.name)'), ['legal records', 'hr documents', 'contracts'])
+            ->whereIn('d.status', ['active', 'archived'])
+            ->whereNull('d.deleted_at')
+            ->select('d.id', 'd.title', 'd.document_number', 'dc.name as category_name')
+            ->orderBy('d.title')->get()->map(fn ($r) => (array) $r)->all();
 
         return view('legal.index', [
             'pageTitle' => 'Legal Management',
             'cases' => $cases,
+            'employeeDepartures' => $service->employeeDepartures(),
+            'departureDocuments' => $departureDocuments,
             'aiInsights' => $arnel->cachedLegalCaseInsights($cases),
             'counsels' => $counsels,
             'vendors' => $service->allVendors(),
@@ -41,6 +50,16 @@ class LegalCaseController extends Controller
         return redirect()->route('legal.index')->with(
             $result['success'] ? 'flash_success' : 'flash_error',
             $result['success'] ? 'Legal case created successfully.' : $result['error']
+        );
+    }
+
+    public function storeEmployeeDeparture(Request $request, LegalCaseService $service)
+    {
+        $result = $service->recordEmployeeDeparture($request->all());
+
+        return redirect()->route('legal.index')->with(
+            $result['success'] ? 'flash_success' : 'flash_error',
+            $result['success'] ? 'Employee departure record added with its source document.' : ($result['error'] ?? 'Unable to save departure record.')
         );
     }
 

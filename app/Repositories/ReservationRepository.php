@@ -25,6 +25,15 @@ class ReservationRepository
         )->fetchAll();
     }
 
+    public function staffUsers(): array
+    {
+        return $this->pdo()->query(
+            "SELECT u.id, u.full_name FROM users u JOIN roles r ON r.id = u.role_id
+             WHERE r.code = 'staff' AND u.status = 'active' AND u.deleted_at IS NULL
+             ORDER BY u.full_name"
+        )->fetchAll();
+    }
+
     public function setFacilityStatus(int $id, string $status): void
     {
         $stmt = $this->pdo()->prepare('UPDATE facilities SET status = :status WHERE id = :id');
@@ -34,10 +43,11 @@ class ReservationRepository
     public function all(): array
     {
         [$deptSql, $deptBindings] = DepartmentFilter::sqlOnUserAlias('u');
-        $sql = "SELECT r.*, f.name AS facility_name, u.full_name AS requester_name
+        $sql = "SELECT r.*, f.name AS facility_name, u.full_name AS requester_name, cu.full_name AS in_charge_name
                 FROM reservations r
                 JOIN facilities f ON f.id = r.facility_id
                 JOIN users u ON u.id = r.requested_by
+                LEFT JOIN users cu ON cu.id = r.in_charge_user_id
                 WHERE r.deleted_at IS NULL
                   AND u.deleted_at IS NULL
                   {$deptSql}
@@ -54,10 +64,11 @@ class ReservationRepository
     public function allForUser(int $userId): array
     {
         $stmt = $this->pdo()->prepare(
-            "SELECT r.*, f.name AS facility_name, u.full_name AS requester_name
+            "SELECT r.*, f.name AS facility_name, u.full_name AS requester_name, cu.full_name AS in_charge_name
              FROM reservations r
              JOIN facilities f ON f.id = r.facility_id
              JOIN users u ON u.id = r.requested_by
+             LEFT JOIN users cu ON cu.id = r.in_charge_user_id
              WHERE r.requested_by = :uid
                AND r.deleted_at IS NULL
              ORDER BY r.start_datetime DESC"
@@ -100,10 +111,10 @@ class ReservationRepository
         $stmt = $this->pdo()->prepare(
             "INSERT INTO reservations (
                 facility_id, requested_by, purpose, start_datetime, end_datetime, status,
-                series_id, recurrence_rule, recurrence_until, is_maintenance, approved_by, approved_at, attendee_count
+                series_id, recurrence_rule, recurrence_until, is_maintenance, approved_by, approved_at, in_charge_user_id, attendee_count
              ) VALUES (
                 :facility_id, :requested_by, :purpose, :start, :end, :status,
-                :series_id, :recurrence_rule, :recurrence_until, :is_maintenance, :approved_by, :approved_at, :attendee_count
+                :series_id, :recurrence_rule, :recurrence_until, :is_maintenance, :approved_by, :approved_at, :in_charge_user_id, :attendee_count
              )"
         );
         $status = $data['status'] ?? 'pending';
@@ -120,6 +131,7 @@ class ReservationRepository
             'is_maintenance' => ! empty($data['is_maintenance']),
             'approved_by' => $data['approved_by'] ?? null,
             'approved_at' => $data['approved_at'] ?? null,
+            'in_charge_user_id' => $data['in_charge_user_id'] ?? null,
             'attendee_count' => $data['attendee_count'] ?? null,
         ]));
 
@@ -132,6 +144,14 @@ class ReservationRepository
             'UPDATE reservations SET status = :status, approved_by = :approver, approved_at = CURRENT_TIMESTAMP WHERE id = :id'
         );
         $stmt->execute(['status' => $status, 'approver' => $approverId, 'id' => $id]);
+    }
+
+    public function assignInCharge(int $reservationId, int $userId): void
+    {
+        $stmt = $this->pdo()->prepare(
+            'UPDATE reservations SET in_charge_user_id = :user_id WHERE id = :id AND deleted_at IS NULL'
+        );
+        $stmt->execute(['user_id' => $userId, 'id' => $reservationId]);
     }
 
     public function markReminderSent(int $id): void

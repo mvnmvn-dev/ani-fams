@@ -269,9 +269,11 @@ CREATE TABLE IF NOT EXISTS reservations (
     status ENUM('pending','approved','rejected','cancelled') DEFAULT 'pending',
     approved_by INT UNSIGNED NULL,
     approved_at DATETIME NULL,
+    in_charge_user_id INT UNSIGNED NULL,
     series_id VARCHAR(36) NULL,
     recurrence_rule ENUM('none','daily','weekly','monthly') DEFAULT 'none',
     recurrence_until DATE NULL,
+    attendee_count INT UNSIGNED NULL,
     is_maintenance TINYINT(1) DEFAULT 0,
     reminder_sent_at DATETIME NULL,
     -- Cost / chargeback
@@ -298,6 +300,7 @@ CREATE TABLE IF NOT EXISTS reservations (
     FOREIGN KEY (facility_id) REFERENCES facilities(id) ON DELETE CASCADE,
     FOREIGN KEY (requested_by) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (approved_by) REFERENCES users(id) ON DELETE SET NULL,
+    FOREIGN KEY (in_charge_user_id) REFERENCES users(id) ON DELETE SET NULL,
     FOREIGN KEY (chargeback_department_id) REFERENCES departments(id) ON DELETE SET NULL,
     FOREIGN KEY (no_show_reported_by) REFERENCES users(id) ON DELETE SET NULL,
     FOREIGN KEY (cancelled_by) REFERENCES users(id) ON DELETE SET NULL,
@@ -484,6 +487,8 @@ CREATE TABLE IF NOT EXISTS documents (
     owner_id INT UNSIGNED NOT NULL,
     confidentiality ENUM('public','internal','confidential','restricted') DEFAULT 'internal',
     status ENUM('draft','active','archived','disposed') DEFAULT 'active',
+    archived_at DATETIME NULL,
+    archive_reason VARCHAR(255) NULL,
     review_by_date DATE NULL,
     review_reminder_sent_at DATETIME NULL,
     last_reviewed_at DATETIME NULL,
@@ -635,6 +640,21 @@ CREATE TABLE IF NOT EXISTS legal_cases (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     deleted_at DATETIME NULL,
     FOREIGN KEY (assigned_counsel_id) REFERENCES employees(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS legal_employee_departures (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    employee_name VARCHAR(150) NOT NULL,
+    departure_type ENUM('resigned','terminated') NOT NULL,
+    effective_date DATE NOT NULL,
+    source_document_id BIGINT UNSIGNED NOT NULL,
+    notes TEXT NULL,
+    recorded_by INT UNSIGNED NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (source_document_id) REFERENCES documents(id) ON DELETE RESTRICT,
+    FOREIGN KEY (recorded_by) REFERENCES users(id) ON DELETE SET NULL,
+    INDEX idx_legal_departure_date (effective_date),
+    INDEX idx_legal_departure_name (employee_name)
 );
 
 CREATE TABLE IF NOT EXISTS legal_holds (

@@ -184,6 +184,26 @@ class DocumentController extends Controller
         );
     }
 
+    public function archive(Request $request, string $id, DocumentService $service)
+    {
+        $result = $service->archiveDocument((int) $id, (string) $request->input('archive_reason', 'Archived'));
+
+        return redirect()->route('documents.index')->with(
+            $result['success'] ? 'flash_success' : 'flash_error',
+            $result['success'] ? 'Document archived.' : ($result['error'] ?? 'Unable to archive document.')
+        );
+    }
+
+    public function restoreArchive(string $id, DocumentService $service)
+    {
+        $result = $service->restoreArchivedDocument((int) $id);
+
+        return redirect()->route('documents.index')->with(
+            $result['success'] ? 'flash_success' : 'flash_error',
+            $result['success'] ? 'Document restored to the active archive.' : ($result['error'] ?? 'Unable to restore document.')
+        );
+    }
+
     public function exportCsv(DocumentService $service)
     {
         $documents = $service->listDocuments();

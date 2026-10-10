@@ -12,7 +12,7 @@ class AdvancedFeaturesTest extends TestCase
 
     public function test_recurring_reservation_creates_series(): void
     {
-        $user = $this->createUserWithPermissions(['reservation.view', 'reservation.create']);
+        $user = $this->createUserWithPermissions(['reservation.view', 'reservation.create'], ['role_code' => 'employee']);
         $facilityId = DB::table('facilities')->insertGetId([
             'name' => 'Recurring Room',
             'type' => 'room',
@@ -71,7 +71,7 @@ class AdvancedFeaturesTest extends TestCase
 
     public function test_maintenance_block_can_be_scheduled(): void
     {
-        $user = $this->createUserWithPermissions(['reservation.view', 'reservation.approve']);
+        $user = $this->createUserWithPermissions(['reservation.view', 'reservation.approve'], ['role_code' => 'staff']);
         $facilityId = DB::table('facilities')->insertGetId([
             'name' => 'Maint Hall',
             'type' => 'venue',

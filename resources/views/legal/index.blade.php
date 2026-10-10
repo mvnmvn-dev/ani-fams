@@ -115,6 +115,45 @@ $onHoldCases = array_slice($onHoldCases, 0, 5);
         ['label' => 'Total docket', 'value' => count($cases), 'hint' => 'All registered cases', 'tone' => 'slate', 'icon' => 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z'],
     ]])
 
+    <section class="module-insight-panel space-y-4">
+        <div>
+            <h2 class="module-insight-title">Employee departure legal records</h2>
+            <p class="module-insight-sub">Record resignation or termination history only from a linked Legal Records, HR Documents, or Contracts source.</p>
+        </div>
+        <?php if ($canManage): ?>
+            <form action="<?= url('/legal/employee-departures') ?>" method="POST" class="grid gap-3 md:grid-cols-2 xl:grid-cols-5 items-end">
+                @csrf
+                <div class="space-y-1"><label class="block text-xs font-semibold text-ink/65">Employee name</label><input name="employee_name" maxlength="150" required class="w-full rounded-lg border border-ink/15 px-3 py-2 text-sm"></div>
+                <div class="space-y-1"><label class="block text-xs font-semibold text-ink/65">Departure type</label><select name="departure_type" required class="w-full rounded-lg border border-ink/15 px-3 py-2 text-sm"><option value="">Select…</option><option value="resigned">Resigned</option><option value="terminated">Terminated</option></select></div>
+                <div class="space-y-1"><label class="block text-xs font-semibold text-ink/65">Effective date</label><input type="date" name="effective_date" required class="w-full rounded-lg border border-ink/15 px-3 py-2 text-sm"></div>
+                <div class="space-y-1"><label class="block text-xs font-semibold text-ink/65">Source document</label><select name="source_document_id" required class="w-full rounded-lg border border-ink/15 px-3 py-2 text-sm"><option value="">Select documentary evidence…</option><?php foreach (($departureDocuments ?? []) as $sourceDoc): ?><option value="<?= (int) $sourceDoc['id'] ?>"><?= htmlspecialchars(($sourceDoc['document_number'] ?? '') . ' · ' . $sourceDoc['title'] . ' (' . $sourceDoc['category_name'] . ')') ?></option><?php endforeach; ?></select></div>
+                <div class="space-y-1"><label class="block text-xs font-semibold text-ink/65">Notes (optional)</label><input name="notes" maxlength="2000" class="w-full rounded-lg border border-ink/15 px-3 py-2 text-sm" placeholder="Factual note from the source record"></div>
+                <div class="md:col-span-2 xl:col-span-5 flex items-center justify-between gap-3">
+                    <?php if (empty($departureDocuments)): ?><p class="text-xs text-ink/50">Upload or classify source documents under Legal Records, HR Documents, or Contracts before registering a departure.</p><?php endif; ?>
+                    <button type="submit" <?= empty($departureDocuments) ? 'disabled' : '' ?> class="btn-primary disabled:opacity-50">Add sourced record</button>
+                </div>
+            </form>
+        <?php endif; ?>
+        <?php $employeeDepartures = $employeeDepartures ?? []; ?>
+        <?php if (empty($employeeDepartures)): ?>
+            <p class="text-sm text-ink/50">No departure records have been entered.</p>
+        <?php else: ?>
+            <div class="module-table-wrap overflow-x-auto">
+                <table class="module-table"><thead><tr><th>Employee</th><th>Departure</th><th>Effective date</th><th>Source document</th><th>Recorded by</th></tr></thead><tbody>
+                    <?php foreach ($employeeDepartures as $departure): ?>
+                        <tr>
+                            <td class="font-semibold"><?= htmlspecialchars($departure['employee_name']) ?></td>
+                            <td class="capitalize"><?= htmlspecialchars($departure['departure_type']) ?></td>
+                            <td class="whitespace-nowrap"><?= htmlspecialchars($departure['effective_date']) ?></td>
+                            <td><a href="<?= url('/documents/' . $departure['source_document_id']) ?>" data-record-modal class="text-brand-700 hover:text-brand-900"><?= htmlspecialchars(($departure['source_document_number'] ?? '') . ' · ' . $departure['source_document_title']) ?></a></td>
+                            <td class="text-ink/65"><?= htmlspecialchars($departure['recorded_by_name'] ?? '—') ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody></table>
+            </div>
+        <?php endif; ?>
+    </section>
+
     <div class="module-info-grid">
         @include('partials.module_feed_list', [
             'title' => 'High-risk matters',

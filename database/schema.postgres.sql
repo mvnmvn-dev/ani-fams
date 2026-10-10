@@ -242,9 +242,11 @@ CREATE TABLE IF NOT EXISTS reservations (
     status TEXT DEFAULT 'pending',
     approved_by INTEGER NULL,
     approved_at TIMESTAMP NULL,
+    in_charge_user_id INTEGER NULL,
     series_id VARCHAR(36) NULL,
     recurrence_rule TEXT DEFAULT 'none',
     recurrence_until DATE NULL,
+    attendee_count INTEGER NULL,
     is_maintenance BOOLEAN DEFAULT FALSE,
     reminder_sent_at TIMESTAMP NULL,
     -- Cost / chargeback
@@ -263,11 +265,15 @@ CREATE TABLE IF NOT EXISTS reservations (
     feedback_rating INTEGER NULL,
     feedback_comment TEXT NULL,
     feedback_submitted_at TIMESTAMP NULL,
+    ai_suggestion VARCHAR(500) NULL,
+    conflict_status VARCHAR(50) NULL,
+    ai_notes TEXT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     deleted_at TIMESTAMP NULL,
     FOREIGN KEY (facility_id) REFERENCES facilities(id) ON DELETE CASCADE,
     FOREIGN KEY (requested_by) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (approved_by) REFERENCES users(id) ON DELETE SET NULL,
+    FOREIGN KEY (in_charge_user_id) REFERENCES users(id) ON DELETE SET NULL,
     FOREIGN KEY (chargeback_department_id) REFERENCES departments(id) ON DELETE SET NULL,
     FOREIGN KEY (no_show_reported_by) REFERENCES users(id) ON DELETE SET NULL,
     FOREIGN KEY (cancelled_by) REFERENCES users(id) ON DELETE SET NULL
@@ -444,6 +450,8 @@ CREATE TABLE IF NOT EXISTS documents (
     owner_id INTEGER NOT NULL,
     confidentiality TEXT DEFAULT 'internal',
     status TEXT DEFAULT 'active',
+    archived_at TIMESTAMP NULL,
+    archive_reason VARCHAR(255) NULL,
     review_by_date DATE NULL,
     review_reminder_sent_at TIMESTAMP NULL,
     last_reviewed_at TIMESTAMP NULL,
@@ -563,6 +571,8 @@ CREATE TABLE IF NOT EXISTS retention_assignments (
     retention_start_date DATE NOT NULL,
     calculated_disposal_date DATE NOT NULL,
     status TEXT DEFAULT 'active',
+    ai_category VARCHAR(150) NULL,
+    archive_status VARCHAR(50) NULL,
     FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE,
     FOREIGN KEY (policy_id) REFERENCES retention_policies(id) ON DELETE CASCADE
 );
@@ -584,9 +594,24 @@ CREATE TABLE IF NOT EXISTS legal_cases (
     deadline_escalation_level TEXT DEFAULT 'none',
     deadline_last_notified_at TIMESTAMP NULL,
     description TEXT NULL,
+    ai_summary TEXT NULL,
+    next_deadline DATE NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     deleted_at TIMESTAMP NULL,
     FOREIGN KEY (assigned_counsel_id) REFERENCES employees(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS legal_employee_departures (
+    id BIGSERIAL PRIMARY KEY,
+    employee_name VARCHAR(150) NOT NULL,
+    departure_type TEXT NOT NULL,
+    effective_date DATE NOT NULL,
+    source_document_id BIGINT NOT NULL,
+    notes TEXT NULL,
+    recorded_by INTEGER NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (source_document_id) REFERENCES documents(id) ON DELETE RESTRICT,
+    FOREIGN KEY (recorded_by) REFERENCES users(id) ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS legal_holds (
@@ -848,6 +873,8 @@ CREATE TABLE IF NOT EXISTS contracts (
     renewal_notice_days INTEGER DEFAULT 30,
     status TEXT DEFAULT 'draft',
     related_case_id INTEGER NULL,
+    ai_summary TEXT NULL,
+    expiration_alert VARCHAR(50) NULL,
     signature_token VARCHAR(64) NULL,
     signed_at TIMESTAMP NULL,
     signed_by_name VARCHAR(150) NULL,

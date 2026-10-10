@@ -3,8 +3,9 @@
 namespace App\Services;
 
 use App\Repositories\LegalCaseRepository;
-
 use App\Support\AuditLogger;
+use Illuminate\Support\Facades\Auth;
+
 class LegalCaseService
 {
     public function __construct(private LegalCaseRepository $repo) {}
@@ -12,6 +13,59 @@ class LegalCaseService
     public function listCases(): array
     {
         return $this->repo->all();
+    }
+
+    public function employeeDepartures(): array
+    {
+        return $this->repo->allEmployeeDepartures();
+    }
+
+    public function recordEmployeeDeparture(array $input): array
+    {
+        if (! Auth::user()?->canPermission('legal.manage')) {
+            return ['success' => false, 'error' => 'You do not have permission to record employee departures.'];
+        }
+
+        $name = trim((string) ($input['employee_name'] ?? ''));
+        $type = (string) ($input['departure_type'] ?? '');
+        $date = trim((string) ($input['effective_date'] ?? ''));
+        $documentId = (int) ($input['source_document_id'] ?? 0);
+        $notes = trim((string) ($input['notes'] ?? ''));
+
+        if ($name === '' || mb_strlen($name) > 150 || ! in_array($type, ['resigned', 'terminated'], true)) {
+            return ['success' => false, 'error' => 'Provide an employee name and choose Resigned or Terminated.'];
+        }
+        $parsedDate = \DateTimeImmutable::createFromFormat('!Y-m-d', $date);
+        if (! $parsedDate || $parsedDate->format('Y-m-d') !== $date) {
+            return ['success' => false, 'error' => 'Enter a valid effective date.'];
+        }
+        if ($documentId < 1 || $notes !== '' && mb_strlen($notes) > 2000) {
+            return ['success' => false, 'error' => 'Select a source document and keep notes under 2,000 characters.'];
+        }
+
+        $source = $this->repo->sourceDocument($documentId);
+        $allowedCategories = ['legal records', 'hr documents', 'contracts'];
+        if (! $source || ! empty($source['deleted_at']) || ! in_array($source['status'], ['active', 'archived'], true)
+            || ! in_array(mb_strtolower(trim((string) ($source['category_name'] ?? ''))), $allowedCategories, true)) {
+            return ['success' => false, 'error' => 'Choose an active or archived Legal Records, HR Documents, or Contracts document as evidence.'];
+        }
+
+        $id = $this->repo->createEmployeeDeparture([
+            'employee_name' => $name,
+            'departure_type' => $type,
+            'effective_date' => $date,
+            'source_document_id' => $documentId,
+            'notes' => $notes !== '' ? $notes : null,
+            'recorded_by' => Auth::id(),
+        ]);
+        AuditLogger::log('legal', 'employee_departure_recorded', 'legal_employee_departure', $id, null, [
+            'employee_name' => $name,
+            'departure_type' => $type,
+            'effective_date' => $date,
+            'source_document_id' => $documentId,
+        ]);
+
+        return ['success' => true, 'id' => $id];
     }
 
     public function caseDetails(int $id): ?array

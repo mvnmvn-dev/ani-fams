@@ -24,6 +24,7 @@ echo Applying reservation / visitor / document enhancements...
 "%MYSQL%" -u root %DB% --force < "%~dp0add_visitor_enhancements.sql"
 "%MYSQL%" -u root %DB% --force < "%~dp0add_document_enhancements.sql"
 "%MYSQL%" -u root %DB% --force < "%~dp0add_retention_enhancements.sql"
+"%MYSQL%" -u root %DB% --force < "%~dp0add_revision_2026_10_updates.sql"
 
 echo Applying ANI facilities content refresh...
 "%MYSQL%" -u root %DB% --force < "%~dp0ani_facilities_content.sql"

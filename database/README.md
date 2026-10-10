@@ -64,3 +64,13 @@ Restart Apache after editing `php.ini`.
 ## Legacy MySQL patches
 
 Files under `database/patches/` are **MySQL-only** upgrade scripts. For PostgreSQL, always do a clean reimport of `schema.postgres.sql` instead of running patches.
+
+## Existing PostgreSQL database — revision 2026-10
+
+For this revision only, an additive PostgreSQL upgrade is provided so existing data does not need to be dropped. Run it once before deploying the application changes:
+
+```bash
+psql -U <user> -d facilities_admin_db -f database/patches/add_revision_2026_10_updates.postgres.sql
+```
+
+The revision-specific PostgreSQL script is safe to re-run; the other files under `database/patches/` remain MySQL-only.
