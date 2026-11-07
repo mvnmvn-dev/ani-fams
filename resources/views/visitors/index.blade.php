@@ -236,6 +236,7 @@ $__visitorWidgetCards = [
                                 <th>Visitor</th>
                                 <th>Host</th>
                                 <th>Purpose</th>
+                                <th>Destination</th>
                                 <th>Scheduled</th>
                                 <th>Check-in / out</th>
                                 <th>Status</th>
@@ -256,10 +257,11 @@ $__visitorWidgetCards = [
                                             <?= htmlspecialchars($visit['visitor_name']) ?>
                                             <span data-watch-badge class="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-accent-100 text-accent-700 uppercase tracking-wide border border-accent-200" <?= $visit['is_watchlisted'] ? '' : 'hidden' ?>>Watch</span>
                                         </div>
-                                        <div class="text-[11px] text-ink/45 mt-0.5"><?= htmlspecialchars($visit['visitor_company'] ?: 'Individual') ?></div>
+                                        <div class="text-[11px] text-ink/45 mt-0.5"><?= htmlspecialchars($visit['visitor_company'] ?: 'Individual') ?><?= !empty($visit['visitor_id_number']) ? ' · ID: '.htmlspecialchars($visit['visitor_id_number']) : '' ?></div>
                                     </td>
                                     <td class="font-medium text-ink/75"><?= htmlspecialchars($visit['host_name']) ?></td>
                                     <td class="text-ink/70 max-w-[14rem] truncate"><?= htmlspecialchars($visit['purpose'] ?: '—') ?></td>
+                                    <td class="text-ink/60 text-xs"><?= htmlspecialchars(trim(($visit['building_name'] ?? '') . (($visit['building_name'] ?? '') && ($visit['floor_designation'] ?? '') ? ' · ' : '') . ($visit['floor_designation'] ?? '') ?: '—') ) ?></td>
                                     <td class="text-ink/60 whitespace-nowrap text-xs">
                                         <?= date('M d, Y', strtotime($visit['scheduled_at'])) ?>
                                         <div class="text-[10px] text-ink/40"><?= date('g:i A', strtotime($visit['scheduled_at'])) ?></div>
@@ -398,6 +400,17 @@ $__visitorWidgetCards = [
                 <div class="space-y-1.5">
                     <label class="block text-xs font-semibold text-ink/75">Purpose of Visit</label>
                     <input type="text" name="purpose" placeholder="e.g. Service Audit, Vendor negotiation" required class="w-full border border-ink/15 rounded-xl p-3 text-sm bg-sand/10 focus:border-brand-500 outline-none">
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="space-y-1.5">
+                        <label class="block text-xs font-semibold text-ink/75">Destination Building</label>
+                        <input type="text" name="building_name" placeholder="e.g. Marikina City Headquarters" required class="w-full border border-ink/15 rounded-xl p-3 text-sm bg-sand/10 focus:border-brand-500 outline-none">
+                    </div>
+                    <div class="space-y-1.5">
+                        <label class="block text-xs font-semibold text-ink/75">Destination Floor</label>
+                        <input type="text" name="floor_designation" placeholder="e.g. 2nd Floor / Ground Floor" required class="w-full border border-ink/15 rounded-xl p-3 text-sm bg-sand/10 focus:border-brand-500 outline-none">
+                    </div>
                 </div>
 
                 <div class="space-y-1.5">

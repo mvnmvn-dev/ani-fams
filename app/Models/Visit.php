@@ -17,6 +17,8 @@ class Visit extends Model
         'visitor_id',
         'host_employee_id',
         'purpose',
+        'building_name',
+        'floor_designation',
         'scheduled_at',
         'check_in_time',
         'check_out_time',

@@ -19,7 +19,7 @@ class VisitorRepository
         [$deptSql, $deptBindings] = DepartmentFilter::sqlOnColumn('e.department_id');
         $areasExpr = $this->areasConcatSql();
         $sql = "SELECT v.*, vt.full_name AS visitor_name, vt.company AS visitor_company,
-                       vt.is_watchlisted, vt.photo_path AS visitor_photo, e.full_name AS host_name,
+                       vt.id_number AS visitor_id_number, vt.is_watchlisted, vt.photo_path AS visitor_photo, e.full_name AS host_name,
                        (SELECT {$areasExpr}
                         FROM visit_area_access vaa
                         JOIN visit_areas va ON va.id = vaa.visit_area_id
@@ -138,13 +138,15 @@ class VisitorRepository
     {
         $status = $data['status'] ?? 'scheduled';
         $stmt = $this->pdo()->prepare(
-            'INSERT INTO visits (visitor_id, host_employee_id, purpose, scheduled_at, status, notes)
-             VALUES (:visitor_id, :host_employee_id, :purpose, :scheduled_at, :status, :notes)'
+            'INSERT INTO visits (visitor_id, host_employee_id, purpose, building_name, floor_designation, scheduled_at, status, notes)
+             VALUES (:visitor_id, :host_employee_id, :purpose, :building_name, :floor_designation, :scheduled_at, :status, :notes)'
         );
         $stmt->execute([
             'visitor_id' => $data['visitor_id'],
             'host_employee_id' => $data['host_employee_id'],
             'purpose' => $data['purpose'] ?? null,
+            'building_name' => $data['building_name'] ?? null,
+            'floor_designation' => $data['floor_designation'] ?? null,
             'scheduled_at' => $data['scheduled_at'] ?? null,
             'status' => $status,
             'notes' => $data['notes'] ?? null,
@@ -348,7 +350,7 @@ class VisitorRepository
     {
         $allowed = [
             'host_approved_at', 'host_approved_by', 'badge_expires_at',
-            'expected_duration_hours', 'registration_type',
+            'expected_duration_hours', 'registration_type', 'building_name', 'floor_designation',
         ];
         $sets = [];
         $params = ['id' => $visitId];

@@ -12,7 +12,7 @@ class ReservationRepository
     public function allFacilities(): array
     {
         $stmt = $this->pdo()->query(
-            "SELECT id, name, type, location, capacity, status FROM facilities WHERE status = 'available' ORDER BY name"
+            "SELECT id, name, type, location, building_name, floor_designation, capacity, status FROM facilities WHERE status = 'available' ORDER BY name"
         );
 
         return $stmt->fetchAll();
@@ -21,7 +21,7 @@ class ReservationRepository
     public function allFacilitiesIncludingMaintenance(): array
     {
         return $this->pdo()->query(
-            "SELECT id, name, type, location, capacity, status FROM facilities WHERE status != 'retired' ORDER BY name"
+            "SELECT id, name, type, location, building_name, floor_designation, capacity, status FROM facilities WHERE status != 'retired' ORDER BY name"
         )->fetchAll();
     }
 
@@ -43,10 +43,11 @@ class ReservationRepository
     public function all(): array
     {
         [$deptSql, $deptBindings] = DepartmentFilter::sqlOnUserAlias('u');
-        $sql = "SELECT r.*, f.name AS facility_name, u.full_name AS requester_name, cu.full_name AS in_charge_name
+        $sql = "SELECT r.*, f.name AS facility_name, f.building_name, f.floor_designation, d.name AS department_name, u.full_name AS requester_name, cu.full_name AS in_charge_name
                 FROM reservations r
                 JOIN facilities f ON f.id = r.facility_id
                 JOIN users u ON u.id = r.requested_by
+                LEFT JOIN departments d ON d.id = r.department_id
                 LEFT JOIN users cu ON cu.id = r.in_charge_user_id
                 WHERE r.deleted_at IS NULL
                   AND u.deleted_at IS NULL
@@ -64,10 +65,11 @@ class ReservationRepository
     public function allForUser(int $userId): array
     {
         $stmt = $this->pdo()->prepare(
-            "SELECT r.*, f.name AS facility_name, u.full_name AS requester_name, cu.full_name AS in_charge_name
+            "SELECT r.*, f.name AS facility_name, f.building_name, f.floor_designation, d.name AS department_name, u.full_name AS requester_name, cu.full_name AS in_charge_name
              FROM reservations r
              JOIN facilities f ON f.id = r.facility_id
              JOIN users u ON u.id = r.requested_by
+             LEFT JOIN departments d ON d.id = r.department_id
              LEFT JOIN users cu ON cu.id = r.in_charge_user_id
              WHERE r.requested_by = :uid
                AND r.deleted_at IS NULL
@@ -110,10 +112,10 @@ class ReservationRepository
     {
         $stmt = $this->pdo()->prepare(
             "INSERT INTO reservations (
-                facility_id, requested_by, purpose, start_datetime, end_datetime, status,
+                facility_id, requested_by, department_id, purpose, start_datetime, end_datetime, status,
                 series_id, recurrence_rule, recurrence_until, is_maintenance, approved_by, approved_at, in_charge_user_id, attendee_count
              ) VALUES (
-                :facility_id, :requested_by, :purpose, :start, :end, :status,
+                :facility_id, :requested_by, :department_id, :purpose, :start, :end, :status,
                 :series_id, :recurrence_rule, :recurrence_until, :is_maintenance, :approved_by, :approved_at, :in_charge_user_id, :attendee_count
              )"
         );
@@ -121,6 +123,7 @@ class ReservationRepository
         $stmt->execute($this->normalizeBindings([
             'facility_id' => $data['facility_id'],
             'requested_by' => $data['requested_by'],
+            'department_id' => $data['department_id'] ?? null,
             'purpose' => $data['purpose'],
             'start' => $data['start_datetime'],
             'end' => $data['end_datetime'],

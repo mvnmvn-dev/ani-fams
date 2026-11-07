@@ -227,6 +227,8 @@ CREATE TABLE IF NOT EXISTS facilities (
     name VARCHAR(150) NOT NULL,
     type TEXT DEFAULT 'room',
     location VARCHAR(255),
+    building_name VARCHAR(150) NULL,
+    floor_designation VARCHAR(100) NULL,
     capacity INTEGER NULL,
     status TEXT DEFAULT 'available',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -236,6 +238,7 @@ CREATE TABLE IF NOT EXISTS reservations (
     id BIGSERIAL PRIMARY KEY,
     facility_id INTEGER NOT NULL,
     requested_by INTEGER NOT NULL,
+    department_id INTEGER NULL,
     purpose VARCHAR(255),
     start_datetime TIMESTAMP NOT NULL,
     end_datetime TIMESTAMP NOT NULL,
@@ -380,6 +383,8 @@ CREATE TABLE IF NOT EXISTS visits (
     visitor_id INTEGER NOT NULL,
     host_employee_id INTEGER NOT NULL,
     purpose VARCHAR(255),
+    building_name VARCHAR(150) NULL,
+    floor_designation VARCHAR(100) NULL,
     scheduled_at TIMESTAMP NULL,
     check_in_time TIMESTAMP NULL,
     check_out_time TIMESTAMP NULL,
@@ -394,6 +399,28 @@ CREATE TABLE IF NOT EXISTS visits (
     deleted_at TIMESTAMP NULL,
     FOREIGN KEY (visitor_id) REFERENCES visitors(id) ON DELETE CASCADE,
     FOREIGN KEY (host_employee_id) REFERENCES employees(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS visitor_badges (
+    id BIGSERIAL PRIMARY KEY,
+    visit_id BIGINT NOT NULL,
+    visitor_id INTEGER NOT NULL,
+    badge_code VARCHAR(50) NOT NULL UNIQUE,
+    qr_payload VARCHAR(255) NULL,
+    visitor_name VARCHAR(150) NOT NULL,
+    id_number VARCHAR(100) NULL,
+    company VARCHAR(150) NULL,
+    host_name VARCHAR(150) NULL,
+    purpose VARCHAR(255) NULL,
+    building_name VARCHAR(150) NULL,
+    floor_designation VARCHAR(100) NULL,
+    photo_path VARCHAR(500) NULL,
+    issued_at TIMESTAMP NOT NULL,
+    expires_at TIMESTAMP NOT NULL,
+    status TEXT DEFAULT 'active',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (visit_id) REFERENCES visits(id) ON DELETE CASCADE,
+    FOREIGN KEY (visitor_id) REFERENCES visitors(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS visitor_vehicles (

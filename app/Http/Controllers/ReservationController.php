@@ -26,6 +26,7 @@ class ReservationController extends Controller
             'pageTitle' => 'Facilities Reservation',
             'reservations' => $service->listForCurrentUser(),
             'facilities' => $service->facilities(),
+            'departments' => $service->departments(),
             'manageFacilities' => $canManage ? $service->facilitiesForManage() : [],
             'equipment' => $service->listEquipment(),
             'staffUsers' => $service->staffUsers(),

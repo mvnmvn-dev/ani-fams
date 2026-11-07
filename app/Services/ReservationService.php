@@ -6,6 +6,7 @@ use App\Repositories\ReservationRepository;
 use App\Support\AuditLogger;
 use App\Support\AutomationLogger;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class ReservationService
@@ -51,6 +52,11 @@ class ReservationService
         return $this->repo->allFacilities();
     }
 
+    public function departments(): array
+    {
+        return DB::table('departments')->orderBy('name')->get(['id', 'name'])->map(fn ($department) => (array) $department)->all();
+    }
+
     public function facilitiesForManage(): array
     {
         return $this->repo->allFacilitiesIncludingMaintenance();
@@ -90,6 +96,7 @@ class ReservationService
         }
 
         $facilityId = (int) ($input['facility_id'] ?? 0);
+        $departmentId = (int) ($input['department_id'] ?? 0);
         $purpose = trim($input['purpose'] ?? '');
         $start = $input['start_datetime'] ?? '';
         $end = $input['end_datetime'] ?? '';
@@ -99,8 +106,8 @@ class ReservationService
         }
         $until = $input['recurrence_until'] ?? null;
 
-        if (! $facilityId || $purpose === '' || ! $start || ! $end) {
-            return ['success' => false, 'error' => 'Please fill in all fields.'];
+        if (! $facilityId || ! $departmentId || $purpose === '' || ! $start || ! $end) {
+            return ['success' => false, 'error' => 'Department, facility, purpose, start, and end time are required.'];
         }
 
         if (strtotime($end) <= strtotime($start)) {
@@ -145,6 +152,7 @@ class ReservationService
             $id = $this->repo->create([
                 'facility_id' => $facilityId,
                 'requested_by' => Auth::id(),
+                'department_id' => $departmentId,
                 'purpose' => $purpose,
                 'start_datetime' => $occStart,
                 'end_datetime' => $occEnd,

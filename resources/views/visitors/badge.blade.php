@@ -31,8 +31,12 @@
     $name = $visit['visitor_name'] ?? 'Visitor';
     $company = $visit['visitor_company'] ?? '';
     $badge = $visit['badge_code'] ?? '';
+    $idNumber = $visit['id_number'] ?? '';
     $photo = $visit['visitor_photo'] ?? null;
     $host = $visit['host_name'] ?? '';
+    $purpose = $visit['purpose'] ?? '';
+    $building = $visit['building_name'] ?? '';
+    $floor = $visit['floor_designation'] ?? '';
     $expires = $visit['badge_expires_at'] ?? null;
     $qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=' . urlencode($badge);
 @endphp
@@ -46,7 +50,10 @@
     <h1>{{ $name }}</h1>
     <p class="company">{{ $company ?: 'Guest' }}</p>
     <div class="meta">
+        @if ($idNumber) ID No.: {{ $idNumber }}<br>@endif
         @if ($host) Host: {{ $host }}<br>@endif
+        @if ($purpose) Purpose: {{ $purpose }}<br>@endif
+        @if ($building || $floor) Destination: {{ trim($building . ($building && $floor ? ' — ' : '') . $floor) }}<br>@endif
         @if ($expires) Expires: {{ \Illuminate\Support\Carbon::parse($expires)->format('M j, Y g:ia') }}@endif
     </div>
     <div class="code">{{ $badge ?: 'NO BADGE' }}</div>

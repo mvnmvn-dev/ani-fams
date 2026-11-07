@@ -43,6 +43,8 @@ class VisitorService
         $fullName = trim($input['full_name'] ?? '');
         $hostId = (int) ($input['host_employee_id'] ?? 0);
         $purpose = trim($input['purpose'] ?? '');
+        $buildingName = trim($input['building_name'] ?? '');
+        $floorDesignation = trim($input['floor_designation'] ?? '');
         $scheduled = $input['scheduled_at'] ?? '';
         $notes = trim($input['notes'] ?? '');
         $areaIds = $input['areas'] ?? [];
@@ -52,8 +54,8 @@ class VisitorService
         $phone = trim($input['phone'] ?? '');
         $flagWatchlist = ! empty($input['is_watchlisted']);
 
-        if (! $hostId || ! $scheduled) {
-            return ['success' => false, 'error' => 'Host employee and scheduled time are required.'];
+        if (! $hostId || ! $scheduled || $purpose === '' || $buildingName === '' || $floorDesignation === '') {
+            return ['success' => false, 'error' => 'Host, purpose, exact building, floor, and scheduled time are required.'];
         }
 
         if (! $visitorId && $fullName === '') {
@@ -124,6 +126,8 @@ class VisitorService
             'visitor_id' => $visitorId,
             'host_employee_id' => $hostId,
             'purpose' => $purpose,
+            'building_name' => $buildingName,
+            'floor_designation' => $floorDesignation,
             'scheduled_at' => $scheduled,
             'notes' => $notes,
             'status' => $visitStatus,
@@ -134,6 +138,8 @@ class VisitorService
             $this->repo->updateVisitDefenseFields($visitId, [
                 'registration_type' => $registrationType,
                 'expected_duration_hours' => $hours,
+                'building_name' => $buildingName,
+                'floor_designation' => $floorDesignation,
             ]);
         } catch (\Throwable) {
         }
@@ -352,6 +358,10 @@ class VisitorService
                 'company' => $visitor['company'] ?? null,
                 'host_name' => $visit['host_name'] ?? null,
                 'photo_path' => $visitor['photo_path'] ?? null,
+                'id_number' => $visitor['id_number'] ?? null,
+                'purpose' => $visit['purpose'] ?? null,
+                'building_name' => $visit['building_name'] ?? null,
+                'floor_designation' => $visit['floor_designation'] ?? null,
                 'issued_at' => $issuedAt,
                 'expires_at' => $expiresAt,
                 'status' => 'active',

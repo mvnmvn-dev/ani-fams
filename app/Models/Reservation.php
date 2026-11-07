@@ -17,6 +17,7 @@ class Reservation extends Model
     protected $fillable = [
         'facility_id',
         'requested_by',
+        'department_id',
         'purpose',
         'start_datetime',
         'end_datetime',
@@ -76,6 +77,11 @@ class Reservation extends Model
     public function chargebackDepartment(): BelongsTo
     {
         return $this->belongsTo(Department::class, 'chargeback_department_id');
+    }
+
+    public function department(): BelongsTo
+    {
+        return $this->belongsTo(Department::class);
     }
 
     public function noShowReporter(): BelongsTo

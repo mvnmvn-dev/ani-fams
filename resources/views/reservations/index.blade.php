@@ -296,13 +296,14 @@ $upcomingApproved = array_slice($upcomingApproved, 0, 5);
                 <div class="module-table-wrap">
                     <div class="overflow-x-auto">
                         <table class="module-table">
-                            <thead><tr><th>Facility</th><th>When</th><th>Requested by</th><th>Status</th><th>In charge</th></tr></thead>
+                            <thead><tr><th>Facility / Location</th><th>Department</th><th>When</th><th>Requested by</th><th>Status</th><th>In charge</th></tr></thead>
                             <tbody>
                                 <?php foreach ($reservations as $r): ?>
                                     <tr data-filter-item data-filter-status="<?= htmlspecialchars($r['status'] ?? '') ?>"
                                         data-filter-facility="<?= htmlspecialchars($r['facility_name'] ?? '') ?>"
                                         data-filter-search="<?= htmlspecialchars(strtolower(($r['facility_name'] ?? '') . ' ' . ($r['purpose'] ?? '') . ' ' . ($r['requester_name'] ?? '') . ' ' . ($r['in_charge_name'] ?? ''))) ?>">
-                                        <td class="font-semibold"><?= htmlspecialchars($r['facility_name'] ?? '') ?><p class="text-xs font-normal text-ink/55"><?= htmlspecialchars($r['purpose'] ?? '') ?></p></td>
+                                        <td class="font-semibold"><?= htmlspecialchars($r['facility_name'] ?? '') ?><p class="text-xs font-normal text-ink/55"><?= htmlspecialchars($r['purpose'] ?? '') ?></p><p class="text-[11px] font-normal text-ink/45"><?= htmlspecialchars(trim(($r['building_name'] ?? '') . (($r['building_name'] ?? '') && ($r['floor_designation'] ?? '') ? ' · ' : '') . ($r['floor_designation'] ?? '')) ?></p></td>
+                                        <td class="text-ink/70"><?= htmlspecialchars($r['department_name'] ?? '—') ?></td>
                                         <td class="text-ink/65 whitespace-nowrap"><?= !empty($r['start_datetime']) ? date('M j, g:ia', strtotime($r['start_datetime'])) : '' ?></td>
                                         <td class="text-ink/70"><?= htmlspecialchars($r['requester_name'] ?? '') ?></td>
                                         <td class="capitalize text-ink/70"><?= htmlspecialchars(str_replace('_', ' ', $r['status'] ?? '')) ?></td>
@@ -615,6 +616,15 @@ $upcomingApproved = array_slice($upcomingApproved, 0, 5);
         </div>
         <form action="<?= url('/reservations') ?>" method="POST" class="p-8 space-y-6">
     @csrf
+            <div class="space-y-1.5">
+                <label class="block text-xs font-bold uppercase tracking-wider text-ink/60">Department</label>
+                <select name="department_id" required class="w-full rounded-xl border border-ink/15 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-sand/10">
+                    <option value="">Select a department…</option>
+                    <?php foreach (($departments ?? []) as $department): ?>
+                        <option value="<?= (int) $department['id'] ?>"><?= htmlspecialchars($department['name']) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
             <div class="space-y-1.5">
                 <label class="block text-xs font-bold uppercase tracking-wider text-ink/60">Select Facility</label>
                 <select name="facility_id" required class="w-full rounded-xl border border-ink/15 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 bg-sand/10">
