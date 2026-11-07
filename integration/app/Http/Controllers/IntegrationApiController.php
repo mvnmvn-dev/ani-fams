@@ -6,6 +6,7 @@ use App\Services\ReservationService;
 use App\Services\VisitorService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
 class IntegrationApiController extends Controller
@@ -134,5 +135,59 @@ class IntegrationApiController extends Controller
         ]);
         $result = $service->submitRequest($data);
         return response()->json($result, ($result['success'] ?? false) ? 201 : 422);
+    }
+
+    /**
+     * Read-only integration feed for the remaining top-level modules and
+     * supporting records. The allowlist prevents arbitrary table access.
+     */
+    public function moduleData(Request $request, string $resource): JsonResponse
+    {
+        $feeds = [
+            'users' => ['table' => 'users', 'permission' => 'users.manage', 'columns' => ['id', 'department_id', 'full_name', 'email', 'role_id', 'status', 'photo_path', 'created_at', 'updated_at']],
+            'employees' => ['table' => 'employees', 'permission' => 'visitor.view', 'columns' => ['id', 'user_id', 'department_id', 'full_name', 'position', 'email', 'phone']],
+            'equipment' => ['table' => 'equipment_items', 'permission' => 'reservation.view', 'columns' => ['id', 'name', 'category', 'quantity_available', 'status', 'notes', 'created_at']],
+            'visit-areas' => ['table' => 'visit_areas', 'permission' => 'visitor.view', 'columns' => ['id', 'name']],
+            'vehicles' => ['table' => 'visitor_vehicles', 'permission' => 'visitor.view', 'columns' => ['id', 'visitor_id', 'visit_id', 'plate_number', 'vehicle_make', 'vehicle_model', 'vehicle_color', 'notes', 'created_at']],
+            'badges' => ['table' => 'visitor_badges', 'permission' => 'visitor.view', 'columns' => ['id', 'visit_id', 'visitor_id', 'badge_code', 'visitor_name', 'id_number', 'company', 'host_name', 'purpose', 'building_name', 'floor_designation', 'issued_at', 'expires_at', 'status', 'created_at']],
+            'reservation-equipment' => ['table' => 'reservation_equipment', 'permission' => 'reservation.view', 'columns' => ['reservation_id', 'equipment_id', 'quantity']],
+            'reservation-waitlist' => ['table' => 'reservation_waitlist', 'permission' => 'reservation.view', 'columns' => ['id', 'facility_id', 'requested_by', 'purpose', 'preferred_start_datetime', 'preferred_end_datetime', 'status', 'offered_reservation_id', 'notes', 'created_at', 'updated_at']],
+            'documents' => ['table' => 'documents', 'permission' => 'document.view', 'columns' => ['id', 'document_number', 'title', 'description', 'category_id', 'owner_id', 'confidentiality', 'status', 'current_version_id', 'created_at', 'deleted_at']],
+            'document-versions' => ['table' => 'document_versions', 'permission' => 'document.view', 'columns' => ['id', 'document_id', 'version_no', 'file_path', 'checksum', 'ocr_processed', 'uploaded_by', 'uploaded_at', 'change_notes']],
+            'document-categories' => ['table' => 'document_categories', 'permission' => 'document.view', 'columns' => ['id', 'name', 'parent_id']],
+            'contracts' => ['table' => 'contracts', 'permission' => 'contract.view', 'columns' => ['id', 'contract_number', 'title', 'contract_type_id', 'counterparty_name', 'counterparty_contact', 'status', 'start_date', 'end_date', 'owner_id', 'created_at', 'deleted_at']],
+            'contract-obligations' => ['table' => 'contract_obligations', 'permission' => 'contract.view', 'columns' => ['id', 'contract_id', 'title', 'description', 'responsible_party', 'due_date', 'is_completed', 'completed_at', 'created_by', 'created_at', 'updated_at']],
+            'legal-cases' => ['table' => 'legal_cases', 'permission' => 'legal.view', 'columns' => ['id', 'case_number', 'title', 'case_type', 'status', 'filed_date', 'court_or_agency', 'opposing_party', 'assigned_counsel_id', 'risk_level', 'next_deadline', 'created_at', 'deleted_at']],
+            'legal-deadlines' => ['table' => 'legal_case_deadlines', 'permission' => 'legal.view', 'columns' => ['id', 'case_id', 'title', 'due_date', 'description', 'is_completed', 'created_at', 'updated_at']],
+            'legal-milestones' => ['table' => 'legal_case_milestones', 'permission' => 'legal.view', 'columns' => ['id', 'case_id', 'milestone_type', 'milestone_date', 'description', 'is_completed', 'reminder_sent_at']],
+            'retention-policies' => ['table' => 'retention_policies', 'permission' => 'retention.view', 'columns' => ['id', 'name', 'record_category', 'retention_period_months', 'trigger_event', 'disposal_action', 'legal_basis', 'created_at', 'updated_at']],
+            'retention-assignments' => ['table' => 'retention_assignments', 'permission' => 'retention.view', 'columns' => ['id', 'document_id', 'policy_id', 'retention_start_date', 'calculated_disposal_date', 'status', 'ai_category', 'archive_status']],
+            'notifications' => ['table' => 'notifications', 'permission' => 'reservation.view', 'columns' => ['id', 'user_id', 'module', 'title', 'body', 'is_read', 'link', 'created_at']],
+            'audit-logs' => ['table' => 'audit_logs', 'permission' => 'audit.view', 'columns' => ['id', 'user_id', 'module', 'action', 'entity_type', 'entity_id', 'old_values', 'new_values', 'ip_address', 'created_at']],
+        ];
+
+        $feed = $feeds[$resource] ?? null;
+        if (! $feed) {
+            return response()->json(['message' => 'Unsupported integration resource.'], 404);
+        }
+        if (! Auth::user()?->canPermission($feed['permission'])) {
+            return response()->json(['message' => 'You do not have permission to read this integration resource.'], 403);
+        }
+
+        $query = DB::table($feed['table'])->select($feed['columns']);
+        if ($request->filled('id') && in_array('id', $feed['columns'], true)) {
+            $query->where('id', (int) $request->query('id'));
+        }
+        if ($request->filled('updated_since') && in_array('updated_at', $feed['columns'], true)) {
+            $query->where('updated_at', '>=', $request->query('updated_since'));
+        }
+        $limit = min(max((int) $request->query('limit', 100), 1), 500);
+        $rows = $query->limit($limit)->get();
+
+        return response()->json([
+            'resource' => $resource,
+            'count' => $rows->count(),
+            'data' => $rows,
+        ]);
     }
 }

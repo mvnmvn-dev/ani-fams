@@ -75,6 +75,7 @@ Route::middleware('auth')->group(function () {
         Route::middleware('permission:visitor.register')->post('/visits', [IntegrationApiController::class, 'storeVisit'])->name('visits.store');
         Route::middleware('permission:reservation.view')->get('/reservations', [IntegrationApiController::class, 'reservations'])->name('reservations.index');
         Route::middleware('permission:reservation.create')->post('/reservations', [IntegrationApiController::class, 'storeReservation'])->name('reservations.store');
+        Route::get('/data/{resource}', [IntegrationApiController::class, 'moduleData'])->name('data');
     });
 
     Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');

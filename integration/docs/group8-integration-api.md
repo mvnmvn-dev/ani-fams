@@ -24,6 +24,24 @@ A successful check-in creates the system-generated `BADGE-*` code and stores the
 - `GET /reservations?status=` — reservations with facility location, department, purpose, schedule, requester, and status.
 - `POST /reservations` — submit a reservation request. Required: `facility_id`, `department_id`, `purpose`, `start_datetime`, `end_datetime`. Optional: `recurrence_rule`, `recurrence_until`, `attendee_count`.
 
+## All-module read feeds
+
+The allowlisted endpoint below provides synchronized read access for the remaining modules. It does not expose arbitrary database tables, password hashes, or session data:
+
+`GET /data/{resource}`
+
+Supported resources:
+
+`users`, `employees`, `equipment`, `visit-areas`, `vehicles`, `badges`, `reservation-equipment`, `reservation-waitlist`, `documents`, `document-versions`, `document-categories`, `contracts`, `contract-obligations`, `legal-cases`, `legal-deadlines`, `legal-milestones`, `retention-policies`, `retention-assignments`, `notifications`, and `audit-logs`.
+
+Optional query parameters:
+
+- `id` — return a single record by ID where the resource has an ID column.
+- `limit` — maximum 500 records; default 100.
+- `updated_since` — incremental synchronization filter for resources with `updated_at`.
+
+Each response contains `resource`, `count`, and `data`. Permission checks are applied per resource using the existing RBAC permissions. For example: `GET /api/integration/v1/data/documents?limit=100` or `GET /api/integration/v1/data/legal-cases?updated_since=2026-11-01`.
+
 ## Integration notes
 
 IDs are stable database IDs. Datetimes are accepted as date-compatible strings and returned in the application/database format. All write endpoints enforce the existing RBAC permissions, validation, conflict checks, watchlist controls, and audit/notification behavior. The API does not accept placeholder/sample visitor names: visitor writes require a real system record or a full profile including a registered identification number.
