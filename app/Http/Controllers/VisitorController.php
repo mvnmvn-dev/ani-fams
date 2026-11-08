@@ -8,6 +8,7 @@ use App\Services\VisitorService;
 use App\Services\ArnelAiService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 class VisitorController extends Controller
 {
@@ -35,6 +36,32 @@ class VisitorController extends Controller
         ]);
     }
 
+    public function history(string $id)
+    {
+        $visitor = DB::table('visitors')->where('id', (int) $id)->whereNull('deleted_at')->first();
+        abort_unless($visitor, 404);
+        $visits = DB::table('visits as v')
+            ->join('employees as e', 'e.id', '=', 'v.host_employee_id')
+            ->leftJoin('visitor_badges as b', 'b.visit_id', '=', 'v.id')
+            ->where('v.visitor_id', (int) $id)->whereNull('v.deleted_at')
+            ->orderByDesc('v.scheduled_at')
+            ->get(['v.*', 'e.full_name as host_name', 'b.badge_code', 'b.issued_at as badge_issued_at']);
+        return view('visitors.history', [
+            'pageTitle' => 'Visitor History', 'visitor' => $visitor, 'visits' => $visits,
+            'noShows' => $visits->where('status', 'no_show')->count(),
+        ]);
+    }
+
+    public function verifyApplicantId(Request $request, string $id)
+    {
+        $data = $request->validate(['id_number' => ['required', 'string', 'max:100']]);
+        $updated = DB::table('visitors')->where('id', (int) $id)->where('visitor_type', 'applicant')
+            ->update(['id_number' => trim($data['id_number']), 'id_verified_at' => now(), 'id_verified_by' => Auth::id()]);
+        if (! $updated) {
+            return redirect()->route('visitors.index')->with('flash_error', 'Applicant not found or ID was already verified.');
+        }
+        return redirect()->route('visitors.index')->with('flash_success', 'Applicant ID verified at the lobby.');
+    }
     public function store(Request $request, VisitorService $service)
     {
         $photo = $request->file('photo');

@@ -15,6 +15,9 @@ class SendVisitStatusCallback implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
+    public int $tries = 5;
+    public array $backoff = [10, 30, 120, 300];
+
     public function __construct(
         public int $visitId,
         public string $status,

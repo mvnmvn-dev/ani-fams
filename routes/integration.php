@@ -38,9 +38,7 @@ Route::prefix('api/integration/v1')
         Route::post('/inbound/{system}/documents', [IntegrationInboundController::class, 'documents'])
             ->where('system', 'hr1|hr2|hr3|hr4')
             ->middleware('integration:documents:write')->name('inbound.documents');
-        Route::post('/inbound/hr1/events', [IntegrationInboundController::class, 'events'])
-            ->middleware('integration:events:write')->name('inbound.hr1.events');
+        Route::post('/inbound/{system}/events', [IntegrationInboundController::class, 'events'])
+            ->where('system', 'hr1|hr2')->middleware('integration:events:write')->name('inbound.events');
 
-        Route::post('/visitors/{id}/verify-id', [IntegrationInboundController::class, 'verifyVisitorId'])
-            ->middleware('integration:visitors:write')->name('visitors.verify-id');
     });

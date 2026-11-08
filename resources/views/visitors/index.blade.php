@@ -1,492 +1,277 @@
-@extends('layouts.app')
-
-@section('content')
 <?php
-/** @var array $visits */
-/** @var array $visitors */
-/** @var array $employees */
-/** @var array $areas */
-/** @var bool $canRegister */
-/** @var bool $canCheckIn */
-/** @var bool $canManage */
 
-$statusStyles = [
-    'pending_approval' => 'bg-accent-50 text-accent-700 border-accent-200',
-    'approved'    => 'bg-brand-50 text-brand-700 border-brand-200',
-    'scheduled'   => 'bg-brand-50 text-brand-700 border-brand-200',
-    'checked_in'  => 'bg-brand-50 text-brand-700 border-brand-300 font-semibold',
-    'checked_out' => 'bg-gray-100 text-gray-700 border-gray-200',
-    'no_show'     => 'bg-accent-50 text-accent-700 border-accent-200',
-    'denied'      => 'bg-accent-50 text-accent-700 border-accent-200 font-semibold',
-];
+use App\Http\Controllers\AuditLogController;
+use App\Http\Controllers\Auth\LoginController;
+use App\Http\Controllers\Auth\PasswordResetController;
+use App\Http\Controllers\ContractController;
+use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DocumentController;
+use App\Http\Controllers\IntegrationPreviewController;
+use App\Http\Controllers\LegalCaseController;
+use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\ReservationController;
+use App\Http\Controllers\RetentionController;
+use App\Http\Controllers\SessionController;
+use App\Http\Controllers\UserController;
+use App\Http\Controllers\VisitorController;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Auth\EmailOtpController;
+use App\Http\Controllers\Auth\TwoFactorController;
+use App\Http\Controllers\ArnelController;
 
-$widgets = $widgets ?? [];
-$onSite      = array_values(array_filter($visits, fn($v) => $v['status'] === 'checked_in'));
-$scheduled   = array_values(array_filter($visits, fn($v) => in_array($v['status'], ['scheduled', 'pending_approval', 'approved'], true)));
-$completed   = array_values(array_filter($visits, fn($v) => in_array($v['status'], ['checked_out', 'no_show', 'denied'])));
-$watchlisted = array_values(array_filter($visits, fn($v) => $v['is_watchlisted']));
-$pendingApproval = array_values(array_filter($visits, fn($v) => ($v['status'] ?? '') === 'pending_approval'));
-$todayKey = date('Y-m-d');
-$scheduledToday = count(array_filter($scheduled, fn($v) => str_starts_with((string) ($v['expected_arrival'] ?? $v['visit_date'] ?? ''), $todayKey)
-    || str_starts_with((string) ($v['scheduled_at'] ?? ''), $todayKey)
-    || str_starts_with((string) ($v['expected_arrival_at'] ?? ''), $todayKey)));
-$checkedOutToday = count(array_filter($visits, fn($v) => $v['status'] === 'checked_out' && (
-    str_starts_with((string) ($v['checked_out_at'] ?? ''), $todayKey)
-)));
-$expectedToday = array_values(array_filter($scheduled, static fn($v) =>
-    str_starts_with((string) ($v['expected_arrival'] ?? $v['visit_date'] ?? $v['scheduled_at'] ?? $v['expected_arrival_at'] ?? ''), $todayKey)
-    || str_starts_with((string) ($v['start_datetime'] ?? ''), $todayKey)
-));
-$recentCheckIns = array_values(array_filter($visits, static fn($v) => ($v['status'] ?? '') === 'checked_in' || !empty($v['check_in_time'])));
-usort($recentCheckIns, static fn($a, $b) => strtotime($b['check_in_time'] ?? $b['created_at'] ?? '0') <=> strtotime($a['check_in_time'] ?? $a['created_at'] ?? '0'));
-$recentCheckIns = array_slice($recentCheckIns, 0, 5);
+Route::get('/', function () {
+    return Auth::check()
+        ? redirect()->route('dashboard')
+        : redirect()->route('login');
+});
 
-?>
-<div class="animate-fade-in-up space-y-8">
-<?php
-$__visitorWidgetCards = [
-    ['label' => 'Inside building', 'value' => (int) ($widgets['visitors_inside'] ?? count($onSite)), 'hint' => 'Checked in now', 'tone' => 'navy', 'icon' => 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z'],
-    ['label' => "Today's visitors", 'value' => (int) ($widgets['todays_visitors'] ?? $scheduledToday), 'hint' => 'Scheduled / arrived today', 'tone' => 'peach', 'icon' => 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z'],
-    ['label' => 'Pending approvals', 'value' => (int) ($widgets['pending_approvals'] ?? count($pendingApproval)), 'hint' => 'Awaiting host approval', 'tone' => 'terracotta', 'icon' => 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z'],
-    ['label' => 'Expired / overstay', 'value' => (int) (($widgets['expired_passes'] ?? 0) + ($widgets['overstaying'] ?? 0)), 'hint' => 'Passes needing attention', 'tone' => 'brown', 'icon' => 'M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z'],
-];
-?>
-    <?php
-    render_page_header([
-        'title' => 'Visitors',
-        'subtitle' => 'Pre-register visitors, check-in/out, and track who is on the premises.',
-        'actions' => function () use ($canRegister) {
-            ?>
-            <a href="<?= route('visitors.export') ?>" download data-export-link class="btn-secondary mr-2 inline-flex items-center gap-1.5" style="text-decoration: none; display: inline-flex; align-items: center; padding: 0.5rem 1rem; border-radius: 0.75rem;">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-                </svg>
-                Export CSV
-            </a>
-            <a href="<?= route('visitors.export.pdf') ?>" download data-export-link class="btn-secondary mr-2 inline-flex items-center gap-1.5" style="text-decoration: none; display: inline-flex; align-items: center; padding: 0.5rem 1rem; border-radius: 0.75rem;">
-                Export PDF
-            </a>
-            <?php
-            if ($canRegister) {
-                ?>
-                <button onclick="openModal('registerModal')" class="btn-primary">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
-                    </svg>
-                    Pre-Register Visitor
-                </button>
-                <?php
-            }
-        },
-    ]);
-    ?>
+Route::middleware('guest')->group(function () {
+    Route::get('/login', [LoginController::class, 'showLogin'])->name('login');
+    Route::post('/login', [LoginController::class, 'login']);
 
-    <?php $ai = $aiInsights ?? ['summary' => '', 'frequent_visitors' => [], 'anomalies' => []]; ?>
-    <section class="rounded-2xl border border-brand-200 bg-brand-50/30 p-5 shadow-sm">
-        <div class="flex items-center gap-2"><span class="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-brand-700 text-white text-xs font-bold">AI</span><div><h2 class="section-title">ARNEL visitor brief</h2><p class="type-meta">Daily log summary, recurring visitors, and anomaly review</p></div></div>
-        <p class="mt-3 text-sm text-ink/70"><?= htmlspecialchars($ai['summary'] ?? '') ?></p>
-        <?php if (!empty($ai['frequent_visitors'])): ?><div class="mt-4 flex flex-wrap gap-2"><?php foreach (array_slice($ai['frequent_visitors'], 0, 6) as $item): ?><span class="rounded-full border border-brand-200 bg-white/75 px-3 py-1.5 text-xs text-ink/70"><?= htmlspecialchars($item['name']) ?> · <?= (int) $item['visits'] ?> visit(s)</span><?php endforeach; ?></div><?php endif; ?>
-        <?php if (!empty($ai['anomalies'])): ?><p class="mt-3 text-xs font-semibold text-accent-700">Review unusual frequency: <?php foreach ($ai['anomalies'] as $item): ?><?= htmlspecialchars($item['name']) ?> (<?= (int) $item['visits'] ?>)<?php if ($item !== end($ai['anomalies'])): ?>, <?php endif; ?><?php endforeach; ?></p><?php endif; ?>
-    </section>
+    Route::get('/2fa', [TwoFactorController::class, 'challenge'])->name('2fa.challenge');
+    Route::post('/2fa', [TwoFactorController::class, 'verify'])->name('2fa.verify');
 
-    @include('partials.stat_kpi_grid', ['cards' => $__visitorWidgetCards])
+    Route::get('/email-otp', [EmailOtpController::class, 'challenge'])->name('email-otp.challenge');
+    Route::post('/email-otp', [EmailOtpController::class, 'verify'])->name('email-otp.verify');
+    Route::post('/email-otp/resend', [EmailOtpController::class, 'resend'])->name('email-otp.resend');
 
-    <div class="module-info-grid">
-        @include('partials.module_feed_list', [
-            'title' => 'Expected arrivals today',
-            'subtitle' => 'Pre-registered visitors scheduled for today',
-            'items' => array_map(static fn($v) => [
-                'label' => $v['visitor_name'],
-                'meta'  => 'Host: ' . ($v['host_name'] ?? 'TBD') . ' · ' . ($v['purpose'] ?? 'No purpose stated'),
-                'aside' => !empty($v['expected_arrival']) ? date('g:ia', strtotime($v['expected_arrival'])) : 'TBD',
-                'badge' => $v['is_watchlisted'] ? 'watchlist' : null,
-            ], $expectedToday),
-            'empty' => 'No visitors expected today.',
-        ])
-        @include('partials.module_feed_list', [
-            'title' => 'Recent check-ins',
-            'subtitle' => 'Latest visitors who entered the premises',
-            'items' => array_map(static fn($v) => [
-                'label' => $v['visitor_name'],
-                'meta'  => ($v['visitor_company'] ?: 'Individual') . ' · ' . ($v['allowed_areas'] ?: 'General access'),
-                'aside' => !empty($v['check_in_time']) ? date('M j, g:ia', strtotime($v['check_in_time'])) : '',
-            ], $recentCheckIns),
-            'empty' => 'No check-ins recorded yet.',
-        ])
-    </div>
+    Route::get('/forgot-password', [PasswordResetController::class, 'showForgotForm'])->name('password.request');
+    Route::post('/forgot-password', [PasswordResetController::class, 'sendResetLink'])->name('password.email');
+    Route::get('/reset-password/{token}', [PasswordResetController::class, 'showResetForm'])->name('password.reset');
+    Route::post('/reset-password', [PasswordResetController::class, 'reset'])->name('password.update');
+});
 
-    <?php if (!empty($watchlisted)): ?>
-    <div class="module-insight-panel">
-        <h3 class="module-insight-title">Security watchlist</h3>
-        <p class="module-insight-sub"><?= count($watchlisted) ?> flagged visitor record<?= count($watchlisted) === 1 ? '' : 's' ?> require extra screening before entry</p>
-        <ul class="module-insight-list">
-            <?php foreach (array_slice($watchlisted, 0, 4) as $w): ?>
-                <li>
-                    <span class="module-insight-dot"></span>
-                    <span><strong><?= htmlspecialchars($w['visitor_name']) ?></strong> — <?= htmlspecialchars($w['visitor_company'] ?: 'No company') ?> · Host: <?= htmlspecialchars($w['host_name'] ?? 'TBD') ?></span>
-                </li>
-            <?php endforeach; ?>
-        </ul>
-    </div>
-    <?php endif; ?>
+Route::post('/logout', [LoginController::class, 'logout'])->middleware('auth')->name('logout');
+Route::get('/logout', [LoginController::class, 'logout'])->middleware('auth');
 
-    <!-- On-site visitors — prominent cards -->
-    <?php if (!empty($onSite)): ?>
-        <section id="onsite">
-            <div class="flex items-center gap-2 mb-3">
-                <span class="w-2.5 h-2.5 rounded-full bg-brand-500 animate-pulse"></span>
-                <h2 class="text-sm font-bold uppercase tracking-wider text-ink/50">Currently on site · <?= count($onSite) ?></h2>
-            </div>
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                <?php foreach ($onSite as $visit): ?>
-                    <div class="visitor-onsite-card <?= $visit['is_watchlisted'] ? 'is-watch' : '' ?>" data-visit-id="<?= (int) $visit['id'] ?>" data-visitor-id="<?= (int) $visit['visitor_id'] ?>">
-                        <div class="flex items-start justify-between gap-2 mb-3">
-                            <div class="min-w-0">
-                                <div class="flex flex-wrap items-center gap-1.5">
-                                    <p class="font-bold text-ink text-sm"><?= htmlspecialchars($visit['visitor_name']) ?></p>
-                                    <?php if ($visit['is_watchlisted']): ?>
-                                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-accent-100 text-accent-700 uppercase tracking-wide border border-accent-200">Watchlist</span>
-                                    <?php endif; ?>
-                                </div>
-                                <p class="text-xs text-ink/50 mt-0.5"><?= htmlspecialchars($visit['visitor_company'] ?: 'Individual') ?></p>
-                            </div>
-                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-brand-50 text-brand-700 border border-brand-200 shrink-0">
-                                <span class="w-1.5 h-1.5 rounded-full bg-brand-500"></span>
-                                Checked In
-                            </span>
-                        </div>
-                        <div class="space-y-1.5 text-xs">
-                            <div class="flex items-center gap-2 text-ink/60">
-                                <svg class="w-3.5 h-3.5 shrink-0 text-ink/35" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
-                                <span>Host: <strong class="text-ink/80"><?= htmlspecialchars($visit['host_name']) ?></strong></span>
-                            </div>
-                            <div class="flex items-center gap-2 text-ink/60">
-                                <svg class="w-3.5 h-3.5 shrink-0 text-ink/35" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 100 20 10 10 0 000-20z"/></svg>
-                                <span><?= htmlspecialchars($visit['purpose'] ?: 'No purpose stated') ?></span>
-                            </div>
-                            <?php if ($visit['check_in_time']): ?>
-                                <div class="flex items-center gap-2 text-ink/60">
-                                    <svg class="w-3.5 h-3.5 shrink-0 text-ink/35" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                                    <span>In since <strong class="text-ink/80"><?= date('M j, Y · g:i A', strtotime($visit['check_in_time'])) ?></strong></span>
-                                </div>
-                            <?php endif; ?>
-                            <?php if ($visit['allowed_areas']): ?>
-                                <div class="flex items-center gap-2 text-brand-700">
-                                    <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a2 2 0 01-2.828 0l-4.243-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                                    <span class="font-semibold"><?= htmlspecialchars($visit['allowed_areas']) ?></span>
-                                </div>
-                            <?php endif; ?>
-                        </div>
-                        <?php if ($canCheckIn): ?>
-                            <div class="mt-3 pt-3 border-t border-ink/8 flex gap-2 flex-wrap">
-                                <a href="<?= route('visitors.badge', $visit['id']) ?>" class="text-xs font-bold px-3 py-2 rounded-lg border border-brand-200 text-brand-700 hover:bg-brand-50 transition" target="_blank">Badge</a>
-                                <form action="<?= url('/visitors/' . $visit['id'] . '/check-out') ?>" method="POST" class="flex-1" data-ajax-action="visitor.checkout">
-                                    @csrf
-                                    <button type="submit" class="w-full text-xs font-bold px-3 py-2 rounded-lg bg-ink text-sand hover:bg-ink/80 transition">Check Out</button>
-                                </form>
-                                <?php if ($canManage): ?>
-                                    <form action="<?= url('/visitors/' . $visit['visitor_id'] . '/toggle-watchlist') ?>" method="POST" data-ajax-action="visitor.watchlist">
-                                        @csrf
-                                        <input type="hidden" name="watchlist" value="<?= $visit['is_watchlisted'] ? '0' : '1' ?>">
-                                        <button type="submit" class="text-xs font-bold px-3 py-2 rounded-lg border border-accent-200 text-accent-700 hover:bg-accent-50 transition" title="<?= $visit['is_watchlisted'] ? 'Remove from watchlist' : 'Add to watchlist' ?>">
-                                            <?= $visit['is_watchlisted'] ? '✕ Watch' : '⚑ Watch' ?>
-                                        </button>
-                                    </form>
-                                <?php endif; ?>
-                            </div>
-                        <?php endif; ?>
-                    </div>
-                <?php endforeach; ?>
-            </div>
-        </section>
-    <?php endif; ?>
+Route::middleware('auth')->group(function () {
+    Route::post('/profile', [ProfileController::class, 'update'])->name('profile.update');
+    Route::post('/profile/2fa/enable', [TwoFactorController::class, 'enable'])->name('2fa.enable');
+    Route::post('/profile/2fa/disable', [TwoFactorController::class, 'disable'])->name('2fa.disable');
 
-    <!-- All visits table -->
-    <div class="space-y-6" data-filter-root>
-        <?php if (!empty($visits)): ?>
-            <div class="flex items-center justify-between">
-                <h2 class="text-sm font-bold uppercase tracking-wider text-ink/50">All visits</h2>
-            </div>
-            @include('partials.module_filters', ['fields' => [
-                ['name' => 'q', 'label' => 'Search', 'placeholder' => 'Visitor, host, purpose, company…'],
-                ['name' => 'status', 'label' => 'Status', 'allLabel' => 'All statuses', 'options' => [
-                    'scheduled' => 'Scheduled',
-                    'checked_in' => 'Checked in',
-                    'checked_out' => 'Checked out',
-                    'no_show' => 'No show',
-                    'denied' => 'Denied',
-                ]],
-                ['name' => 'watch', 'label' => 'Watchlist', 'allLabel' => 'All visitors', 'options' => [
-                    'yes' => 'On watchlist',
-                    'no' => 'Not watchlisted',
-                ]],
-                ['name' => 'type', 'label' => 'Visitor type', 'allLabel' => 'All types', 'options' => [
-                    'guest' => 'Guest',
-                    'applicant' => 'Applicant',
-                    'vendor' => 'Vendor',
-                    'contractor' => 'Contractor',
-                    'delivery' => 'Delivery',
-                ]],
-                ['name' => 'source', 'label' => 'Source', 'allLabel' => 'All sources', 'options' => [
-                    'manual' => 'Manual / walk-in',
-                    'hr1' => 'HR1',
-                    'scm' => 'SCM',
-                ]],
-            ]])
-        <?php endif; ?>
+    Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+    Route::middleware('permission:visitor.view')->get('/integrations/preview', [IntegrationPreviewController::class, 'index'])->name('integrations.preview');
 
-        <div class="module-empty" data-filter-empty hidden>No visits match these filters.</div>
+    // ARNEL AI service layer: all writes are validated and permission-gated in the controller.
+    Route::prefix('api/arnel')->middleware('throttle:30,1')->name('api.arnel.')->group(function () {
+        Route::post('/documents/analyze', [ArnelController::class, 'analyzeDocument'])->name('documents.analyze');
+        Route::post('/reservations/analyze', [ArnelController::class, 'analyzeReservation'])->name('reservations.analyze');
+        Route::post('/contracts/analyze', [ArnelController::class, 'analyzeContract'])->name('contracts.analyze');
+        Route::post('/legal-cases/analyze', [ArnelController::class, 'analyzeLegalCase'])->name('legal-cases.analyze');
+        Route::post('/retention/analyze', [ArnelController::class, 'analyzeRetention'])->name('retention.analyze');
+        Route::post('/chat', [ArnelController::class, 'chat'])->name('chat');
+        Route::post('/documents/{id}/classification-feedback', [ArnelController::class, 'correctDocumentClassification'])->name('documents.feedback');
+    });
 
-        <?php if (empty($visits)): ?>
-            <div class="module-empty">No visits logged.</div>
-        <?php else: ?>
-            <div class="module-table-wrap">
-                <div class="overflow-x-auto">
-                    <table class="module-table">
-                        <thead>
-                            <tr>
-                                <th>Visitor</th>
-                                <th>Host</th>
-                                <th>Purpose</th>
-                                <th>Destination</th>
-                                <th>Scheduled</th>
-                                <th>Check-in / out</th>
-                                <th>Status</th>
-                                <th class="text-right">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($visits as $visit): ?>
-                                <tr class="<?= $visit['is_watchlisted'] ? 'is-watch' : '' ?>"
-                                    data-filter-item
-                                    data-visit-id="<?= (int) $visit['id'] ?>"
-                                    data-visitor-id="<?= (int) $visit['visitor_id'] ?>"
-                                    data-filter-status="<?= htmlspecialchars($visit['status']) ?>"
-                                    data-filter-watch="<?= $visit['is_watchlisted'] ? 'yes' : 'no' ?>"
-                                    data-filter-type="<?= htmlspecialchars($visit['visitor_type'] ?? 'guest') ?>"
-                                    data-filter-source="<?= htmlspecialchars($visit['source_system'] ?? 'manual') ?>"
-                                    data-filter-search="<?= htmlspecialchars(strtolower($visit['visitor_name'] . ' ' . $visit['host_name'] . ' ' . ($visit['visitor_company'] ?? '') . ' ' . ($visit['purpose'] ?? '') . ' ' . ($visit['allowed_areas'] ?? ''))) ?>">
-                                    <td>
-                                        <div class="font-semibold flex flex-wrap items-center gap-1.5">
-                                            <?= htmlspecialchars($visit['visitor_name']) ?>
-                                            <span data-watch-badge class="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-accent-100 text-accent-700 uppercase tracking-wide border border-accent-200" <?= $visit['is_watchlisted'] ? '' : 'hidden' ?>>Watch</span>
-                                        </div>
-                                        <div class="text-[11px] text-ink/45 mt-0.5"><?= htmlspecialchars($visit['visitor_company'] ?: 'Individual') ?><?= !empty($visit['visitor_id_number']) ? ' · ID: '.htmlspecialchars($visit['visitor_id_number']) : '' ?></div>
-                                        <div class="text-[10px] uppercase tracking-wide text-brand-700/70 mt-1"><?= htmlspecialchars($visit['visitor_type'] ?? 'guest') ?> · <?= htmlspecialchars($visit['source_system'] ?? 'manual') ?></div>
-                                    </td>
-                                    <td class="font-medium text-ink/75"><?= htmlspecialchars($visit['host_name']) ?></td>
-                                    <td class="text-ink/70 max-w-[14rem] truncate"><?= htmlspecialchars($visit['purpose'] ?: '—') ?></td>
-                                    <td class="text-ink/60 text-xs"><?= htmlspecialchars(trim(($visit['building_name'] ?? '') . (($visit['building_name'] ?? '') && ($visit['floor_designation'] ?? '') ? ' · ' : '') . ($visit['floor_designation'] ?? '') ?: '—') ) ?></td>
-                                    <td class="text-ink/60 whitespace-nowrap text-xs">
-                                        <?= date('M d, Y', strtotime($visit['scheduled_at'])) ?>
-                                        <div class="text-[10px] text-ink/40"><?= date('g:i A', strtotime($visit['scheduled_at'])) ?></div>
-                                    </td>
-                                    <td class="whitespace-nowrap text-xs" data-visit-times>
-                                        <?php if ($visit['check_in_time']): ?>
-                                            <div class="text-brand-700 font-medium">In: <?= date('M j, Y', strtotime($visit['check_in_time'])) ?></div>
-                                            <div class="text-brand-700/80 text-[10px]"><?= date('g:i A', strtotime($visit['check_in_time'])) ?></div>
-                                        <?php else: ?>
-                                            <div class="text-ink/30">—</div>
-                                        <?php endif; ?>
-                                        <?php if ($visit['check_out_time']): ?>
-                                            <div class="text-ink/50 mt-1">Out: <?= date('M j, Y', strtotime($visit['check_out_time'])) ?></div>
-                                            <div class="text-ink/40 text-[10px]"><?= date('g:i A', strtotime($visit['check_out_time'])) ?></div>
-                                        <?php endif; ?>
-                                    </td>
-                                    <td>
-                                        <span data-status-badge class="inline-block px-2.5 py-1 text-[11px] border rounded-md capitalize <?= $statusStyles[$visit['status']] ?? 'bg-gray-50 border-gray-200' ?>">
-                                            <?= str_replace('_', ' ', $visit['status']) ?>
-                                        </span>
-                                    </td>
-                                    <td class="text-right whitespace-nowrap" data-row-actions>
-                                        <?php if (in_array($visit['status'], ['pending_approval', 'scheduled'], true)): ?>
-                                            <form action="<?= url('/visitors/' . $visit['id'] . '/approve') ?>" method="POST" class="inline" data-ajax-action="visitor.approve">
-                                                @csrf
-                                                <button type="submit" class="text-xs font-bold text-brand-700 hover:text-brand-900 mr-2">Approve</button>
-                                            </form>
-                                        <?php endif; ?>
-                                        <?php if ($canCheckIn): ?>
-                                            <?php if (in_array($visit['status'], ['scheduled', 'approved', 'pending_approval'], true)): ?>
-                                                <form action="<?= url('/visitors/' . $visit['id'] . '/check-in') ?>" method="POST" class="inline" data-ajax-action="visitor.checkin">
-                                                    @csrf
-                                                    <button type="submit" class="text-xs font-bold text-brand-700 hover:text-brand-900 mr-2">Check In</button>
-                                                </form>
-                                            <?php elseif ($visit['status'] === 'checked_in'): ?>
-                                                <a href="<?= route('visitors.badge', $visit['id']) ?>" class="text-xs font-bold text-brand-700 hover:text-brand-900 mr-2" target="_blank">Badge</a>
-                                                <form action="<?= url('/visitors/' . $visit['id'] . '/check-out') ?>" method="POST" class="inline" data-ajax-action="visitor.checkout">
-                                                    @csrf
-                                                    <button type="submit" class="text-xs font-bold text-ink hover:text-ink/80 mr-2">Check Out</button>
-                                                </form>
-                                            <?php endif; ?>
-                                        <?php endif; ?>
-                                        <?php if ($canManage): ?>
-                                            <form action="<?= url('/visitors/' . $visit['visitor_id'] . '/toggle-watchlist') ?>" method="POST" class="inline" data-ajax-action="visitor.watchlist">
-                                                @csrf
-                                                <input type="hidden" name="watchlist" value="<?= $visit['is_watchlisted'] ? '0' : '1' ?>">
-                                                <button type="submit" class="text-xs font-bold text-accent-700 hover:text-accent-600">
-                                                    <?= $visit['is_watchlisted'] ? 'Unwatch' : 'Watch' ?>
-                                                </button>
-                                            </form>
-                                        <?php endif; ?>
-                                    </td>
-                                </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        <?php endif; ?>
-    </div>
-</div>
+    Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
+    Route::post('/notifications/read-all', [NotificationController::class, 'markAllAsRead'])->name('notifications.readAll');
+    Route::post('/notifications/{id}/read', [NotificationController::class, 'markAsRead'])->name('notifications.read');
+    Route::get('/notifications/{id}/click', [NotificationController::class, 'click'])->name('notifications.click');
+    Route::get('/notifications/poll', [NotificationController::class, 'poll'])->name('notifications.poll');
 
-<!-- Modal Pre-registration Form (Outside of transform container) -->
-<?php if ($canRegister): ?>
-<div id="registerModal" class="modal-overlay hidden">
-    <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full border border-ink/10 overflow-hidden animate-fade-in-up" onclick="event.stopPropagation()">
-        <div class="px-8 py-5 border-b border-ink/10 flex justify-between items-center bg-gray-50/50">
-            <h3 class="font-sans text-xl font-bold text-ink">Pre-register Visitor</h3>
-            <button onclick="closeModal('registerModal')" class="text-ink/40 hover:text-ink/60 transition">
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                </svg>
-            </button>
-        </div>
-        
-        <form action="<?= url('/visitors') ?>" method="POST" enctype="multipart/form-data" class="p-8 space-y-5 max-h-[80vh] overflow-y-auto">
-    @csrf
-            <div class="space-y-1.5">
-                <label class="block text-xs font-bold uppercase tracking-wider text-ink/60">Visitor Profile</label>
-                <select name="visitor_id" id="visitor_select" onchange="toggleVisitorFields()" class="w-full border border-ink/15 rounded-xl p-3 text-sm bg-sand/10 focus:border-brand-500 outline-none">
-                    <option value="">-- Create New Visitor Profile --</option>
-                    <?php foreach ($visitors as $v): ?>
-                        <option value="<?= $v['id'] ?>" data-company="<?= htmlspecialchars($v['company']) ?>" data-watchlist="<?= $v['is_watchlisted'] ?>">
-                            <?= htmlspecialchars($v['full_name']) ?> <?= $v['company'] ? '('.htmlspecialchars($v['company']).')' : '' ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
-
-            <div id="new_visitor_fields" class="space-y-4 pt-2">
-                <div class="space-y-1.5">
-                    <label class="block text-xs font-semibold text-ink/75">Full Name</label>
-                    <input type="text" name="full_name" class="w-full border border-ink/15 rounded-xl p-3 text-sm bg-sand/10 focus:border-brand-500 outline-none">
-                </div>
-                <div class="space-y-1.5">
-                    <label class="block text-xs font-semibold text-ink/75">Company / Organization</label>
-                    <input type="text" name="company" class="w-full border border-ink/15 rounded-xl p-3 text-sm bg-sand/10 focus:border-brand-500 outline-none">
-                </div>
-                <div class="grid grid-cols-2 gap-4">
-                    <div class="space-y-1.5">
-                        <label class="block text-xs font-semibold text-ink/75">Email Address</label>
-                        <input type="email" name="email" class="w-full border border-ink/15 rounded-xl p-3 text-sm bg-sand/10 focus:border-brand-500 outline-none">
-                    </div>
-                    <div class="space-y-1.5">
-                        <label class="block text-xs font-semibold text-ink/75">Phone Number</label>
-                        <input type="text" name="phone" class="w-full border border-ink/15 rounded-xl p-3 text-sm bg-sand/10 focus:border-brand-500 outline-none">
-                    </div>
-                </div>
-                <div class="space-y-1.5">
-                    <label class="block text-xs font-semibold text-ink/75">Govt ID Number (e.g. Passport, License)</label>
-                    <input type="text" name="id_number" class="w-full border border-ink/15 rounded-xl p-3 text-sm bg-sand/10 focus:border-brand-500 outline-none">
-                </div>
-                <div class="space-y-1.5">
-                    <label class="block text-xs font-semibold text-ink/75">Photo (camera or upload)</label>
-                    <input type="file" name="photo" accept="image/*" capture="user" class="w-full text-xs file:mr-3 file:py-2 file:px-4 file:rounded-md file:border-0 file:bg-brand-50 file:text-brand-700">
-                </div>
-                <div class="flex items-center gap-2.5 pt-1">
-                    <input type="checkbox" name="is_watchlisted" id="is_watchlisted" value="1" class="rounded border-ink/10 text-brand-600 focus:ring-brand-500">
-                    <label for="is_watchlisted" class="text-xs text-accent-700 font-bold">Flag this profile on Security Watchlist</label>
-                </div>
-            </div>
-
-            <hr class="border-ink/10">
-
-            <div class="space-y-4">
-                <div class="space-y-1.5">
-                    <label class="block text-xs font-semibold text-ink/75">Host Employee</label>
-                    <select name="host_employee_id" required class="w-full border border-ink/15 rounded-xl p-3 text-sm bg-sand/10 focus:border-brand-500 outline-none">
-                        <option value="">-- Select Corporate Host --</option>
-                        <?php foreach ($employees as $e): ?>
-                            <option value="<?= $e['id'] ?>"><?= htmlspecialchars($e['full_name']) ?> (<?= htmlspecialchars($e['position'] ?: 'Host') ?>)</option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-
-                <div class="space-y-1.5">
-                    <label class="block text-xs font-semibold text-ink/75">Purpose of Visit</label>
-                    <input type="text" name="purpose" placeholder="e.g. Service Audit, Vendor negotiation" required class="w-full border border-ink/15 rounded-xl p-3 text-sm bg-sand/10 focus:border-brand-500 outline-none">
-                </div>
-
-                <div class="grid grid-cols-2 gap-4">
-                    <div class="space-y-1.5">
-                        <label class="block text-xs font-semibold text-ink/75">Destination Building</label>
-                        <input type="text" name="building_name" placeholder="e.g. Marikina City Headquarters" required class="w-full border border-ink/15 rounded-xl p-3 text-sm bg-sand/10 focus:border-brand-500 outline-none">
-                    </div>
-                    <div class="space-y-1.5">
-                        <label class="block text-xs font-semibold text-ink/75">Destination Floor</label>
-                        <input type="text" name="floor_designation" placeholder="e.g. 2nd Floor / Ground Floor" required class="w-full border border-ink/15 rounded-xl p-3 text-sm bg-sand/10 focus:border-brand-500 outline-none">
-                    </div>
-                </div>
-
-                <div class="space-y-1.5">
-                    <label class="block text-xs font-semibold text-ink/75">Scheduled Arrival Date &amp; Time</label>
-                    <input type="datetime-local" name="scheduled_at" required class="w-full border border-ink/15 rounded-xl p-3 text-sm bg-sand/10 focus:border-brand-500 outline-none">
-                </div>
-
-                <div class="space-y-1.5">
-                    <label class="block text-xs font-bold uppercase tracking-wider text-ink/65 mb-1">Permitted Office Areas</label>
-                    <div class="grid grid-cols-2 gap-3 p-4 bg-ink/[0.03] rounded-xl border border-ink/10">
-                        <?php foreach ($areas as $area): ?>
-                            <label class="flex items-center gap-2.5 text-xs text-ink font-medium cursor-pointer">
-                                <input type="checkbox" name="areas[]" value="<?= $area['id'] ?>" class="rounded border-ink/20 text-brand-600 focus:ring-brand-500">
-                                <?= htmlspecialchars($area['name']) ?>
-                            </label>
-                        <?php endforeach; ?>
-                    </div>
-                </div>
-
-                <div class="space-y-1.5">
-                    <label class="block text-xs font-semibold text-ink/75">Special Instructions / Reception Notes</label>
-                    <textarea name="notes" rows="3" class="w-full border border-ink/15 rounded-xl p-3 text-sm bg-sand/10 focus:border-brand-500 outline-none"></textarea>
-                </div>
-            </div>
-
-            <div class="pt-6 border-t border-ink/10 flex justify-end gap-3.5">
-                <button type="button" onclick="closeModal('registerModal')" class="px-5 py-3 rounded-xl border border-ink/10 hover:bg-gray-50 text-ink/70 font-semibold text-sm transition">
-                    Cancel
-                </button>
-                <button type="submit" class="px-6 py-3 rounded-xl bg-brand-700 hover:bg-brand-600 text-white font-semibold text-sm transition shadow-sm">
-                    Submit Registration
-                </button>
-            </div>
-        </form>
-    </div>
-</div>
-<?php endif; ?>
-
-<script>
-function toggleVisitorFields() {
-    const select = document.getElementById('visitor_select');
-    const fieldsDiv = document.getElementById('new_visitor_fields');
-    const inputs = fieldsDiv.querySelectorAll('input');
+    Route::middleware('permission:reservation.view')->get('/reservations/export', [ReservationController::class, 'exportCsv'])->name('reservations.export');
+    Route::middleware('permission:reservation.view')->get('/reservations/export/pdf', [ReservationController::class, 'exportPdf'])->name('reservations.export.pdf');
+    Route::middleware('permission:reservation.view')->get('/reservations/calendar', [ReservationController::class, 'calendar'])->name('reservations.calendar');
+    Route::middleware('permission:reservation.view')->get('/reservations', [ReservationController::class, 'index'])->name('reservations.index');
+    Route::middleware('permission:reservation.create')->post('/reservations', [ReservationController::class, 'store'])->name('reservations.store');
+    Route::middleware('permission:reservation.approve')->post('/reservations/maintenance', [ReservationController::class, 'storeMaintenance'])->name('reservations.maintenance');
+    Route::middleware('permission:reservation.approve')->post('/reservations/{id}/decide', [ReservationController::class, 'decide'])->name('reservations.decide');
+    Route::middleware('permission:reservation.approve')->post('/reservations/{id}/in-charge', [ReservationController::class, 'assignInCharge'])->name('reservations.in-charge');
     
-    if (select.value !== "") {
-        fieldsDiv.style.display = 'none';
-        inputs.forEach(input => {
-            if (input.type !== 'checkbox') {
-                input.required = false;
-            }
-        });
-    } else {
-        fieldsDiv.style.display = 'block';
-        inputs.forEach(input => {
-            if (input.name === 'full_name') {
-                input.required = true;
-            }
-        });
-    }
-}
-document.addEventListener('DOMContentLoaded', toggleVisitorFields);
-</script>
+    // Waitlist routes
+    Route::middleware('permission:reservation.create')->post('/reservations/waitlist', [ReservationController::class, 'joinWaitlist'])->name('reservations.waitlist.join');
+    Route::middleware('permission:reservation.view')->get('/reservations/waitlist', [ReservationController::class, 'waitlist'])->name('reservations.waitlist');
+    Route::middleware('permission:reservation.manage')->post('/reservations/waitlist/{id}/offer', [ReservationController::class, 'offerWaitlistSlot'])->name('reservations.waitlist.offer');
+    Route::post('/reservations/waitlist/{id}/respond', [ReservationController::class, 'respondToWaitlistOffer'])->name('reservations.waitlist.respond');
+    
+    // Cost tracking routes
+    Route::middleware('permission:reservation.manage')->post('/reservations/{id}/cost', [ReservationController::class, 'updateCostInfo'])->name('reservations.cost');
+    Route::middleware('permission:reservation.manage')->get('/reservations/cost-summary', [ReservationController::class, 'costSummary'])->name('reservations.cost.summary');
+    
+    // No-show tracking routes
+    Route::middleware('permission:reservation.manage')->post('/reservations/{id}/no-show', [ReservationController::class, 'markNoShow'])->name('reservations.no-show');
+    Route::middleware('permission:reservation.view')->get('/reservations/no-show-stats', [ReservationController::class, 'noShowStats'])->name('reservations.no-show.stats');
+    
+    // Cancellation routes
+    Route::post('/reservations/{id}/cancel', [ReservationController::class, 'cancel'])->name('reservations.cancel');
+    
+    // Feedback routes
+    Route::post('/reservations/{id}/feedback', [ReservationController::class, 'submitFeedback'])->name('reservations.feedback');
+    Route::middleware('permission:reservation.view')->get('/reservations/feedback-summary', [ReservationController::class, 'feedbackSummary'])->name('reservations.feedback.summary');
+    
+    // Defense Ready: QR check-in + lifecycle + analytics (non-{id} routes first)
+    Route::middleware('permission:reservation.view')->post('/reservations/check-in', [ReservationController::class, 'checkIn'])->name('reservations.checkin');
+    Route::middleware('permission:reservation.view')->get('/reservations/analytics/summary', [ReservationController::class, 'analytics'])->name('reservations.analytics');
+    Route::middleware('permission:reservation.create')->get('/reservations/alternatives', [ReservationController::class, 'alternatives'])->name('reservations.alternatives');
+    Route::middleware('permission:reservation.manage')->post('/reservations/{id}/lifecycle', [ReservationController::class, 'lifecycle'])->name('reservations.lifecycle');
+    Route::middleware('permission:reservation.view')->get('/reservations/{id}/history', [ReservationController::class, 'history'])->name('reservations.history');
+    Route::middleware('permission:reservation.view')->get('/reservations/{id}/qr', [ReservationController::class, 'qrBadge'])->name('reservations.qr');
 
-@endsection
+    // iCal export route
+    Route::middleware('permission:reservation.view')->get('/reservations/{id}/ical', [ReservationController::class, 'exportIcal'])->name('reservations.ical');
+
+    Route::middleware('permission:visitor.view')->get('/visitors/export', [VisitorController::class, 'exportCsv'])->name('visitors.export');
+    Route::middleware('permission:visitor.view')->get('/visitors/export/pdf', [VisitorController::class, 'exportPdf'])->name('visitors.export.pdf');
+    Route::middleware('permission:visitor.view')->get('/visitors', [VisitorController::class, 'index'])->name('visitors.index');
+    Route::middleware('permission:visitor.register')->post('/visitors', [VisitorController::class, 'store'])->name('visitors.store');
+    Route::middleware('permission:visitor.view')->get('/visitors/{id}/history', [VisitorController::class, 'history'])->name('visitors.history');
+    Route::middleware('permission:visitor.checkin')->post('/visitors/{id}/verify-id', [VisitorController::class, 'verifyApplicantId'])->name('visitors.verify-id');
+    Route::middleware('permission:visitor.checkin')->post('/visitors/{id}/check-in', [VisitorController::class, 'checkIn'])->name('visitors.checkin');
+    Route::middleware('permission:visitor.checkin')->post('/visitors/{id}/check-out', [VisitorController::class, 'checkOut'])->name('visitors.checkout');
+    Route::post('/visitors/{id}/approve', [VisitorController::class, 'approve'])->name('visitors.approve');
+    Route::middleware('permission:visitor.manage')->post('/visitors/{id}/toggle-watchlist', [VisitorController::class, 'toggleWatchlist'])->name('visitors.watchlist');
+    Route::middleware('permission:visitor.view')->get('/visitors/{id}/badge', [VisitorController::class, 'badge'])->name('visitors.badge');
+    
+    // Watchlist enhancements
+    Route::middleware('permission:visitor.manage')->post('/visitors/{id}/watchlist-details', [VisitorController::class, 'updateWatchlistDetails'])->name('visitors.watchlist.details');
+    
+    // Vehicle logging
+    Route::middleware('permission:visitor.register')->post('/visitors/vehicles', [VisitorController::class, 'logVehicle'])->name('visitors.vehicles.log');
+    Route::middleware('permission:visitor.view')->get('/visitors/vehicles', [VisitorController::class, 'getVehicles'])->name('visitors.vehicles');
+    
+    // NDA signature
+    Route::middleware('permission:visitor.manage')->post('/visits/{id}/nda-required', [VisitorController::class, 'setNdaRequired'])->name('visits.nda.required');
+    Route::post('/visits/{id}/sign-nda', [VisitorController::class, 'signNda'])->name('visits.nda.sign');
+    
+    // Emergency roster
+    Route::middleware('permission:visitor.manage')->get('/visitors/emergency-roster', [VisitorController::class, 'emergencyRoster'])->name('visitors.emergency.roster');
+    Route::middleware('permission:visitor.manage')->get('/visitors/emergency-roster/export', [VisitorController::class, 'exportEmergencyRoster'])->name('visitors.emergency.export');
+
+    Route::middleware('permission:document.view')->get('/documents/export', [DocumentController::class, 'exportCsv'])->name('documents.export');
+    Route::middleware('permission:document.view')->get('/documents/export/pdf', [DocumentController::class, 'exportPdf'])->name('documents.export.pdf');
+    Route::middleware('permission:document.view')->get('/documents', [DocumentController::class, 'index'])->name('documents.index');
+    Route::middleware('permission:document.upload')->post('/documents', [DocumentController::class, 'store'])->name('documents.store');
+    Route::middleware('permission:document.view')->get('/documents/{id}/compare', [DocumentController::class, 'compare'])->name('documents.compare');
+    Route::middleware('permission:document.view')->get('/documents/{id}/preview', [DocumentController::class, 'preview'])->name('documents.preview');
+    Route::middleware('permission:document.view')->get('/documents/{id}', [DocumentController::class, 'show'])->name('documents.show');
+    Route::middleware('permission:document.upload')->post('/documents/{id}/version', [DocumentController::class, 'addVersion'])->name('documents.version');
+    Route::middleware('permission:document.upload')->post('/documents/{id}/restore/{version}', [DocumentController::class, 'restoreVersion'])->name('documents.restore');
+    Route::middleware('permission:document.view')->get('/documents/{id}/download', [DocumentController::class, 'download'])->name('documents.download');
+    Route::post('/documents/{id}/access', [DocumentController::class, 'updateAccess'])->middleware('auth')->name('documents.access');
+    Route::middleware('permission:document.manage')->post('/documents/{id}/destroy', [DocumentController::class, 'destroy'])->name('documents.destroy');
+    Route::middleware('permission:document.manage')->post('/documents/{id}/archive', [DocumentController::class, 'archive'])->name('documents.archive');
+    Route::middleware('permission:document.manage')->post('/documents/{id}/restore-archive', [DocumentController::class, 'restoreArchive'])->name('documents.archive.restore');
+    
+    // Document review/expiration reminders
+    Route::middleware('permission:document.manage')->get('/documents/review-needed', [DocumentController::class, 'documentsNeedingReview'])->name('documents.review.needed');
+    Route::middleware('permission:document.manage')->post('/documents/send-review-reminders', [DocumentController::class, 'sendReviewReminders'])->name('documents.review.reminders');
+    Route::post('/documents/{id}/mark-reviewed', [DocumentController::class, 'markReviewed'])->name('documents.review.mark');
+    Route::middleware('permission:document.manage')->post('/documents/{id}/review-date', [DocumentController::class, 'updateReviewDate'])->name('documents.review.date');
+    
+    // Check-out/lock functionality
+    Route::post('/documents/{id}/checkout', [DocumentController::class, 'checkOut'])->name('documents.checkout');
+    Route::post('/documents/{id}/checkin', [DocumentController::class, 'checkIn'])->name('documents.checkin');
+    Route::middleware('permission:document.manage')->get('/documents/checked-out', [DocumentController::class, 'checkedOutDocuments'])->name('documents.checked.out');
+    
+    // OCR processing
+    Route::middleware('permission:document.manage')->post('/documents/process-ocr', [DocumentController::class, 'processOcr'])->name('documents.ocr.process');
+    
+    // Bulk upload tracking
+    Route::middleware('permission:document.upload')->post('/documents/bulk-upload/start', [DocumentController::class, 'startBulkUpload'])->name('documents.bulk.start');
+    Route::middleware('permission:document.upload')->post('/documents/bulk-upload/complete', [DocumentController::class, 'completeBulkUpload'])->name('documents.bulk.complete');
+    Route::middleware('permission:document.upload')->get('/documents/bulk-uploads', [DocumentController::class, 'bulkUploads'])->name('documents.bulk.uploads');
+    
+    // E-signature requests
+    Route::post('/documents/{id}/request-signature', [DocumentController::class, 'requestSignature'])->name('documents.signature.request');
+    Route::get('/documents/sign/{token}', [DocumentController::class, 'showSignatureForm'])->name('documents.signature.form');
+    Route::post('/documents/sign/{token}', [DocumentController::class, 'submitSignature'])->name('documents.signature.submit');
+    Route::post('/documents/signature-requests/{id}/decline', [DocumentController::class, 'declineSignature'])->name('documents.signature.decline');
+    Route::middleware('permission:document.view')->get('/documents/{id}/signature-requests', [DocumentController::class, 'signatureRequests'])->name('documents.signature.requests');
+
+    Route::middleware('permission:retention.view')->get('/retention/export', [RetentionController::class, 'exportCsv'])->name('retention.export');
+    Route::middleware('permission:retention.view')->get('/retention/export/pdf', [RetentionController::class, 'exportPdf'])->name('retention.export.pdf');
+    Route::middleware('permission:retention.view')->get('/retention', [RetentionController::class, 'index'])->name('retention.index');
+    Route::middleware('permission:retention.manage')->post('/retention/policies', [RetentionController::class, 'storePolicy'])->name('retention.policies');
+    Route::middleware('permission:retention.manage')->post('/retention/assign', [RetentionController::class, 'storeAssignment'])->name('retention.assign');
+    Route::middleware('permission:retention.manage')->post('/retention/{id}/dispose', [RetentionController::class, 'dispose'])->name('retention.dispose');
+    Route::middleware('permission:retention.manage')->post('/retention/holds', [RetentionController::class, 'storeHold'])->name('retention.holds');
+    Route::middleware('permission:retention.manage')->post('/retention/holds/{id}/release', [RetentionController::class, 'releaseHold'])->name('retention.release');
+    
+    // Disposal certificate generation
+    Route::middleware('permission:retention.manage')->post('/retention/disposals/{id}/certificate', [RetentionController::class, 'generateCertificate'])->name('retention.disposal.certificate');
+    Route::middleware('permission:retention.manage')->get('/retention/disposals/without-certificates', [RetentionController::class, 'disposalsWithoutCertificates'])->name('retention.disposals.without.certificates');
+    
+    // Custodian notifications
+    Route::get('/retention/hold-notifications', [RetentionController::class, 'holdNotifications'])->name('retention.hold.notifications');
+    Route::post('/retention/hold-notifications/{id}/read', [RetentionController::class, 'markNotificationRead'])->name('retention.hold.notifications.read');
+    Route::middleware('permission:retention.manage')->post('/retention/holds-with-notifications', [RetentionController::class, 'placeHoldWithNotifications'])->name('retention.holds.with.notifications');
+    Route::middleware('permission:retention.manage')->post('/retention/holds/{id}/release-with-notifications', [RetentionController::class, 'releaseHoldWithNotifications'])->name('retention.holds.release.with.notifications');
+    
+    // Policy templates
+    Route::middleware('permission:retention.view')->get('/retention/policy-templates', [RetentionController::class, 'policyTemplates'])->name('retention.policy.templates');
+    Route::middleware('permission:retention.manage')->post('/retention/policies/from-template', [RetentionController::class, 'createFromTemplate'])->name('retention.policies.from.template');
+    
+    // Compliance calendar
+    Route::middleware('permission:retention.view')->get('/retention/compliance-calendar', [RetentionController::class, 'complianceCalendar'])->name('retention.compliance.calendar');
+    Route::middleware('permission:retention.view')->get('/retention/upcoming-disposals', [RetentionController::class, 'upcomingDisposals'])->name('retention.upcoming.disposals');
+    Route::middleware('permission:retention.view')->get('/retention/active-holds', [RetentionController::class, 'activeHolds'])->name('retention.active.holds');
+
+    Route::middleware('permission:legal.view')->get('/legal/export', [LegalCaseController::class, 'exportCsv'])->name('legal.export');
+    Route::middleware('permission:legal.view')->get('/legal/export/pdf', [LegalCaseController::class, 'exportPdf'])->name('legal.export.pdf');
+    Route::middleware('permission:legal.view')->get('/legal', [LegalCaseController::class, 'index'])->name('legal.index');
+    Route::middleware('permission:legal.manage')->post('/legal', [LegalCaseController::class, 'store'])->name('legal.store');
+    Route::middleware('permission:legal.manage')->post('/legal/employee-departures', [LegalCaseController::class, 'storeEmployeeDeparture'])->name('legal.employee-departures.store');
+    Route::middleware('permission:legal.manage')->post('/legal/vendors', [LegalCaseController::class, 'storeVendor'])->name('legal.vendors.store');
+    Route::middleware('permission:legal.view')->get('/legal/{id}', [LegalCaseController::class, 'show'])->name('legal.show');
+    Route::middleware('permission:legal.manage')->post('/legal/{id}/parties', [LegalCaseController::class, 'addParty'])->name('legal.parties');
+    Route::middleware('permission:legal.manage')->post('/legal/{id}/milestones', [LegalCaseController::class, 'addMilestone'])->name('legal.milestones');
+    Route::middleware('permission:legal.manage')->post('/legal/{caseId}/milestones/{milestoneId}/toggle', [LegalCaseController::class, 'toggleMilestone'])->name('legal.milestones.toggle');
+    Route::middleware('permission:legal.manage')->post('/legal/{id}/deadlines', [LegalCaseController::class, 'addDeadline'])->name('legal.deadlines');
+    Route::middleware('permission:legal.manage')->post('/legal/{caseId}/deadlines/{deadlineId}/toggle', [LegalCaseController::class, 'toggleDeadline'])->name('legal.deadlines.toggle');
+    Route::middleware('permission:legal.manage')->post('/legal/{id}/documents', [LegalCaseController::class, 'linkDocument'])->name('legal.documents');
+    Route::middleware('permission:legal.manage')->post('/legal/{id}/costs', [LegalCaseController::class, 'addCost'])->name('legal.costs');
+    Route::middleware('permission:legal.manage')->post('/legal/{id}/vendors', [LegalCaseController::class, 'linkVendor'])->name('legal.vendors.link');
+    Route::middleware('permission:legal.manage')->post('/legal/{id}/budget', [LegalCaseController::class, 'updateBudget'])->name('legal.budget');
+    Route::middleware('permission:legal.manage')->post('/legal/{id}/outcome', [LegalCaseController::class, 'recordOutcome'])->name('legal.outcome');
+    Route::middleware('permission:legal.manage')->post('/legal/{id}/conflicts/party', [LegalCaseController::class, 'flagPartyConflict'])->name('legal.conflicts.party');
+    Route::middleware('permission:legal.manage')->post('/legal/{id}/conflicts/counsel', [LegalCaseController::class, 'flagCounselConflict'])->name('legal.conflicts.counsel');
+    Route::middleware('permission:legal.manage')->post('/legal/{id}/conflicts/scan', [LegalCaseController::class, 'runConflictScan'])->name('legal.conflicts.scan');
+    Route::middleware('permission:legal.manage')->post('/legal/{caseId}/conflicts/party/{conflictId}/resolve', [LegalCaseController::class, 'resolvePartyConflict'])->name('legal.conflicts.party.resolve');
+    Route::middleware('permission:legal.manage')->post('/legal/{caseId}/conflicts/counsel/{conflictId}/verify', [LegalCaseController::class, 'verifyCounselConflict'])->name('legal.conflicts.counsel.verify');
+    Route::middleware('permission:legal.manage')->post('/legal/{id}/workflow', [LegalCaseController::class, 'advanceWorkflow'])->name('legal.workflow');
+    Route::middleware('permission:legal.manage')->post('/legal/{id}/destroy', [LegalCaseController::class, 'destroy'])->name('legal.destroy');
+
+    Route::middleware('permission:contract.view')->get('/contracts/export', [ContractController::class, 'exportCsv'])->name('contracts.export');
+    Route::middleware('permission:contract.view')->get('/contracts/export/pdf', [ContractController::class, 'exportPdf'])->name('contracts.export.pdf');
+    Route::middleware('permission:contract.view')->get('/contracts', [ContractController::class, 'index'])->name('contracts.index');
+    Route::middleware('permission:contract.create')->post('/contracts', [ContractController::class, 'store'])->name('contracts.store');
+    Route::middleware('permission:contract.manage')->post('/contracts/templates', [ContractController::class, 'storeTemplate'])->name('contracts.templates');
+    Route::middleware('permission:contract.manage')->post('/contracts/chains', [ContractController::class, 'storeChain'])->name('contracts.chains');
+    Route::get('/contracts/sign/{token}', [ContractController::class, 'showSignForm'])->name('contracts.sign');
+    Route::post('/contracts/sign/{token}', [ContractController::class, 'submitSign'])->name('contracts.sign.submit');
+    Route::middleware('permission:contract.view')->get('/contracts/{id}', [ContractController::class, 'show'])->name('contracts.show');
+    Route::middleware('permission:contract.approve')->post('/contracts/{id}/approve', [ContractController::class, 'approve'])->name('contracts.approve');
+    Route::post('/contracts/{id}/amend', [ContractController::class, 'amend'])->name('contracts.amend');
+    Route::middleware('permission:contract.manage')->post('/contracts/{id}/auto-renew', [ContractController::class, 'autoDraftRenewal'])->name('contracts.renew');
+    Route::middleware('permission:contract.manage')->post('/contracts/{id}/obligations', [ContractController::class, 'addObligation'])->name('contracts.obligations');
+    Route::middleware('permission:contract.manage')->post('/contracts/{contractId}/obligations/{obligationId}/toggle', [ContractController::class, 'toggleObligation'])->name('contracts.obligations.toggle');
+    Route::middleware('permission:contract.manage')->post('/contracts/{id}/vendor-score', [ContractController::class, 'recordVendorScore'])->name('contracts.vendor-score');
+    Route::middleware('permission:contract.view')->get('/contracts/{id}/signature-certificate', [ContractController::class, 'signatureCertificate'])->name('contracts.signature-certificate');
+    Route::middleware('permission:contract.view')->get('/contracts/{id}/amendments/{amendmentId}/diff', [ContractController::class, 'amendmentDiff'])->name('contracts.amendments.diff');
+    Route::middleware('permission:contract.manage')->post('/contracts/{id}/destroy', [ContractController::class, 'destroy'])->name('contracts.destroy');
+
+    Route::middleware('permission:users.manage')->group(function () {
+        Route::get('/users', [UserController::class, 'index'])->name('users.index');
+        Route::post('/users', [UserController::class, 'store'])->name('users.store');
+        Route::post('/users/import', [UserController::class, 'import'])->name('users.import');
+        Route::post('/users/bulk-role', [UserController::class, 'bulkRole'])->name('users.bulk-role');
+        Route::post('/users/{id}/toggle-status', [UserController::class, 'toggleStatus'])->name('users.toggle');
+        Route::post('/users/{id}/otp-email', [UserController::class, 'updateOtpEmail'])->name('users.otp-email');
+        Route::post('/users/{id}/destroy', [UserController::class, 'destroy'])->name('users.destroy');
+
+        Route::get('/settings/roles', [\App\Http\Controllers\RoleController::class, 'index'])->name('roles.index');
+        Route::post('/settings/roles', [\App\Http\Controllers\RoleController::class, 'store'])->name('roles.store');
+        Route::put('/settings/roles/{role}', [\App\Http\Controllers\RoleController::class, 'update'])->name('roles.update');
+        Route::delete('/settings/roles/{role}', [\App\Http\Controllers\RoleController::class, 'destroy'])->name('roles.destroy');
+        Route::get('/settings/sessions', [SessionController::class, 'index'])->name('sessions.index');
+        Route::post('/settings/sessions/{id}/revoke', [SessionController::class, 'revoke'])->name('sessions.revoke');
+        Route::post('/settings/sessions/revoke-others', [SessionController::class, 'revokeOthers'])->name('sessions.revokeOthers');
+    });
+
+    Route::get('/audit-logs', [AuditLogController::class, 'index'])->name('audit.index');
+    Route::get('/audit-logs/export', [AuditLogController::class, 'exportCsv'])->name('audit.export');
+    Route::get('/audit-logs/export/pdf', [AuditLogController::class, 'exportPdf'])->name('audit.export.pdf');
+});

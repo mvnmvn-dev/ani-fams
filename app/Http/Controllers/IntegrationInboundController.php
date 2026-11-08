@@ -21,6 +21,9 @@ class IntegrationInboundController extends Controller
         }
 
         $source = $this->source($request, 'hr1');
+        if ($source !== 'hr1') {
+            return response()->json(['message' => 'Only the HR1 integration client may synchronize employees.'], 403);
+        }
         $saved = [];
         foreach ($items as $item) {
             $validator = Validator::make($item, [
@@ -88,8 +91,17 @@ class IntegrationInboundController extends Controller
             'interview.notes' => ['nullable', 'string'],
         ]);
         $source = $this->source($request, 'hr1');
+        if ($source !== 'hr1') {
+            return response()->json(['message' => 'Only the HR1 integration client may submit interviews.'], 403);
+        }
         $applicant = $data['applicant'];
         $interview = $data['interview'];
+        $hostId = DB::table('employees')->where('employee_no', $interview['host_employee_no'])
+            ->where('source_system', 'hr1')->value('id');
+        if (! $hostId) {
+            $this->log($source, 'interview', $interview['external_id'], 'rejected', 'Unknown HR1 host employee_no.');
+            return response()->json(['message' => 'Unknown host employee_no.'], 422);
+        }
 
         $existingRef = DB::table('external_refs')->where([
             'source_system' => $source, 'resource' => 'interview', 'external_id' => $interview['external_id'],
@@ -97,6 +109,7 @@ class IntegrationInboundController extends Controller
         if ($existingRef) {
             DB::table('visits')->where('id', $existingRef->local_id)->update([
                 'scheduled_at' => $interview['scheduled_at'],
+                'host_employee_id' => (int) $hostId,
                 'purpose' => $interview['purpose'],
                 'building_name' => $interview['building_name'],
                 'floor_designation' => $interview['floor_designation'],
@@ -128,11 +141,6 @@ class IntegrationInboundController extends Controller
             ]);
         }
 
-        $hostId = DB::table('employees')->where('employee_no', $interview['host_employee_no'])->value('id');
-        if (! $hostId) {
-            $this->log($source, 'interview', $interview['external_id'], 'rejected', 'Unknown host employee_no.');
-            return response()->json(['message' => 'Unknown host employee_no.'], 422);
-        }
         $result = $visitorService->preRegister([
             'visitor_id' => (int) $visitorId,
             'full_name' => $applicant['full_name'],
@@ -162,6 +170,10 @@ class IntegrationInboundController extends Controller
 
     public function documents(string $system, Request $request, DocumentService $documentService, RetentionService $retentionService): JsonResponse
     {
+        $clientSource = $this->source($request, '');
+        if ($clientSource !== $system) {
+            return response()->json(['message' => 'The authenticated integration client does not match the requested source system.'], 403);
+        }
         $data = $request->validate([
             'external_id' => ['required', 'string', 'max:100'],
             'doc_type' => ['required', 'string', 'max:50'],
@@ -170,7 +182,7 @@ class IntegrationInboundController extends Controller
             'employee_no' => ['nullable', 'string', 'max:50'],
             'period_start' => ['nullable', 'date'],
             'period_end' => ['nullable', 'date'],
-            'checksum_sha256' => ['nullable', 'string', 'size:64'],
+            'checksum_sha256' => ['required', 'string', 'size:64'],
             'file' => ['required', 'file', 'max:51200'],
         ]);
         if ($system === 'hr4' && in_array($data['doc_type'], ['payroll_register', 'payslip_batch', 'remittance_report', 'bir_2316'], true) && empty($data['period_end'])) {
@@ -181,16 +193,43 @@ class IntegrationInboundController extends Controller
             return response()->json(['message' => 'No active retention source rule exists for this document type.'], 422);
         }
         $sourceRef = DB::table('external_refs')->where(['source_system' => $system, 'resource' => 'document', 'external_id' => $data['external_id']])->first();
-        if ($sourceRef) {
-            $this->log($system, 'document', $data['external_id'], 'duplicate');
-            return response()->json(['success' => true, 'document_id' => (int) $sourceRef->local_id, 'status' => 'duplicate'], 200);
-        }
         $file = $request->file('file');
-        if ($data['checksum_sha256'] && ! hash_equals(strtolower($data['checksum_sha256']), strtolower(hash_file('sha256', $file->getRealPath())))) {
+        $actualChecksum = strtolower(hash_file('sha256', $file->getRealPath()));
+        if (! hash_equals(strtolower($data['checksum_sha256']), $actualChecksum)) {
             $this->log($system, 'document', $data['external_id'], 'rejected', 'Checksum mismatch.');
             return response()->json(['message' => 'Checksum mismatch.'], 422);
         }
         $fileInput = ['name' => $file->getClientOriginalName(), 'type' => $file->getMimeType(), 'tmp_name' => $file->getRealPath(), 'error' => $file->getError(), 'size' => $file->getSize()];
+        if ($sourceRef) {
+            $currentChecksum = DB::table('document_versions')->where('document_id', $sourceRef->local_id)
+                ->orderByDesc('version_no')->value('checksum');
+            if ($currentChecksum && hash_equals(strtolower($currentChecksum), $actualChecksum)) {
+                DB::table('documents')->where('id', $sourceRef->local_id)->update([
+                    'title' => $data['title'], 'description' => $data['description'] ?? '',
+                    'source_doc_type' => $data['doc_type'], 'employee_no' => $data['employee_no'] ?? null,
+                    'period_start' => $data['period_start'] ?? null, 'period_end' => $data['period_end'] ?? null,
+                ]);
+                $this->upsertRef($system, 'document', $data['external_id'], 'documents', (int) $sourceRef->local_id, $request->all());
+                $this->log($system, 'document', $data['external_id'], 'duplicate');
+                return response()->json(['success' => true, 'document_id' => (int) $sourceRef->local_id, 'status' => 'duplicate'], 200);
+            }
+            $result = $documentService->uploadNewVersion((int) $sourceRef->local_id, [
+                'change_notes' => 'Updated by ' . strtoupper($system) . ' integration.',
+            ], $fileInput);
+            if (! ($result['success'] ?? false)) {
+                $this->log($system, 'document', $data['external_id'], 'rejected', $result['error'] ?? 'Version upload failed.');
+                return response()->json($result, 422);
+            }
+            $documentId = (int) $sourceRef->local_id;
+            DB::table('documents')->where('id', $documentId)->update([
+                'title' => $data['title'], 'description' => $data['description'] ?? '',
+                'employee_no' => $data['employee_no'] ?? null, 'period_start' => $data['period_start'] ?? null,
+                'period_end' => $data['period_end'] ?? null,
+            ]);
+            $this->upsertRef($system, 'document', $data['external_id'], 'documents', $documentId, $request->all());
+            $this->log($system, 'document', $data['external_id'], 'ok');
+            return response()->json(['success' => true, 'document_id' => $documentId, 'status' => 'updated'], 200);
+        }
         $result = $documentService->uploadDocument([
             'title' => $data['title'], 'description' => $data['description'] ?? '',
             'category_id' => $rule->category_id, 'confidentiality' => $rule->confidentiality,
@@ -207,41 +246,55 @@ class IntegrationInboundController extends Controller
         ]);
         $startDate = $data['period_end'] ?? now()->toDateString();
         $assigned = $retentionService->assignPolicy(['document_id' => $documentId, 'policy_id' => $rule->policy_id, 'retention_start_date' => $startDate]);
+        if (! ($assigned['success'] ?? false)) {
+            $this->log($system, 'document', $data['external_id'], 'error', $assigned['error'] ?? 'Retention assignment failed.');
+            return response()->json(['message' => $assigned['error'] ?? 'Retention assignment failed.'], 500);
+        }
         $this->upsertRef($system, 'document', $data['external_id'], 'documents', $documentId, $request->all());
         $this->log($system, 'document', $data['external_id'], 'ok');
         return response()->json(['success' => true, 'document_id' => $documentId, 'retention' => $assigned], 201);
     }
 
-    public function events(Request $request): JsonResponse
+    public function events(string $system, Request $request): JsonResponse
     {
         $data = $request->validate(['type' => ['required', 'string'], 'employee_no' => ['required', 'string', 'max:50'], 'separation_date' => ['required_if:type,employee.separated', 'date']]);
         if ($data['type'] !== 'employee.separated') {
             return response()->json(['message' => 'Unsupported HR event type.'], 422);
         }
-        $source = $this->source($request, 'hr1');
-        $documents = DB::table('documents')->where('employee_no', $data['employee_no'])->pluck('id');
+        $source = $this->source($request, '');
+        if (! in_array($system, ['hr1', 'hr2'], true) || $source !== $system) {
+            return response()->json(['message' => 'Only the matching HR1 or HR2 integration client may submit employee events.'], 403);
+        }
+        $documents = DB::table('documents')->where('employee_no', $data['employee_no'])
+            ->whereIn('source_system', ['hr1', 'hr2', 'hr3', 'hr4'])->pluck('id');
         $updated = 0;
+        $employeeName = DB::table('employees')->where('employee_no', $data['employee_no'])->value('full_name') ?? $data['employee_no'];
         foreach ($documents as $documentId) {
-            $updated += DB::table('retention_assignments')->where('document_id', $documentId)->where('status', '!=', 'disposed')->update(['retention_start_date' => $data['separation_date']]);
+            $assignments = DB::table('retention_assignments as ra')
+                ->join('retention_policies as rp', 'rp.id', '=', 'ra.policy_id')
+                ->where('ra.document_id', $documentId)->where('ra.status', '!=', 'disposed')
+                ->get(['ra.id', 'rp.retention_period_months']);
+            foreach ($assignments as $assignment) {
+                $disposalDate = date('Y-m-d', strtotime('+' . (int) $assignment->retention_period_months . ' months', strtotime($data['separation_date'])));
+                $updated += DB::table('retention_assignments')->where('id', $assignment->id)->update([
+                    'retention_start_date' => $data['separation_date'], 'calculated_disposal_date' => $disposalDate,
+                ]);
+            }
             DB::table('legal_employee_departures')->insertOrIgnore([
-                'employee_name' => DB::table('employees')->where('employee_no', $data['employee_no'])->value('full_name') ?? $data['employee_no'],
-                'departure_type' => 'resigned', 'effective_date' => $data['separation_date'], 'source_document_id' => $documentId,
+                'employee_name' => $employeeName, 'departure_type' => 'resigned',
+                'effective_date' => $data['separation_date'], 'source_document_id' => $documentId,
+                'recorded_by' => auth()->id(), 'created_at' => now(),
+            ]);
+        }
+        if ($documents->isEmpty()) {
+            DB::table('legal_employee_departures')->insertOrIgnore([
+                'employee_name' => $employeeName, 'departure_type' => 'resigned',
+                'effective_date' => $data['separation_date'], 'source_document_id' => null,
                 'recorded_by' => auth()->id(), 'created_at' => now(),
             ]);
         }
         $this->log($source, 'employee.separated', $data['employee_no'], 'ok');
         return response()->json(['success' => true, 'employee_no' => $data['employee_no'], 'documents_updated' => $updated], 200);
-    }
-
-    public function verifyVisitorId(string $id, Request $request): JsonResponse
-    {
-        $data = $request->validate(['id_number' => ['required', 'string', 'max:100']]);
-        $visitorId = (int) $id;
-        $updated = DB::table('visitors')->where('id', $visitorId)->update(['id_number' => $data['id_number'], 'id_verified_at' => now(), 'id_verified_by' => auth()->id()]);
-        if (! $updated) {
-            return response()->json(['message' => 'Visitor profile not found.'], 404);
-        }
-        return response()->json(['success' => true, 'visitor_id' => $visitorId, 'id_verified_at' => now()->toISOString()], 200);
     }
 
     private function source(Request $request, string $fallback): string

@@ -204,7 +204,7 @@ class IntegrationApiController extends Controller
             'reservation-equipment' => ['table' => 'reservation_equipment', 'permission' => 'reservation.view', 'columns' => ['reservation_id', 'equipment_id', 'quantity']],
             'reservation-waitlist' => ['table' => 'reservation_waitlist', 'permission' => 'reservation.view', 'columns' => ['id', 'facility_id', 'requested_by', 'purpose', 'preferred_start_datetime', 'preferred_end_datetime', 'status', 'offered_reservation_id', 'notes', 'created_at', 'updated_at']],
             'documents' => ['table' => 'documents', 'permission' => 'document.view', 'columns' => ['id', 'document_number', 'title', 'description', 'category_id', 'owner_id', 'confidentiality', 'status', 'current_version_id', 'source_system', 'source_ref', 'source_doc_type', 'employee_no', 'period_start', 'period_end', 'created_at', 'deleted_at']],
-            'document-versions' => ['table' => 'document_versions', 'permission' => 'document.view', 'columns' => ['id', 'document_id', 'version_no', 'file_path', 'checksum', 'ocr_processed', 'uploaded_by', 'uploaded_at', 'change_notes']],
+            'document-versions' => ['table' => 'document_versions', 'permission' => 'document.view', 'scope' => 'documents:read', 'columns' => ['id', 'document_id', 'version_no', 'checksum', 'ocr_processed', 'uploaded_at', 'change_notes']],
             'document-categories' => ['table' => 'document_categories', 'permission' => 'document.view', 'columns' => ['id', 'name', 'parent_id']],
             'contracts' => ['table' => 'contracts', 'permission' => 'contract.view', 'columns' => ['id', 'contract_number', 'title', 'contract_type_id', 'counterparty_name', 'counterparty_contact', 'status', 'start_date', 'end_date', 'owner_id', 'created_at', 'deleted_at']],
             'contract-obligations' => ['table' => 'contract_obligations', 'permission' => 'contract.view', 'columns' => ['id', 'contract_id', 'title', 'description', 'responsible_party', 'due_date', 'is_completed', 'completed_at', 'created_by', 'created_at', 'updated_at']],
@@ -220,6 +220,17 @@ class IntegrationApiController extends Controller
         $feed = $feeds[$resource] ?? null;
         if (! $feed) {
             return response()->json(['message' => 'Unsupported integration resource.'], 404);
+        }
+        $scopeByPermission = [
+            'users.manage' => 'users:read', 'visitor.view' => 'visitors:read',
+            'reservation.view' => 'reservations:read', 'document.view' => 'documents:read',
+            'contract.view' => 'contracts:read', 'legal.view' => 'legal:read',
+            'retention.view' => 'retention:read', 'audit.view' => 'audit:read',
+        ];
+        $requiredScope = $feed['scope'] ?? ($scopeByPermission[$feed['permission']] ?? null);
+        $client = $request->attributes->get('integration_client');
+        if (! $requiredScope || ! in_array($requiredScope, (array) ($client?->scopes ?? []), true)) {
+            return response()->json(['message' => 'Integration scope is not permitted for this resource.'], 403);
         }
         $query = DB::table($feed['table'])->select($feed['columns']);
         if ($request->filled('id') && in_array('id', $feed['columns'], true)) {
