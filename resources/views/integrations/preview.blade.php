@@ -28,14 +28,14 @@
         </div>
         <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <?php foreach ($connections as $connection): ?>
-                <div class="rounded-2xl border border-ink/10 bg-white p-5 shadow-[0_4px_18px_rgba(20,46,76,0.05)]">
-                    <div class="flex items-start justify-between gap-3">
-                        <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-50 text-sm font-bold text-brand-700"><?= htmlspecialchars($connection['code']) ?></div>
-                        <span class="rounded-full border border-ink/10 bg-ink/5 px-2 py-1 text-[10px] font-bold text-ink/55">Integration scope</span>
+                <div class="min-w-0 rounded-2xl border border-ink/10 bg-white p-5 shadow-[0_4px_18px_rgba(20,46,76,0.05)]">
+                    <div class="flex flex-wrap items-start justify-between gap-2">
+                        <div class="flex h-10 min-w-0 max-w-full items-center justify-center rounded-xl bg-brand-50 px-2 text-center text-sm font-bold leading-tight text-brand-700 break-words"><?= htmlspecialchars($connection['code']) ?></div>
+                        <span class="max-w-full whitespace-normal break-words rounded-full border border-ink/10 bg-ink/5 px-2 py-1 text-right text-[10px] font-bold leading-tight text-ink/55">Integration scope</span>
                     </div>
-                    <h3 class="mt-4 text-sm font-bold text-ink"><?= htmlspecialchars($connection['name']) ?></h3>
-                    <p class="mt-1 text-xs leading-5 text-ink/55"><?= htmlspecialchars($connection['description']) ?></p>
-                    <div class="mt-4 border-t border-ink/8 pt-3"><p class="text-[10px] font-bold uppercase tracking-wider text-ink/40">Status</p><p class="mt-1 text-xs font-semibold text-accent-700"><?= htmlspecialchars($connection['status']) ?></p></div>
+                    <h3 class="mt-4 break-words text-sm font-bold text-ink"><?= htmlspecialchars($connection['name']) ?></h3>
+                    <p class="mt-1 break-words text-xs leading-5 text-ink/55"><?= htmlspecialchars($connection['description']) ?></p>
+                    <div class="mt-4 border-t border-ink/8 pt-3"><p class="text-[10px] font-bold uppercase tracking-wider text-ink/40">Status</p><p class="mt-1 break-words text-xs font-semibold text-accent-700"><?= htmlspecialchars($connection['status']) ?></p></div>
                 </div>
             <?php endforeach; ?>
         </div>
