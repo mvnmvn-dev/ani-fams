@@ -19,7 +19,8 @@ class VisitorRepository
         [$deptSql, $deptBindings] = DepartmentFilter::sqlOnColumn('e.department_id');
         $areasExpr = $this->areasConcatSql();
         $sql = "SELECT v.*, vt.full_name AS visitor_name, vt.company AS visitor_company,
-                       vt.id_number AS visitor_id_number, vt.is_watchlisted, vt.photo_path AS visitor_photo, e.full_name AS host_name,
+                       vt.id_number AS visitor_id_number, vt.visitor_type, vt.source_system, vt.source_ref,
+                       vt.is_watchlisted, vt.photo_path AS visitor_photo, e.full_name AS host_name,
                        (SELECT {$areasExpr}
                         FROM visit_area_access vaa
                         JOIN visit_areas va ON va.id = vaa.visit_area_id

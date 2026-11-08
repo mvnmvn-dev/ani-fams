@@ -44,4 +44,31 @@ Each response contains `resource`, `count`, and `data`. Permission checks are ap
 
 ## Integration notes
 
-IDs are stable database IDs. Datetimes are accepted as date-compatible strings and returned in the application/database format. All write endpoints enforce the existing RBAC permissions, validation, conflict checks, watchlist controls, and audit/notification behavior. The API does not accept placeholder/sample visitor names: visitor writes require a real system record or a full profile including a registered identification number.
+IDs are stable database IDs. Datetimes are accepted as date-compatible strings and returned in the application/database format. All write endpoints enforce validation, conflict checks, watchlist controls, and audit/notification behavior. The API does not accept placeholder/sample visitor names: visitor writes require a real system record or a full profile including a registered identification number.
+
+## Server-to-server authentication
+
+Inbound routes are outside the browser session group and require a scoped bearer token:
+
+```http
+Authorization: Bearer fams_<prefix>.<secret>
+```
+
+Create a client on the server with:
+
+```bash
+php artisan integration:client hr1 "HR1 Recruitment" employees:write visitors:write documents:write events:write --hmac
+```
+
+If HMAC is enabled, send `X-FAMS-Timestamp` as a Unix timestamp and `X-FAMS-Signature` as `HMAC-SHA256(timestamp + '.' + raw_request_body, signing_secret)`. Requests older than five minutes are rejected. Optional IP allowlists are configured with `--ip=203.0.113.10`.
+
+## HR inbound endpoints
+
+- `POST /inbound/hr1/employees` — upsert employee master records by `employee_no`.
+- `POST /inbound/hr1/interviews` — create or update an applicant visitor and interview visit by external IDs. Unknown host employee numbers are rejected.
+- `POST /inbound/hr{1-4}/documents` — multipart document ingest with checksum validation and retention-source rules.
+- `POST /inbound/hr1/events` — process `employee.separated` and recalculate retention starts for the employee's documents.
+- `POST /visitors/{id}/verify-id` — record an applicant's ID verification at the lobby.
+- `GET /visitors/{id}/history` — return the visitor profile, visit history, badges, areas, vehicles, NDA state, and summary counts.
+
+The HR document endpoint requires `external_id`, `doc_type`, `title`, and `file`. Payroll document types also require `period_end`. The migration seeds editable starter rules for HR1–HR4 document types; confirm the actual retention periods with the legal/compliance owner before production use.

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Jobs\SendVisitStatusCallback;
 use App\Repositories\VisitorRepository;
 use App\Support\AuditLogger;
 use App\Support\AutomationLogger;
@@ -203,6 +204,9 @@ class VisitorService
         if ($visitor && ! empty($visitor['is_watchlisted'])) {
             return ['success' => false, 'error' => 'Check-in blocked: visitor is on the security watchlist.'];
         }
+        if ($visitor && ($visitor['visitor_type'] ?? 'guest') === 'applicant' && trim((string) ($visitor['id_number'] ?? '')) === '') {
+            return ['success' => false, 'error' => "Verify the applicant's ID at the lobby before check-in."];
+        }
 
         $badgeCode = 'BADGE-' . strtoupper(bin2hex(random_bytes(3)));
         $checkedInAt = now()->format('Y-m-d H:i:s');
@@ -238,6 +242,7 @@ class VisitorService
             'badge_expires_at' => $expiresAt,
         ]);
         AutomationLogger::log('visitors', 'check_in', 'visit', $visitId, ['badge_code' => $badgeCode]);
+        SendVisitStatusCallback::dispatch($visitId, 'arrived', $checkedInAt, null);
 
         return [
             'success' => true,
@@ -427,6 +432,7 @@ class VisitorService
         $checkedOutAt = now()->format('Y-m-d H:i:s');
         $this->repo->updateVisitStatus($visitId, 'checked_out', null, $checkedOutAt);
         AuditLogger::log('visitors', 'check_out', 'visit', $visitId, ['status' => $visit['status']], ['status' => 'checked_out']);
+        SendVisitStatusCallback::dispatch($visitId, 'checked_out', $visit['check_in_time'] ?? null, $checkedOutAt);
 
         return [
             'success' => true,

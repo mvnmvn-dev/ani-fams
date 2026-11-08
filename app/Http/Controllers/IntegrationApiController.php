@@ -6,7 +6,6 @@ use App\Services\ReservationService;
 use App\Services\VisitorService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
 class IntegrationApiController extends Controller
@@ -46,6 +45,56 @@ class IntegrationApiController extends Controller
             return response()->json(['message' => 'Visitor profile not found.'], 404);
         }
         return response()->json(['data' => $visitor]);
+    }
+
+    public function visitorHistory(string $id): JsonResponse
+    {
+        $visitorId = (int) $id;
+        $visitor = DB::table('visitors')->where('id', $visitorId)->whereNull('deleted_at')->first();
+        if (! $visitor) {
+            return response()->json(['message' => 'Visitor profile not found.'], 404);
+        }
+
+        $visits = DB::table('visits as v')
+            ->join('employees as e', 'e.id', '=', 'v.host_employee_id')
+            ->leftJoin('visitor_badges as b', 'b.visit_id', '=', 'v.id')
+            ->where('v.visitor_id', $visitorId)
+            ->whereNull('v.deleted_at')
+            ->orderByDesc('v.scheduled_at')
+            ->get([
+                'v.id', 'v.visit_category', 'v.source_system', 'v.source_ref', 'v.purpose',
+                'v.building_name', 'v.floor_designation', 'v.scheduled_at', 'v.check_in_time',
+                'v.check_out_time', 'v.status', 'v.nda_required', 'v.nda_signed',
+                'e.id as host_employee_id', 'e.full_name as host_name',
+                'b.badge_code', 'b.issued_at as badge_issued_at', 'b.expires_at as badge_expires_at',
+            ]);
+
+        $visitIds = $visits->pluck('id')->all();
+        $areas = $visitIds === [] ? collect() : DB::table('visit_area_access as vaa')
+            ->join('visit_areas as va', 'va.id', '=', 'vaa.visit_area_id')
+            ->whereIn('vaa.visit_id', $visitIds)
+            ->get(['vaa.visit_id', 'va.id', 'va.name']);
+        $vehicles = DB::table('visitor_vehicles')
+            ->where('visitor_id', $visitorId)
+            ->orderByDesc('created_at')
+            ->get(['id', 'visit_id', 'plate_number', 'vehicle_make', 'vehicle_model', 'vehicle_color', 'created_at']);
+
+        $total = $visits->count();
+        $firstVisit = $visits->first();
+        $lastVisit = $visits->last();
+        return response()->json([
+            'visitor' => $visitor,
+            'summary' => [
+                'total_visits' => $total,
+                'first_visit' => $lastVisit?->scheduled_at,
+                'last_visit' => $firstVisit?->scheduled_at,
+                'no_shows' => $visits->where('status', 'no_show')->count(),
+                'last_host' => $firstVisit?->host_name,
+            ],
+            'visits' => $visits,
+            'areas' => $areas,
+            'vehicles' => $vehicles,
+        ]);
     }
 
     public function storeVisitor(Request $request): JsonResponse
@@ -145,14 +194,16 @@ class IntegrationApiController extends Controller
     {
         $feeds = [
             'users' => ['table' => 'users', 'permission' => 'users.manage', 'columns' => ['id', 'department_id', 'full_name', 'email', 'role_id', 'status', 'photo_path', 'created_at', 'updated_at']],
-            'employees' => ['table' => 'employees', 'permission' => 'visitor.view', 'columns' => ['id', 'user_id', 'department_id', 'full_name', 'position', 'email', 'phone']],
+            'employees' => ['table' => 'employees', 'permission' => 'visitor.view', 'columns' => ['id', 'user_id', 'department_id', 'full_name', 'position', 'email', 'phone', 'source_system', 'employee_no']],
+            'visitors' => ['table' => 'visitors', 'permission' => 'visitor.view', 'columns' => ['id', 'full_name', 'id_number', 'company', 'email', 'phone', 'visitor_type', 'source_system', 'source_ref', 'id_verified_at', 'created_at']],
+            'visits' => ['table' => 'visits', 'permission' => 'visitor.view', 'columns' => ['id', 'visitor_id', 'host_employee_id', 'purpose', 'building_name', 'floor_designation', 'visit_category', 'source_system', 'source_ref', 'scheduled_at', 'check_in_time', 'check_out_time', 'status']],
             'equipment' => ['table' => 'equipment_items', 'permission' => 'reservation.view', 'columns' => ['id', 'name', 'category', 'quantity_available', 'status', 'notes', 'created_at']],
             'visit-areas' => ['table' => 'visit_areas', 'permission' => 'visitor.view', 'columns' => ['id', 'name']],
             'vehicles' => ['table' => 'visitor_vehicles', 'permission' => 'visitor.view', 'columns' => ['id', 'visitor_id', 'visit_id', 'plate_number', 'vehicle_make', 'vehicle_model', 'vehicle_color', 'notes', 'created_at']],
             'badges' => ['table' => 'visitor_badges', 'permission' => 'visitor.view', 'columns' => ['id', 'visit_id', 'visitor_id', 'badge_code', 'visitor_name', 'id_number', 'company', 'host_name', 'purpose', 'building_name', 'floor_designation', 'issued_at', 'expires_at', 'status', 'created_at']],
             'reservation-equipment' => ['table' => 'reservation_equipment', 'permission' => 'reservation.view', 'columns' => ['reservation_id', 'equipment_id', 'quantity']],
             'reservation-waitlist' => ['table' => 'reservation_waitlist', 'permission' => 'reservation.view', 'columns' => ['id', 'facility_id', 'requested_by', 'purpose', 'preferred_start_datetime', 'preferred_end_datetime', 'status', 'offered_reservation_id', 'notes', 'created_at', 'updated_at']],
-            'documents' => ['table' => 'documents', 'permission' => 'document.view', 'columns' => ['id', 'document_number', 'title', 'description', 'category_id', 'owner_id', 'confidentiality', 'status', 'current_version_id', 'created_at', 'deleted_at']],
+            'documents' => ['table' => 'documents', 'permission' => 'document.view', 'columns' => ['id', 'document_number', 'title', 'description', 'category_id', 'owner_id', 'confidentiality', 'status', 'current_version_id', 'source_system', 'source_ref', 'source_doc_type', 'employee_no', 'period_start', 'period_end', 'created_at', 'deleted_at']],
             'document-versions' => ['table' => 'document_versions', 'permission' => 'document.view', 'columns' => ['id', 'document_id', 'version_no', 'file_path', 'checksum', 'ocr_processed', 'uploaded_by', 'uploaded_at', 'change_notes']],
             'document-categories' => ['table' => 'document_categories', 'permission' => 'document.view', 'columns' => ['id', 'name', 'parent_id']],
             'contracts' => ['table' => 'contracts', 'permission' => 'contract.view', 'columns' => ['id', 'contract_number', 'title', 'contract_type_id', 'counterparty_name', 'counterparty_contact', 'status', 'start_date', 'end_date', 'owner_id', 'created_at', 'deleted_at']],
@@ -170,10 +221,6 @@ class IntegrationApiController extends Controller
         if (! $feed) {
             return response()->json(['message' => 'Unsupported integration resource.'], 404);
         }
-        if (! Auth::user()?->canPermission($feed['permission'])) {
-            return response()->json(['message' => 'You do not have permission to read this integration resource.'], 403);
-        }
-
         $query = DB::table($feed['table'])->select($feed['columns']);
         if ($request->filled('id') && in_array('id', $feed['columns'], true)) {
             $query->where('id', (int) $request->query('id'));

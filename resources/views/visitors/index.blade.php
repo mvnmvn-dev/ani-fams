@@ -220,6 +220,18 @@ $__visitorWidgetCards = [
                     'yes' => 'On watchlist',
                     'no' => 'Not watchlisted',
                 ]],
+                ['name' => 'type', 'label' => 'Visitor type', 'allLabel' => 'All types', 'options' => [
+                    'guest' => 'Guest',
+                    'applicant' => 'Applicant',
+                    'vendor' => 'Vendor',
+                    'contractor' => 'Contractor',
+                    'delivery' => 'Delivery',
+                ]],
+                ['name' => 'source', 'label' => 'Source', 'allLabel' => 'All sources', 'options' => [
+                    'manual' => 'Manual / walk-in',
+                    'hr1' => 'HR1',
+                    'scm' => 'SCM',
+                ]],
             ]])
         <?php endif; ?>
 
@@ -251,6 +263,8 @@ $__visitorWidgetCards = [
                                     data-visitor-id="<?= (int) $visit['visitor_id'] ?>"
                                     data-filter-status="<?= htmlspecialchars($visit['status']) ?>"
                                     data-filter-watch="<?= $visit['is_watchlisted'] ? 'yes' : 'no' ?>"
+                                    data-filter-type="<?= htmlspecialchars($visit['visitor_type'] ?? 'guest') ?>"
+                                    data-filter-source="<?= htmlspecialchars($visit['source_system'] ?? 'manual') ?>"
                                     data-filter-search="<?= htmlspecialchars(strtolower($visit['visitor_name'] . ' ' . $visit['host_name'] . ' ' . ($visit['visitor_company'] ?? '') . ' ' . ($visit['purpose'] ?? '') . ' ' . ($visit['allowed_areas'] ?? ''))) ?>">
                                     <td>
                                         <div class="font-semibold flex flex-wrap items-center gap-1.5">
@@ -258,6 +272,7 @@ $__visitorWidgetCards = [
                                             <span data-watch-badge class="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-accent-100 text-accent-700 uppercase tracking-wide border border-accent-200" <?= $visit['is_watchlisted'] ? '' : 'hidden' ?>>Watch</span>
                                         </div>
                                         <div class="text-[11px] text-ink/45 mt-0.5"><?= htmlspecialchars($visit['visitor_company'] ?: 'Individual') ?><?= !empty($visit['visitor_id_number']) ? ' · ID: '.htmlspecialchars($visit['visitor_id_number']) : '' ?></div>
+                                        <div class="text-[10px] uppercase tracking-wide text-brand-700/70 mt-1"><?= htmlspecialchars($visit['visitor_type'] ?? 'guest') ?> · <?= htmlspecialchars($visit['source_system'] ?? 'manual') ?></div>
                                     </td>
                                     <td class="font-medium text-ink/75"><?= htmlspecialchars($visit['host_name']) ?></td>
                                     <td class="text-ink/70 max-w-[14rem] truncate"><?= htmlspecialchars($visit['purpose'] ?: '—') ?></td>

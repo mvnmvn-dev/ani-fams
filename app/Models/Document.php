@@ -38,6 +38,12 @@ class Document extends Model
         'ai_metadata',
         'ai_confidence',
         'ai_processed_at',
+        'source_system',
+        'source_ref',
+        'source_doc_type',
+        'employee_no',
+        'period_start',
+        'period_end',
     ];
 
     public function category(): BelongsTo

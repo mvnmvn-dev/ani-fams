@@ -121,12 +121,14 @@ class VisitorController extends Controller
     public function exportCsv(VisitorService $service)
     {
         $visits = $service->listVisits();
-        $headers = ['ID', 'Visitor Name', 'Company', 'Host Name', 'Purpose', 'Scheduled At', 'Check In Time', 'Check Out Time', 'Status', 'Allowed Areas', 'Watchlisted'];
+        $headers = ['ID', 'Visitor Name', 'Type', 'Source', 'Company', 'Host Name', 'Purpose', 'Scheduled At', 'Check In Time', 'Check Out Time', 'Status', 'Allowed Areas', 'Watchlisted'];
         $rows = [];
         foreach ($visits as $row) {
             $rows[] = [
                 $row['id'] ?? '',
                 $row['visitor_name'] ?? '',
+                $row['visitor_type'] ?? 'guest',
+                $row['source_system'] ?? 'manual',
                 $row['visitor_company'] ?? '',
                 $row['host_name'] ?? '',
                 $row['purpose'] ?? '',
@@ -145,12 +147,14 @@ class VisitorController extends Controller
     public function exportPdf(VisitorService $service)
     {
         $visits = $service->listVisits();
-        $headers = ['ID', 'Visitor', 'Host', 'Purpose', 'Scheduled', 'Status', 'Watchlisted'];
+        $headers = ['ID', 'Visitor', 'Type', 'Source', 'Host', 'Purpose', 'Scheduled', 'Status', 'Watchlisted'];
         $rows = [];
         foreach ($visits as $row) {
             $rows[] = [
                 $row['id'] ?? '',
                 $row['visitor_name'] ?? '',
+                $row['visitor_type'] ?? 'guest',
+                $row['source_system'] ?? 'manual',
                 $row['host_name'] ?? '',
                 $row['purpose'] ?? '',
                 $row['scheduled_at'] ?? '',

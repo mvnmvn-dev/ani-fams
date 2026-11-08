@@ -30,6 +30,9 @@ class Visit extends Model
         'nda_signature_path',
         'nda_signed_at',
         'nda_ip_address',
+        'visit_category',
+        'source_system',
+        'source_ref',
     ];
 
     protected $casts = [

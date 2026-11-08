@@ -122,6 +122,42 @@ C:\xampp\php\php.exe artisan tinker --execute="echo DB::connection()->getDriverN
 
 Expected output: `pgsql`
 
+## Integration API
+
+The integration API is installed at `/api/integration/v1`. Browser-session routes remain available for the existing app API, while server-to-server routes are protected by scoped bearer tokens and optional HMAC signatures. It provides department, facility, visitor, visit, reservation, visitor-history, HR employee, HR document, and employee-separation endpoints plus allowlisted read feeds.
+
+Run the additive integration migration after deploying:
+
+```bash
+php artisan migrate --force
+```
+
+The integration files are:
+
+```text
+app/Http/Controllers/IntegrationApiController.php
+app/Http/Controllers/IntegrationInboundController.php
+app/Http/Middleware/AuthenticateIntegrationClient.php
+app/Models/IntegrationClient.php
+app/Jobs/SendVisitStatusCallback.php
+app/Console/Commands/CreateIntegrationClient.php
+config/integration.php
+routes/integration.php
+routes/web.php
+bootstrap/app.php
+database/migrations/2026_11_07_000001_group8_integration_fields.php
+database/migrations/2026_11_09_000001_integration_foundation.php
+docs/group8-integration-api.md
+```
+
+Provision a client after migration. The token is printed once and must be stored in the source system's secret manager:
+
+```bash
+php artisan integration:client hr1 "HR1 Recruitment" employees:write visitors:write documents:write events:write --hmac
+```
+
+Do not give external systems direct database access. Configure callback URLs and optional pull-system credentials through `.env` using the `INTEGRATION_*` variables in `config/integration.php`.
+
 ## Demo accounts
 
 Password for all: **Password123!**

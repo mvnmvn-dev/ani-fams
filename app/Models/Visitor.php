@@ -26,12 +26,18 @@ class Visitor extends Model
         'watchlist_expiry_date',
         'watchlist_added_by',
         'watchlist_added_at',
+        'visitor_type',
+        'source_system',
+        'source_ref',
+        'id_verified_at',
+        'id_verified_by',
     ];
 
     protected $casts = [
         'is_watchlisted' => 'boolean',
         'watchlist_expiry_date' => 'date',
         'watchlist_added_at' => 'datetime',
+        'id_verified_at' => 'datetime',
     ];
 
     public function vehicles(): HasMany
