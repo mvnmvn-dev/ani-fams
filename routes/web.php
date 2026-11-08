@@ -6,6 +6,7 @@ use App\Http\Controllers\Auth\PasswordResetController;
 use App\Http\Controllers\ContractController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DocumentController;
+use App\Http\Controllers\IntegrationPreviewController;
 use App\Http\Controllers\LegalCaseController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ProfileController;
@@ -52,6 +53,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/profile/2fa/disable', [TwoFactorController::class, 'disable'])->name('2fa.disable');
 
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+    Route::middleware('permission:visitor.view')->get('/integrations/preview', [IntegrationPreviewController::class, 'index'])->name('integrations.preview');
 
     // ARNEL AI service layer: all writes are validated and permission-gated in the controller.
     Route::prefix('api/arnel')->middleware('throttle:30,1')->name('api.arnel.')->group(function () {

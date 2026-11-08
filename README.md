@@ -158,6 +158,10 @@ php artisan integration:client hr1 "HR1 Recruitment" employees:write visitors:wr
 
 Do not give external systems direct database access. Configure callback URLs and optional pull-system credentials through `.env` using the `INTEGRATION_*` variables in `config/integration.php`.
 
+### Integration Preview
+
+Users with `visitor.view` can open `/integrations/preview` from the sidebar. This is a read-only visualization of the HR1–HR4 data containers, sample payloads, target modules, and callback events. The placeholders are not inserted into `visitors`, `documents`, or `retention_assignments`.
+
 ## Demo accounts
 
 Password for all: **Password123!**
