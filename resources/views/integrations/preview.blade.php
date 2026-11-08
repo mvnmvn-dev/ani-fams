@@ -15,7 +15,7 @@
             <div>
                 <p class="text-xs font-bold uppercase tracking-[0.16em] text-accent-700">Safe visualization layer</p>
                 <h2 class="mt-1 text-lg font-bold text-ink">These are placeholders, not live records</h2>
-                <p class="mt-1 max-w-3xl text-sm text-ink/65">The sample payloads below show the containers FAMS will use when the other systems connect. They are deliberately kept out of Visitors, Documents, and Records so demo data cannot be mistaken for real operational data.</p>
+                <p class="mt-1 max-w-3xl text-sm text-ink/65">The examples below are design placeholders only. They are not real records and are never written to Visitors, Documents, Records, Contracts, Legal, or Finance modules.</p>
             </div>
             <span class="shrink-0 rounded-lg border border-accent-200 bg-white px-3 py-2 text-xs font-semibold text-accent-700">No database writes</span>
         </div>
@@ -24,7 +24,7 @@
     <section>
         <div class="mb-4 flex items-end justify-between gap-4">
             <div><h2 class="section-title">Connection containers</h2><p class="type-meta mt-1">Each card identifies a planned integration partner and distinguishes implemented FAMS endpoints from connections still awaiting a contract.</p></div>
-            <span class="hidden text-xs font-semibold text-ink/45 sm:block">{{ count($connections) }} systems and cross-system links mapped</span>
+            <span class="hidden text-xs font-semibold text-ink/45 sm:block">{{ count($connections) }} integrations · {{ count($inboxes) }} payload examples · {{ count($eventRows) }} events</span>
         </div>
         <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <?php foreach ($connections as $connection): ?>
@@ -42,7 +42,7 @@
     </section>
 
     <section>
-        <div class="mb-4"><h2 class="section-title">Incoming data containers</h2><p class="type-meta mt-1">These cards show the shape of the records FAMS will receive and where each payload goes.</p></div>
+        <div class="mb-4"><h2 class="section-title">Payload and data-flow placeholders</h2><p class="type-meta mt-1">Illustrative payloads for inbound, outbound, and read-only flows. Proposed entries are not live APIs; contracts and authorization must be agreed with each owning group.</p></div>
         <div class="grid gap-5 xl:grid-cols-3">
             <?php foreach ($inboxes as $inbox): ?>
                 <article class="overflow-hidden rounded-2xl border border-ink/10 bg-white shadow-[0_4px_18px_rgba(20,46,76,0.05)]">
@@ -59,7 +59,7 @@
                             <?php endforeach; ?>
                         </div>
                         <details class="rounded-lg border border-ink/8 bg-gray-50/60 p-3"><summary class="cursor-pointer text-xs font-bold text-ink/70">View sample payload</summary><pre class="mt-3 overflow-x-auto whitespace-pre-wrap text-[10px] leading-5 text-ink/65"><?= htmlspecialchars($inbox['json']) ?></pre></details>
-                        <div class="flex items-center gap-2 text-[11px] font-semibold text-accent-700"><span class="h-2 w-2 rounded-full bg-accent-500"></span>Waiting for external system connection</div>
+                        <div class="flex items-center gap-2 text-[11px] font-semibold text-accent-700"><span class="h-2 w-2 rounded-full bg-accent-500"></span><?php if (str_starts_with($inbox['endpoint'], 'Proposed:')): ?>Proposed example · not implemented<?php else: ?>FAMS endpoint available · external connection/configuration pending<?php endif; ?></div>
                     </div>
                 </article>
             <?php endforeach; ?>
@@ -67,7 +67,7 @@
     </section>
 
     <section class="rounded-2xl border border-ink/10 bg-white p-5 shadow-[0_4px_18px_rgba(20,46,76,0.05)] sm:p-6">
-        <div class="mb-4"><h2 class="section-title">Event and callback containers</h2><p class="type-meta mt-1">Outbound and inbound events that will appear in the integration log after connection.</p></div>
+        <div class="mb-4"><h2 class="section-title">Event and callback map</h2><p class="type-meta mt-1">Implemented, configurable, and proposed events across all listed systems. Planned rows require an agreed contract before development or connection.</p></div>
         <div class="overflow-x-auto"><table class="module-table min-w-[640px]"><thead><tr><th>Source</th><th>Event</th><th>Target</th><th>Current state</th></tr></thead><tbody>
             <?php foreach ($eventRows as $row): ?><tr><td><span class="rounded-md bg-brand-50 px-2 py-1 text-[10px] font-bold text-brand-700"><?= htmlspecialchars($row['source']) ?></span></td><td class="font-semibold text-ink"><?= htmlspecialchars($row['event']) ?></td><td class="text-ink/60"><?= htmlspecialchars($row['target']) ?></td><td><span class="text-xs font-semibold text-accent-700"><?= htmlspecialchars($row['state']) ?></span></td></tr><?php endforeach; ?>
         </tbody></table></div>
