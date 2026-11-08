@@ -57,5 +57,7 @@ echo "Disabling admin authenticator 2FA (email OTP fallback)..."
 php artisan migrate --force --path=database/migrations/2026_10_03_000002_disable_admin_two_factor.php || {
   echo "Warning: Admin 2FA disable migration did not complete."
 }
-
+   echo "Applying integration schema..."
+   php artisan migrate --force --path=database/migrations/2026_11_07_000001_group8_integration_fields.php || echo "Warning: group8 fields migration failed."
+   php artisan migrate --force --path=database/migrations/2026_11_09_000001_integration_foundation.php || echo "Warning: integration foundation migration failed."
 exit 0
