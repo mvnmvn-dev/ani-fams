@@ -5,7 +5,7 @@
     <?php
     render_page_header([
         'title' => 'Integration Preview',
-        'subtitle' => 'Visual containers for data that will arrive from HR1–HR4 and other connected systems.',
+        'subtitle' => 'Integration coverage across HR1–HR4 and the planned SCM, Fleet, Finance, commerce, legal, and analytics systems.',
         'badge' => '<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-accent-50 text-accent-700 text-[11px] font-semibold border border-accent-200"><span class="w-1.5 h-1.5 rounded-full bg-accent-500"></span>Preview mode</span>',
     ]);
     ?>
@@ -23,15 +23,15 @@
 
     <section>
         <div class="mb-4 flex items-end justify-between gap-4">
-            <div><h2 class="section-title">Connection containers</h2><p class="type-meta mt-1">Each card represents one external system that can push or be pulled later.</p></div>
-            <span class="hidden text-xs font-semibold text-ink/45 sm:block">{{ count($connections) }} planned connections</span>
+            <div><h2 class="section-title">Connection containers</h2><p class="type-meta mt-1">Each card identifies a planned integration partner and distinguishes implemented FAMS endpoints from connections still awaiting a contract.</p></div>
+            <span class="hidden text-xs font-semibold text-ink/45 sm:block">{{ count($connections) }} systems and cross-system links mapped</span>
         </div>
         <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <?php foreach ($connections as $connection): ?>
                 <div class="rounded-2xl border border-ink/10 bg-white p-5 shadow-[0_4px_18px_rgba(20,46,76,0.05)]">
                     <div class="flex items-start justify-between gap-3">
                         <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-50 text-sm font-bold text-brand-700"><?= htmlspecialchars($connection['code']) ?></div>
-                        <span class="rounded-full border border-ink/10 bg-ink/5 px-2 py-1 text-[10px] font-bold text-ink/55">Not connected</span>
+                        <span class="rounded-full border border-ink/10 bg-ink/5 px-2 py-1 text-[10px] font-bold text-ink/55">Integration scope</span>
                     </div>
                     <h3 class="mt-4 text-sm font-bold text-ink"><?= htmlspecialchars($connection['name']) ?></h3>
                     <p class="mt-1 text-xs leading-5 text-ink/55"><?= htmlspecialchars($connection['description']) ?></p>

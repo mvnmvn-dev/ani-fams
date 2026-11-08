@@ -11,10 +11,19 @@ class IntegrationPreviewController extends Controller
         return view('integrations.preview', [
             'pageTitle' => 'Integration Preview',
             'connections' => [
-                ['code' => 'HR1', 'name' => 'Recruitment & Core HR', 'status' => 'Awaiting connection', 'tone' => 'blue', 'description' => 'Applicants, interview schedules, hosts, employee master records'],
-                ['code' => 'HR2', 'name' => 'Workforce Management', 'status' => 'Awaiting connection', 'tone' => 'slate', 'description' => 'Attendance, leave, shifts, and workforce records'],
-                ['code' => 'HR3', 'name' => 'Performance & Development', 'status' => 'Awaiting connection', 'tone' => 'purple', 'description' => 'Appraisals, training certificates, and succession records'],
-                ['code' => 'HR4', 'name' => 'Payroll & Benefits', 'status' => 'Awaiting connection', 'tone' => 'peach', 'description' => 'Payroll registers, payslips, remittances, and benefits records'],
+                ['code' => 'HR1', 'name' => 'Recruitment & Core HR', 'status' => 'Inbound endpoints implemented; external connection pending', 'tone' => 'blue', 'description' => 'Applicants, interview schedules, hosts, employee master records, and HR1 documents.'],
+                ['code' => 'HR2', 'name' => 'Workforce Management', 'status' => 'Document ingest implemented; external connection pending', 'tone' => 'slate', 'description' => 'Attendance, leave, shifts, workforce records, and separation events.'],
+                ['code' => 'HR3', 'name' => 'Performance & Development', 'status' => 'Document ingest implemented; external connection pending', 'tone' => 'purple', 'description' => 'Appraisals, training certificates, succession records, and employee documents.'],
+                ['code' => 'HR4', 'name' => 'Payroll & Benefits', 'status' => 'Document ingest implemented; external connection pending', 'tone' => 'peach', 'description' => 'Payroll registers, payslips, remittances, benefits records, and restricted records retention.'],
+                ['code' => 'SCM', 'name' => 'Supplier & Vendor Management', 'status' => 'Planned — P2', 'tone' => 'blue', 'description' => 'Vendor representatives and contacts as visitor profiles; supplier contracts and procurement references.'],
+                ['code' => 'FVM / VRDS', 'name' => 'Fleet & Vehicle Systems', 'status' => 'Planned — P2', 'tone' => 'slate', 'description' => 'Visitor vehicle and plate details, parking allocation, fleet bays, and reservation availability.'],
+                ['code' => 'SWS', 'name' => 'Smart Warehousing', 'status' => 'Planned — P2', 'tone' => 'purple', 'description' => 'Shared staging areas and warehouse resources for facilities reservation conflict checks.'],
+                ['code' => 'FIN', 'name' => 'Finance — AP, Budget & GL', 'status' => 'Planned — P2', 'tone' => 'peach', 'description' => 'Contract obligations, legal case costs, reservation costs, tax and financial records.'],
+                ['code' => '#10', 'name' => 'Subscription & Commission Management', 'status' => 'Planned — P2', 'tone' => 'blue', 'description' => 'Merchant and commission agreements routed to Contract Management.'],
+                ['code' => '#9', 'name' => 'Returns, Refunds & Orders', 'status' => 'Planned — P3', 'tone' => 'slate', 'description' => 'Transaction records for retention and disputes escalated to Legal Management.'],
+                ['code' => '#10 CS', 'name' => 'Customer Support', 'status' => 'Planned — P3', 'tone' => 'purple', 'description' => 'Customer disputes and support cases escalated to Legal Management.'],
+                ['code' => 'DTRS', 'name' => 'Document Tracking & Records System', 'status' => 'Planned — P3', 'tone' => 'peach', 'description' => 'Document tracking references shared with Document Management.'],
+                ['code' => 'ANALYTICS', 'name' => 'HR Analytics & Admin Dashboard', 'status' => 'Read feed available; consumer connection pending', 'tone' => 'blue', 'description' => 'Read-only FAMS data feeds for authorized HR analytics and administration clients.'],
             ],
             'inboxes' => [
                 [
