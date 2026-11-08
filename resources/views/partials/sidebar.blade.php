@@ -49,7 +49,7 @@ $navItems = [
                 <?php if (can_perm('visitor.view')): ?>
                     <a href="<?= url('/integrations/preview') ?>"
                        data-nav-link
-                       title="Integration Preview"
+                       title="Integrations"
                        class="sidebar-link <?= $currentPath === '/integrations/preview' || str_starts_with($currentPath, '/integrations/preview/') ? 'is-active' : '' ?>">
                         <span class="sidebar-link-icon">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
