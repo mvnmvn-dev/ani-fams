@@ -59,7 +59,7 @@
                             <?php endforeach; ?>
                         </div>
                         <details class="rounded-lg border border-ink/8 bg-gray-50/60 p-3"><summary class="cursor-pointer text-xs font-bold text-ink/70">View sample payload</summary><pre class="mt-3 overflow-x-auto whitespace-pre-wrap text-[10px] leading-5 text-ink/65"><?= htmlspecialchars($inbox['json']) ?></pre></details>
-                        <div class="flex items-center gap-2 text-[11px] font-semibold text-accent-700"><span class="h-2 w-2 rounded-full bg-accent-500"></span><?php if (str_starts_with($inbox['endpoint'], 'Proposed:')): ?>Proposed example · not implemented<?php else: ?>FAMS endpoint available · external connection/configuration pending<?php endif; ?></div>
+                        <div class="flex items-center gap-2 text-[11px] font-semibold text-accent-700"><span class="h-2 w-2 rounded-full bg-accent-500"></span><?php if (str_starts_with($inbox['endpoint'], 'Proposed:')): ?>Draft contract · confirm with source system<?php else: ?>FAMS endpoint available · external connection/configuration pending<?php endif; ?></div>
                     </div>
                 </article>
             <?php endforeach; ?>

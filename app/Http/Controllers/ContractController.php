@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Concerns\ExportsData;
 use App\Http\Controllers\Concerns\RespondsWithFlashOrJson;
 use App\Services\ContractService;
+use App\Jobs\SendFinanceEvent;
 use App\Services\ArnelAiService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -209,6 +210,18 @@ class ContractController extends Controller
         $data = $request->all();
         $data['contract_id'] = (int) $id;
         $result = $service->addObligation($data);
+        if (($result['success'] ?? false) && ! empty($result['id'])) {
+            $obligation = DB::table('contract_obligations as o')->join('contracts as c', 'c.id', '=', 'o.contract_id')
+                ->where('o.id', (int) $result['id'])->first(['o.id', 'o.title', 'o.description', 'o.due_date', 'c.contract_number', 'c.currency']);
+            if ($obligation) {
+                SendFinanceEvent::dispatch('contract.obligation_created', [
+                    'event_id' => 'contract-obligation-' . $obligation->id, 'obligation_id' => (int) $obligation->id,
+                    'contract_number' => $obligation->contract_number, 'title' => $obligation->title,
+                    'description' => $obligation->description, 'due_date' => $obligation->due_date,
+                    'currency' => $obligation->currency,
+                ]);
+            }
+        }
 
         return redirect()->route('contracts.index', ['open' => $id])->with(
             $result['success'] ? 'flash_success' : 'flash_error',

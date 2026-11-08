@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Concerns\ExportsData;
 use App\Http\Controllers\Concerns\RespondsWithFlashOrJson;
 use App\Services\ReservationService;
+use App\Jobs\SendFinanceEvent;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 

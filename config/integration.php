@@ -21,5 +21,9 @@ return [
             'base_url' => env('INTEGRATION_HR4_BASE_URL'),
             'token' => env('INTEGRATION_HR4_TOKEN'),
         ],
+        'fin' => [
+            'callback_url' => env('INTEGRATION_FIN_CALLBACK_URL'),
+            'token' => env('INTEGRATION_FIN_TOKEN'),
+        ],
     ],
 ];

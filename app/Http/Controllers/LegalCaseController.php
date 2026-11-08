@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Concerns\ExportsData;
 use App\Http\Controllers\Concerns\RespondsWithFlashOrJson;
 use App\Services\LegalCaseService;
+use App\Jobs\SendFinanceEvent;
 use App\Services\ArnelAiService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -165,6 +166,14 @@ class LegalCaseController extends Controller
         $data = $request->all();
         $data['case_id'] = (int) $id;
         $result = $service->addCost($data);
+        if (($result['success'] ?? false)) {
+            SendFinanceEvent::dispatch('legal.case_cost_added', [
+                'event_id' => 'legal-cost-' . $id . '-' . \Illuminate\Support\Str::uuid(),
+                'case_id' => (int) $id, 'description' => $data['description'] ?? '',
+                'amount' => (float) ($data['amount'] ?? 0), 'currency' => $data['currency'] ?? 'PHP',
+                'incurred_date' => $data['incurred_date'] ?? now()->toDateString(),
+            ]);
+        }
         return redirect()->route('legal.index', ['open' => $id])->with(
             $result['success'] ? 'flash_success' : 'flash_error',
             $result['success'] ? 'Expense logged successfully.' : $result['error']
