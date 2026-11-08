@@ -11,7 +11,6 @@ $navItems = [
     ['Visitors',     '/visitors',    'M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-4.13a4 4 0 11-8 0 4 4 0 018 0zm6 4a4 4 0 10-8 0', 'visitor.view'],
     ['Documents',    '/documents',   'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z', 'document.view'],
     ['Records',      '/retention',   'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z', 'retention.view'],
-    ['Integrations', '/integrations/preview', 'M13 10V3L4 14h7v7l9-11h-7z', 'visitor.view'],
     ['Legal Cases',  '/legal',       'M12 3v1m0 16v1m8.66-13.66l-.71.71M4.05 19.95l-.71.71M21 12h-1M4 12H3m16.66 4.66l-.71-.71M4.05 4.05l-.71-.71', 'legal.view'],
     ['Contracts',    '/contracts',   'M9 17v-2a4 4 0 014-4h4m0 0l-3-3m3 3l-3 3M7 7h.01M7 3h5a2 2 0 012 2v14a2 2 0 01-2 2H7a2 2 0 01-2-2V5a2 2 0 012-2z', 'contract.view'],
 ];
@@ -44,9 +43,23 @@ $navItems = [
             <?php endif; ?>
         <?php endforeach; ?>
 
-        <?php if (can_perm('users.manage') || can_perm('audit.view')): ?>
+        <?php if (can_perm('users.manage') || can_perm('audit.view') || can_perm('visitor.view')): ?>
             <div class="sidebar-section pt-3 mt-3">
                 <p class="sidebar-section-label px-3 pb-1.5 text-[10px] uppercase tracking-[0.14em] text-sand/35 font-semibold">Administration</p>
+                <?php if (can_perm('visitor.view')): ?>
+                    <a href="<?= url('/integrations/preview') ?>"
+                       data-nav-link
+                       title="Integration Preview"
+                       class="sidebar-link <?= $currentPath === '/integrations/preview' || str_starts_with($currentPath, '/integrations/preview/') ? 'is-active' : '' ?>">
+                        <span class="sidebar-link-icon">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                            </svg>
+                        </span>
+                        <span class="sidebar-link-label">Integration Preview</span>
+                        <?php if ($currentPath === '/integrations/preview' || str_starts_with($currentPath, '/integrations/preview/')): ?><span class="sidebar-active-dot" aria-hidden="true"></span><?php endif; ?>
+                    </a>
+                <?php endif; ?>
                 <?php if (can_perm('users.manage')): ?>
                     <a href="<?= url('/users') ?>"
                        data-nav-link
