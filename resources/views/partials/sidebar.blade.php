@@ -49,14 +49,14 @@ $navItems = [
                 <?php if (can_perm('visitor.view')): ?>
                     <a href="<?= url('/integrations/preview') ?>"
                        data-nav-link
-                       title="Integrations"
+                       title="Integration"
                        class="sidebar-link <?= $currentPath === '/integrations/preview' || str_starts_with($currentPath, '/integrations/preview/') ? 'is-active' : '' ?>">
                         <span class="sidebar-link-icon">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
                             </svg>
                         </span>
-                        <span class="sidebar-link-label">Integration Preview</span>
+                        <span class="sidebar-link-label">Integration</span>
                         <?php if ($currentPath === '/integrations/preview' || str_starts_with($currentPath, '/integrations/preview/')): ?><span class="sidebar-active-dot" aria-hidden="true"></span><?php endif; ?>
                     </a>
                 <?php endif; ?>
